@@ -11,6 +11,7 @@ export default function MensajeUsuario({
     <div
       className="my-3 flex w-full justify-end pl-10"
       aria-label="Mensaje del usuario"
+      data-mensaje-usuario
     >
       <div className="rounded-usuario max-w-[85%] border-r-4 border-on-secondary-fixed  bg-secondary px-5 py-3  text-on-secondary  " >
         {/* <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-secondary-fixed-dim">
