@@ -6,6 +6,7 @@ import MensajeUsuario from "@components/MensajeUsuario";
 import ContinuarConsulta from "@components/formularios/ContinuarConsulta";
 import OpcionesPrincipales from "@components/formularios/OpcionesPrincipales";
 import { opcionesPrincipales } from "@tipos/Opciones";
+import BannerRedesSociales from "./BannerRedesSociales";
 
 interface Propiedades {
   alResponderContinuacion: (quiereContinuar: boolean) => void;
@@ -46,7 +47,12 @@ export default function Consulta({ alResponderContinuacion }: Propiedades) {
         </MensajeIA>
       )}
 
-      {flujoCompletado && <ContinuarConsulta alResponder={alResponderContinuacion} />}
+      {flujoCompletado && (
+        <>
+          <BannerRedesSociales />
+          <ContinuarConsulta alResponder={alResponderContinuacion} />
+        </>
+      )}
     </>
   );
 }
