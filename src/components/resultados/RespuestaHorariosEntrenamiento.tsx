@@ -1,4 +1,5 @@
 import MensajeIA from "@components/MensajeIA";
+
 import type { ResultadoEntrenamientos } from "@tipos/Entrenamiento";
 
 interface Propiedades {
@@ -40,19 +41,20 @@ function formatearHora(hora: string | null): string {
 }
 
 export default function RespuestaHorariosEntrenamiento({ resultado }: Propiedades) {
+  const nombreEquipo = resultado.equipo.nombre?.trim() || "Equipo";
   const antesDelInicio = resultado.periodo.estado === "antes-inicio";
   const despuesDelFinal = resultado.periodo.estado === "despues-fin";
 
-  let titulo = "Entrenamientos de esta semana";
+  let titulo = `Entrenamientos de esta semana: ${nombreEquipo}`;
   let descripcion = `Del ${formatearFechaCorta(resultado.semana.inicio)} al ${formatearFechaCorta(resultado.semana.fin)}`;
 
   if (antesDelInicio && resultado.periodo.fechaInicio) {
-    titulo = "Los entrenamientos de la temporada todavía no han comenzado";
+    titulo = `Los entrenamientos de ${nombreEquipo} todavía no han comenzado`;
     descripcion = `Está previsto que comiencen el ${formatearFechaCompleta(resultado.periodo.fechaInicio)}. Estos son los horarios correspondientes a la primera semana de entrenamientos.`;
   }
 
   if (despuesDelFinal && resultado.periodo.fechaFin) {
-    titulo = "Los entrenamientos de la temporada han finalizado";
+    titulo = `Los entrenamientos de ${nombreEquipo} han finalizado`;
     descripcion = `El periodo de entrenamientos terminó el ${formatearFechaCompleta(resultado.periodo.fechaFin)}. Estos fueron los horarios correspondientes a la última semana.`;
   }
 
@@ -94,9 +96,7 @@ export default function RespuestaHorariosEntrenamiento({ resultado }: Propiedade
         })}
       </div>
 
-      <p className="mt-4 text-xs text-on-surface-variant">
-        Los horarios pueden sufrir modificaciones. Comprueba los avisos oficiales del club.
-      </p>
+      <p className="mt-4 text-xs text-on-surface-variant">Los horarios pueden sufrir modificaciones. Comprueba los avisos oficiales del club.</p>
     </MensajeIA>
   );
 }

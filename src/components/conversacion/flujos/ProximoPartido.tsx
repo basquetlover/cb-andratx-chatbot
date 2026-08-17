@@ -12,11 +12,17 @@ interface Propiedades {
   alCompletar: () => void;
 }
 
+interface EquipoConError {
+  id: string;
+  nombre: string;
+}
+
 export default function ProximoPartido({ alCompletar }: Propiedades) {
-  const [equipoSeleccionado, setEquipoSeleccionado] = useState<EquipoDisponible | null>(null);
-  const [resultado, setResultado] = useState<ResultadoProximoPartido | null>(null);
+  const [equiposSeleccionados, setEquiposSeleccionados] = useState<EquipoDisponible[]>([]);
+  const [seleccionConfirmada, setSeleccionConfirmada] = useState(false);
+  const [resultados, setResultados] = useState<ResultadoProximoPartido[]>([]);
+  const [equiposConError, setEquiposConError] = useState<EquipoConError[]>([]);
   const [cargando, setCargando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const alCompletarRef = useRef(alCompletar);
 
@@ -25,19 +31,19 @@ export default function ProximoPartido({ alCompletar }: Propiedades) {
   }, [alCompletar]);
 
   useEffect(() => {
-    if (!equipoSeleccionado) {
+    if (!seleccionConfirmada || equiposSeleccionados.length === 0) {
       return;
     }
 
     const controlador = new AbortController();
 
-    const cargarProximoPartido = async () => {
-      try {
-        setCargando(true);
-        setError(null);
-        setResultado(null);
+    const cargarProximosPartidos = async () => {
+      setCargando(true);
+      setResultados([]);
+      setEquiposConError([]);
 
-        const respuesta = await fetch(`/api/partidos/proximo?equipoId=${encodeURIComponent(equipoSeleccionado.id)}`, {
+      const consultas = equiposSeleccionados.map(async (equipo) => {
+        const respuesta = await fetch(`/api/partidos/proximo?equipoId=${encodeURIComponent(equipo.id)}`, {
           method: "GET",
           credentials: "same-origin",
           headers: {
@@ -52,37 +58,62 @@ export default function ProximoPartido({ alCompletar }: Propiedades) {
           throw new Error(datos.error ?? "No se ha podido obtener el próximo partido");
         }
 
-        setResultado(datos.data);
-        alCompletarRef.current();
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
+        return datos.data;
+      });
+
+      const respuestas = await Promise.allSettled(consultas);
+
+      if (controlador.signal.aborted) {
+        return;
+      }
+
+      const resultadosCorrectos: ResultadoProximoPartido[] = [];
+      const errores: EquipoConError[] = [];
+
+      respuestas.forEach((respuesta, indice) => {
+        const equipo = equiposSeleccionados[indice];
+
+        if (respuesta.status === "fulfilled") {
+          resultadosCorrectos.push(respuesta.value);
           return;
         }
 
-        console.error("Error al cargar el próximo partido:", error);
-        setError("No se ha podido consultar el próximo partido en este momento.");
-      } finally {
-        if (!controlador.signal.aborted) {
-          setCargando(false);
-        }
-      }
+        console.error(`Error al consultar el próximo partido de ${equipo.nombre ?? equipo.nombreCorto ?? "Equipo"}:`, respuesta.reason);
+
+        errores.push({
+          id: equipo.id,
+          nombre: equipo.nombre ?? equipo.nombreCorto ?? "Equipo",
+        });
+      });
+
+      setResultados(resultadosCorrectos);
+      setEquiposConError(errores);
+      setCargando(false);
+      alCompletarRef.current();
     };
 
-    cargarProximoPartido();
+    cargarProximosPartidos();
 
     return () => {
       controlador.abort();
     };
-  }, [equipoSeleccionado]);
+  }, [seleccionConfirmada, equiposSeleccionados]);
 
   return (
     <>
-      <SeleccionEquipo equipoSeleccionado={equipoSeleccionado} alSeleccionar={setEquipoSeleccionado} />
+      <SeleccionEquipo modo="multiple" equiposSeleccionados={equiposSeleccionados} seleccionConfirmada={seleccionConfirmada} maximo={5} alCambiarSeleccion={setEquiposSeleccionados} alConfirmar={() => setSeleccionConfirmada(true)} />
 
-      {equipoSeleccionado && (
+      {seleccionConfirmada && (
         <MensajeUsuario>
-          <p className="text-sm text-secondary-fixed">Equipo seleccionado:</p>
-          <p className="font-semibold">{equipoSeleccionado.nombre ?? equipoSeleccionado.nombreCorto ?? "Equipo"}</p>
+          <p className="text-sm text-secondary-fixed">Equipos seleccionados:</p>
+
+          <ul className="mt-1 flex flex-col gap-1">
+            {equiposSeleccionados.map((equipo) => (
+              <li key={equipo.id} className="font-semibold">
+                {equipo.nombre ?? equipo.nombreCorto ?? "Equipo"}
+              </li>
+            ))}
+          </ul>
         </MensajeUsuario>
       )}
 
@@ -90,19 +121,29 @@ export default function ProximoPartido({ alCompletar }: Propiedades) {
         <MensajeIA>
           <div className="flex items-center gap-3" role="status">
             <span className="h-5 w-5 animate-spin rounded-full border-2 border-outline-variant border-t-secondary" aria-hidden="true" />
-            <p className="text-sm text-on-surface-variant">Consultando el próximo partido en la FBIB...</p>
+            <p className="text-sm text-on-surface-variant">
+              Consultando {equiposSeleccionados.length === 1 ? "el próximo partido..." : `los próximos partidos de ${equiposSeleccionados.length} equipos...`}
+            </p>
           </div>
         </MensajeIA>
       )}
 
-      {!cargando && error && (
+      {!cargando &&
+        resultados.map((resultado) => (
+          <RespuestaProximoPartido key={resultado.equipo.id} resultado={resultado} />
+        ))}
+
+      {!cargando && equiposConError.length > 0 && (
         <MensajeIA>
-          <p className="font-semibold text-error">No se ha podido completar la consulta</p>
-          <p className="mt-1 text-sm text-on-surface-variant">{error}</p>
+          <p className="font-semibold text-error">{equiposConError.length === 1 ? "No se ha podido consultar un equipo" : "No se han podido consultar algunos equipos"}</p>
+
+          <ul className="mt-2 flex list-disc flex-col gap-1 pl-5 text-sm text-on-surface-variant">
+            {equiposConError.map((equipo) => (
+              <li key={equipo.id}>{equipo.nombre}</li>
+            ))}
+          </ul>
         </MensajeIA>
       )}
-
-      {!cargando && !error && resultado && <RespuestaProximoPartido resultado={resultado} />}
     </>
   );
 }
