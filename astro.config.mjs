@@ -6,6 +6,7 @@ import vercel from "@astrojs/vercel";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
+  site: "https://cb-andratx-chatbot.vercel.app",
   devToolbar: {
     enabled: false,
   },

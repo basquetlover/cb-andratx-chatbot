@@ -1,16 +1,55 @@
 ---
 import "../global.css";
 import Header from "@components/Header.astro";
+
+const titulo = "Chatbot | C.B. Andratx";
+const descripcion = "Asistente virtual del C.B. Andratx para consultar horarios de entrenamiento, próximos partidos, resultados, clasificación y otra información del club.";
+const dominio = "https://cb-andratx-chatbot.vercel.app";
+const urlCanonical = new URL(Astro.url.pathname, dominio);
+const imagenSocial = new URL("/og-cb-andratx-chatbot.jpg", dominio);
 ---
 <!doctype html>
-<html lang="en">
+<html lang="es">
 	<head>
 		<meta charset="utf-8" />
-		<meta name="viewport" content="width=device-width" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+		<title>{titulo}</title>
+		<meta name="description" content={descripcion} />
+		<meta name="application-name" content="Chatbot C.B. Andratx" />
+		<meta name="author" content="C.B. Andratx" />
+		<meta name="robots" content="index, follow" />
+		<meta name="googlebot" content="index, follow" />
+		<meta name="referrer" content="strict-origin-when-cross-origin" />
+		<meta name="theme-color" content="#001b3c" />
+		<meta name="color-scheme" content="light" />
+
+		<link rel="canonical" href={urlCanonical} />
+
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
+		<link rel="icon" type="image/x-icon" href="/favicon.ico" />
+
+		<meta property="og:type" content="website" />
+		<meta property="og:locale" content="es_ES" />
+		<meta property="og:site_name" content="C.B. Andratx" />
+		<meta property="og:title" content={titulo} />
+		<meta property="og:description" content={descripcion} />
+		<meta property="og:url" content={urlCanonical} />
+
+		<meta property="og:image" content={imagenSocial} />
+		<meta property="og:image:secure_url" content={imagenSocial} />
+		<meta property="og:image:type" content="image/jpeg" />
+		<meta property="og:image:width" content="1200" />
+		<meta property="og:image:height" content="630" />
+		<meta property="og:image:alt" content="Asistente virtual del C.B. Andratx" />
+
+		<meta name="twitter:card" content="summary_large_image" />
+		<meta name="twitter:title" content={titulo} />
+		<meta name="twitter:description" content={descripcion} />
+		<meta name="twitter:image" content={imagenSocial} />
+		<meta name="twitter:image:alt" content="Asistente virtual del C.B. Andratx" />
+
 		<meta name="generator" content={Astro.generator} />
-		<title>ChatBot | C.B. Andratx</title>
 	</head>
 	<body>
 		<Header />
