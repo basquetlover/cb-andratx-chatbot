@@ -7,6 +7,7 @@ import ContinuarConsulta from "@components/formularios/ContinuarConsulta";
 import OpcionesPrincipales from "@components/formularios/OpcionesPrincipales";
 import { opcionesPrincipales } from "@tipos/Opciones";
 import BannerRedesSociales from "./BannerRedesSociales";
+import ProximoPartido from "@components/conversacion/flujos/ProximoPartido";
 
 interface Propiedades {
   alResponderContinuacion: (quiereContinuar: boolean) => void;
@@ -40,7 +41,9 @@ export default function Consulta({ alResponderContinuacion }: Propiedades) {
 
       {opcionSeleccionada === "horarios-entrenamiento" && <HorariosEntrenamiento alCompletar={() => setFlujoCompletado(true)} />}
 
-      {opcionSeleccionada && opcionSeleccionada !== "horarios-entrenamiento" && (
+      {opcionSeleccionada === "proximo-partido" && <ProximoPartido alCompletar={() => setFlujoCompletado(true)} />}
+
+      {opcionSeleccionada && !["horarios-entrenamiento", "proximo-partido"].includes(opcionSeleccionada) && (
         <MensajeIA>
           <p className="font-semibold text-on-secondary-fixed">Esta consulta todavía no está disponible</p>
           <p className="mt-1 text-sm text-on-surface-variant">Estamos preparando este apartado del asistente.</p>
