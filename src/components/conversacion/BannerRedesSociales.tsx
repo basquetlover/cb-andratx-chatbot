@@ -67,10 +67,10 @@ export default function BannerRedesSociales() {
       <div className="relative">
         <p className="text-center text-lg font-semibold uppercase tracking-widest text-primary-fixed-dim">C.B. Andratx</p>
         <h2 className="mt-1 text-center text-xl font-bold text-on-secondary sm:text-2xl">Síguenos en nuestras redes</h2>
-
-        <div className="mt-5 flex flex-wrap justify-center gap-3">
+        <img src="/favicon.png" className="w-36 h-36 max-md:w-55 max-md:h-55 top-1/2 left-1/2 -translate-1/2 opacity-40 absolute z-0" />
+        <div className="mt-5 flex flex-wrap justify-center gap-3 z-10">
           {configuracion.redes.map((red) => (
-            <a key={red.id} href={red.url} target="_blank" rel="noopener noreferrer" className="group flex min-w-28 flex-1 basis-28 flex-col items-center justify-center rounded-xl border border-white/20 bg-white/10 px-3 py-4 text-center transition-colors hover:border-primary-container hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-container" aria-label={`Abrir ${red.nombre} del club`}>
+            <a key={red.id} href={red.url} target="_blank" rel="noopener noreferrer" className="group z-10 flex min-w-28 flex-1 basis-28 flex-col items-center justify-center rounded-xl border border-white/20 bg-white/15 px-3 py-4 text-center transition-colors hover:border-primary-container hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-container" aria-label={`Abrir ${red.nombre} del club`}>
               <img src={`/iconos/redes/${red.icono}.svg`} alt="" className="h-10 w-10 object-contain transition-transform group-hover:scale-110" loading="lazy" aria-hidden="true" />
 
               <span className="mt-2 text-sm font-semibold text-on-secondary">{red.nombre}</span>
