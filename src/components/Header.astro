@@ -1,16 +1,107 @@
-<header class="w-full p-4 bg-surface-container flex items-center place-content-between">
-    <div class="flex gap-x-2">
-        <img src="/favicon.png" alt="Escudo C.B.Andratx" class="w-12 h-12" />
-        <p class="flex flex-col space-y-0 items-center">
-            <span class="text-base text-secondary font-semibold">C.B. Andratx</span>
-            <span class="text-xl text-on-secondary-fixed font-bold ">Asistente</span>
-        </p>
-    </div>
+---
+const NAV = [
+    {
+        nombre: "Inicio",
+        enlace: "/",
+        icono: "inicio",
+        estado: "activo",
+    },
+    {
+        nombre: "Asistente",
+        enlace: "/chatbot",
+        icono: "bot",
+        estado: "activo",
+    },
+    {
+        nombre: "Calendario",
+        enlace: "/calendario",
+        icono: "calendario",
+        estado: "proximamente",
+    },
+    {
+        nombre: "Equipos",
+        enlace: "/equipos",
+        icono: "equipos",
+        estado: "proximamente",
+    },
+];
 
-    <!-- <div class="flex gap-x-2 items-center fill-success text-success">
-        <svg xmlns="http://www.w3.org/2000/svg" class="w-7 h-7" viewBox="0 -960 960 960">
-            <path d="M197-197q-54-55-85.5-127.5T80-480q0-84 31.5-156.5T197-763l57 57q-44 44-69 102t-25 124q0 67 25 125t69 101zm113-113q-32-33-51-76.5T240-480q0-51 19-94.5t51-75.5l57 57q-22 22-34.5 51T320-480t12.5 62 34.5 51zm113.5-113.5Q400-447 400-480t23.5-56.5T480-560t56.5 23.5T560-480t-23.5 56.5T480-400t-56.5-23.5M650-310l-57-57q22-22 34.5-51t12.5-62-12.5-62-34.5-51l57-57q32 32 51 75.5t19 94.5q0 50-19 93.5T650-310m113 113-57-57q44-44 69-102t25-124q0-67-25-125t-69-101l57-57q54 54 85.5 126.5T880-480q0 83-31.5 155.5T763-197"/>
-        </svg>
-        <p>Disponible</p>
-    </div> -->
+const rutaActual = Astro.url.pathname;
+
+function esRutaActual(enlace: string): boolean {
+    if (enlace === "/") {
+        return rutaActual === "/";
+    }
+
+    return rutaActual === enlace || rutaActual.startsWith(`${enlace}/`);
+}
+---
+
+<header class="sticky top-0 z-40 hidden w-full border-b border-outline-variant/60 bg-surface-container-low shadow-[0_4px_18px_rgba(3,42,85,0.06)] md:block">
+    <div class="mx-auto flex h-20 w-full max-w-7xl items-center justify-between px-6 lg:px-10">
+        <a href="/" class="group flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary" aria-label="Ir al inicio del C.B. Andratx">
+            <img src="/favicon.png" alt="" class="h-13 w-13 object-contain transition-transform duration-300 group-hover:scale-105" />
+
+            <span class="flex flex-col">
+                <span class="text-3xl font-bold leading-tight text-on-secondary-fixed">C.B. Andratx</span>
+                <!-- <span class="text-sm font-medium leading-tight text-secondary">Información del club</span> -->
+            </span>
+        </a>
+
+        <nav aria-label="Navegación principal">
+            <ul class="flex items-center gap-8">
+                {
+                    NAV.map((item) => {
+                        const estaDisponible = item.estado === "activo";
+                        const estaSeleccionado = estaDisponible && esRutaActual(item.enlace);
+
+                        return (
+                            <li class="relative">
+                                {estaDisponible ? (
+                                    <a
+                                        href={item.enlace}
+                                        class:list={[
+                                            "group relative flex items-center gap-2 rounded-md py-3 font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary",
+                                            estaSeleccionado ? "text-secondary" : "text-on-surface-variant hover:text-secondary",
+                                        ]}
+                                        aria-current={estaSeleccionado ? "page" : undefined}
+                                    >
+                                        <span
+                                            class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-hover:scale-110"
+                                            style={`mask-image: url('/iconos/${item.icono}.svg'); -webkit-mask-image: url('/iconos/${item.icono}.svg');`}
+                                            aria-hidden="true"
+                                        />
+
+                                        <span>{item.nombre}</span>
+
+                                        <span
+                                            class:list={[
+                                                "absolute bottom-1 left-1/2 h-0.5 -translate-x-1/2 rounded-full bg-primary transition-[width] duration-300 ease-out",
+                                                estaSeleccionado ? "w-full" : "w-0 group-hover:w-full group-focus-visible:w-full",
+                                            ]}
+                                            aria-hidden="true"
+                                        />
+                                    </a>
+                                ) : (
+                                    <span class="relative flex cursor-not-allowed items-center gap-2 py-3 font-semibold text-on-surface-variant opacity-45" aria-label={`${item.nombre}, próximamente`} aria-disabled="true">
+                                        <span
+                                            class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat"
+                                            style={`mask-image: url('/iconos/${item.icono}.svg'); -webkit-mask-image: url('/iconos/${item.icono}.svg');`}
+                                            aria-hidden="true"
+                                        />
+
+                                        <span>{item.nombre}</span>
+
+                                        <span class="absolute -bottom-1 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wide text-secondary">
+                                            Próximamente
+                                        </span>
+                                    </span>
+                                )}
+                            </li>
+                        );
+                    })
+                }
+            </ul>
+        </nav>
+    </div>
 </header>

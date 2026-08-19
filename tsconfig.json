@@ -25,6 +25,9 @@
       ],
       "@tipos/*": [
         "src/types/*"
+      ],
+      "@sections/*": [
+        "src/sections/*"
       ]
     },
     "jsx": "react-jsx",

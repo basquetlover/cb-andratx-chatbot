@@ -17,11 +17,11 @@ export default function App() {
     },
   ]);
 
-  addToast({
-  type: "favoriteRemoved",
-  message: "Infantil Masculino ya está entre tus equipos favoritos.",
-  duration: 0,
-});
+//   addToast({
+//   type: "favoriteRemoved",
+//   message: "Infantil Masculino ya está entre tus equipos favoritos.",
+//   duration: 0,
+// });
 
   const [conversacionFinalizada, setConversacionFinalizada] = useState(false);
 

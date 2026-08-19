@@ -1,0 +1,33 @@
+---
+import Layout from "@layouts/Layout.astro";
+
+const titulosError = [
+    "¡Balón fuera!",
+    "¡Fuera de banda!",
+    "Esta jugada no estaba preparada",
+    "La página se ha salido de la pista",
+    "Tiempo muerto: página no encontrada",
+    "Esta página no está convocada",
+    "No encontramos esta jugada",
+    "El pase no llegó a su destino",
+    "Esta página se quedó en el banquillo",
+    "La jugada terminó fuera de la pista",
+];
+
+const tituloAleatorio = titulosError[Math.floor(Math.random() * titulosError.length)];
+---
+
+<Layout title="Página no encontrada" menu menuMobile>
+    <section class="max-w-3xl mx-auto min-h-[calc(98dvh-5rem)] h-full flex items-center place-content-center">
+        <div class="w-full h-auto text-center space-y-5 p-4">
+            <p class="text-8xl font-bold text-primary-container mt-10">404</p>
+            <p class="font-semibold text-on-secondary-fixed text-3xl">{tituloAleatorio}</p>
+            <p class="text-on-secondary-fixed max-w-2xl">La página que buscas ha salido de la pista o nunca llegó a entrar. No te preocupes, el partido sigue y tenemos mucho más baloncesto esperándote.</p>
+            <a href="/" class="w-max mx-auto px-6 py-3 rounded-full bg-primary-container text-on-secondary-fixed fill-on-secondary-fixed flex gap-x-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6" viewBox="0 -960 960 960" >
+                    <path d="M280-200v-80h284q63 0 109.5-40T720-420q0-60-46.5-100T564-560H312l104 104-56 56-200-200 200-200 56 56-104 104h252q97 0 166.5 63T800-420q0 94-69.5 157T564-200H280Z"/>
+                </svg>
+                Volver a la pista principal</a>
+        </div>
+    </section>
+</Layout>

@@ -1,0 +1,426 @@
+---
+const PLAYLIST_ID = "PLHGlkZ9buMtFPiauhzKiy-WfnNwxp36kh";
+const PLAYLIST_URL = `https://www.youtube.com/playlist?list=${PLAYLIST_ID}`;
+const FEED_URL = `https://www.youtube.com/feeds/videos.xml?playlist_id=${PLAYLIST_ID}`;
+const MAXIMO_ENTREVISTAS = 8;
+
+interface EntrevistaYoutube {
+    videoId: string;
+    titulo: string;
+    fechaPublicacion: Date;
+    miniatura: string;
+    miniaturaAltaResolucion: string;
+    miniaturaAlternativa: string;
+    url: string;
+}
+
+function extraerEtiqueta(contenido: string, etiqueta: string): string | null {
+    const expresion = new RegExp(`<${etiqueta}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${etiqueta}>`, "i");
+    const coincidencia = contenido.match(expresion);
+
+    return coincidencia?.[1]?.trim() ?? null;
+}
+
+function decodificarXml(texto: string): string {
+    return texto
+        .replace(/^<!\[CDATA\[|\]\]>$/g, "")
+        .replace(/&#x([0-9a-f]+);/gi, (_, codigo: string) => String.fromCodePoint(Number.parseInt(codigo, 16)))
+        .replace(/&#([0-9]+);/g, (_, codigo: string) => String.fromCodePoint(Number.parseInt(codigo, 10)))
+        .replace(/&amp;/g, "&")
+        .replace(/&quot;/g, '"')
+        .replace(/&apos;/g, "'")
+        .replace(/&lt;/g, "<")
+        .replace(/&gt;/g, ">");
+}
+
+function convertirFeed(contenido: string): EntrevistaYoutube[] {
+    const entradas = Array.from(contenido.matchAll(/<entry\b[^>]*>([\s\S]*?)<\/entry>/gi));
+
+    return entradas
+        .map((coincidencia): EntrevistaYoutube | null => {
+            const entrada = coincidencia[1];
+            const videoId = extraerEtiqueta(entrada, "yt:videoId");
+            const tituloXml = extraerEtiqueta(entrada, "media:title") ?? extraerEtiqueta(entrada, "title");
+            const fechaXml = extraerEtiqueta(entrada, "published");
+
+            if (!videoId || !tituloXml || !fechaXml) {
+                return null;
+            }
+
+            const fechaPublicacion = new Date(fechaXml);
+
+            if (Number.isNaN(fechaPublicacion.getTime())) {
+                return null;
+            }
+
+            return {
+                videoId,
+                titulo: decodificarXml(tituloXml),
+                fechaPublicacion,
+                miniatura: `https://i.ytimg.com/vi/${videoId}/mqdefault.jpg`,
+                miniaturaAltaResolucion: `https://i.ytimg.com/vi/${videoId}/maxresdefault.jpg`,
+                miniaturaAlternativa: `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+                url: `https://www.youtube.com/watch?v=${videoId}`,
+            };
+        })
+        .filter((entrevista): entrevista is EntrevistaYoutube => entrevista !== null)
+        .sort((primera, segunda) => segunda.fechaPublicacion.getTime() - primera.fechaPublicacion.getTime())
+        .slice(0, MAXIMO_ENTREVISTAS);
+}
+
+const formatoFecha = new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "Europe/Madrid",
+});
+
+const formatoRelativo = new Intl.RelativeTimeFormat("es-ES", {
+    numeric: "auto",
+});
+
+function formatearFechaRelativa(fecha: Date): string {
+    const diferenciaMilisegundos = fecha.getTime() - Date.now();
+    const diferenciaHoras = Math.round(diferenciaMilisegundos / (1000 * 60 * 60));
+    const diferenciaDias = Math.round(diferenciaHoras / 24);
+
+    if (Math.abs(diferenciaHoras) < 24) {
+        return formatoRelativo.format(diferenciaHoras, "hour");
+    }
+
+    if (Math.abs(diferenciaDias) < 30) {
+        return formatoRelativo.format(diferenciaDias, "day");
+    }
+
+    const diferenciaMeses = Math.round(diferenciaDias / 30);
+
+    if (Math.abs(diferenciaMeses) < 12) {
+        return formatoRelativo.format(diferenciaMeses, "month");
+    }
+
+    return formatoFecha.format(fecha);
+}
+
+let entrevistas: EntrevistaYoutube[] = [];
+let errorCarga: string | null = null;
+
+try {
+    const respuesta = await fetch(FEED_URL, {
+        headers: {
+            Accept: "application/atom+xml, application/xml, text/xml",
+        },
+        signal: AbortSignal.timeout(8000),
+    });
+
+    if (!respuesta.ok) {
+        throw new Error(`YouTube ha respondido con el estado ${respuesta.status}`);
+    }
+
+    const contenido = await respuesta.text();
+
+    entrevistas = convertirFeed(contenido);
+} catch (error) {
+    console.error("Error al obtener las entrevistas de YouTube:", error);
+    errorCarga = "No hemos podido cargar las entrevistas en este momento.";
+}
+
+const entrevistaDestacada = entrevistas[0] ?? null;
+const entrevistasSecundarias = entrevistas.slice(1);
+---
+
+<section id="entrevistas" class="relative w-full px-4 py-16 sm:px-6 lg:py-24" aria-labelledby="titulo-entrevistas">
+    <div class="mx-auto flex w-full max-w-7xl flex-col">
+        <div class="mb-8 flex flex-col gap-3 text-center md:mb-10">
+            <div class="mx-auto flex items-center gap-3" aria-hidden="true">
+                <span class="h-px w-12 bg-outline-variant sm:w-24"></span>
+                <span class="h-5 w-5 rotate-45 fill-primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 -960 960 960">
+                        <path d="M162-520h114q-6-38-23-71t-43-59q-18 29-30.5 61.5T162-520m522 0h114q-5-36-17.5-68.5T750-650q-26 26-43 59t-23 71M210-310q26-26 43-59t23-71H162q5 36 17.5 68.5T210-310m540 0q18-29 30.5-61.5T798-440H684q6 38 23 71t43 59M358-520h82v-278q-53 8-98.5 29.5T260-712q39 38 64.5 86.5T358-520m162 0h82q8-57 33.5-105.5T700-712q-36-35-81.5-56.5T520-798zm-80 358v-278h-82q-8 57-33.5 105.5T260-248q36 35 81.5 56.5T440-162m80 0q53-8 98.5-29.5T700-248q-39-38-64.5-86.5T602-440h-82zm-40 82q-83 0-156-31.5T197-197t-85.5-127T80-480t31.5-156T197-763t127-85.5T480-880t156 31.5T763-763t85.5 127T880-480t-31.5 156T763-197t-127 85.5T480-80"/>
+                    </svg>
+                </span>
+                <span class="h-px w-12 bg-outline-variant sm:w-24"></span>
+            </div>
+
+            <p class="text-sm font-bold uppercase tracking-[0.22em] text-secondary">Dentro de la pista</p>
+
+            <h2 id="titulo-entrevistas" class="text-3xl font-bold text-on-secondary-fixed sm:text-4xl lg:text-5xl">
+                Entrevistas C.B. Andratx
+            </h2>
+
+            <p class="mx-auto max-w-155 text-on-surface-variant">
+                Conoce a los jugadores, entrenadores y personas que forman parte de nuestro club.
+            </p>
+        </div>
+
+        <div class="w-full overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_20px_50px_-24px_rgba(3,42,85,0.28)]">
+            <header class="flex items-center justify-between gap-4 border-b border-outline-variant/60 bg-surface-container px-4 py-3 sm:px-6">
+                <div class="flex min-w-0 items-center gap-3">
+                    <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#ff0000]/10 text-[#ff0000]" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="currentColor">
+                            <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8ZM9.6 15.6V8.4L15.8 12l-6.2 3.6Z"></path>
+                        </svg>
+                    </span>
+
+                    <div class="flex min-w-0 flex-col">
+                        <span class="truncate font-bold text-on-secondary-fixed">Entrevistas del club</span>
+
+                        <a href={PLAYLIST_URL} target="_blank" rel="noopener noreferrer" class="w-fit text-xs font-semibold text-secondary transition-colors hover:text-on-secondary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+                            Ver playlist en YouTube
+                        </a>
+                    </div>
+                </div>
+
+                {!errorCarga && (
+                    <span class="hidden text-sm font-semibold text-on-surface-variant sm:inline">
+                        {entrevistas.length} entrevista{entrevistas.length === 1 ? "" : "s"}
+                    </span>
+                )}
+            </header>
+
+            {errorCarga ? (
+                <div class="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-full bg-error-container text-error" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 8v5M12 17h.01M10.3 4.9 2.7 18a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 4.9a2 2 0 0 0-3.4 0Z" stroke-linecap="round" stroke-linejoin="round"></path>
+                        </svg>
+                    </span>
+
+                    <p class="mt-4 font-bold text-on-secondary-fixed">No se han podido cargar las entrevistas</p>
+                    <p class="mt-1 max-w-110 text-sm text-on-surface-variant">{errorCarga}</p>
+
+                    <a href={PLAYLIST_URL} target="_blank" rel="noopener noreferrer" class="mt-5 rounded-lg bg-secondary px-5 py-2.5 text-sm font-semibold text-on-secondary transition-colors hover:bg-on-secondary-container">
+                        Ver entrevistas en YouTube
+                    </a>
+                </div>
+            ) : entrevistas.length === 0 ? (
+                <div class="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
+                    <span class="flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed text-primary" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" class="h-6 w-6" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="m9 8 7 4-7 4V8Z" stroke-linejoin="round"></path>
+                            <rect x="3" y="5" width="18" height="14" rx="3"></rect>
+                        </svg>
+                    </span>
+
+                    <p class="mt-4 font-bold text-on-secondary-fixed">Todavía no hay entrevistas disponibles</p>
+                    <p class="mt-1 text-sm text-on-surface-variant">Cuando publiquemos una nueva entrevista aparecerá aquí.</p>
+                </div>
+            ) : (
+                <div class:list={["grid gap-px bg-outline-variant/50", entrevistasSecundarias.length > 0 ? "lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]" : "grid-cols-1"]}>
+                    {entrevistaDestacada && (
+                        <button type="button" data-reproducir-entrevista data-video-id={entrevistaDestacada.videoId} data-video-title={entrevistaDestacada.titulo} class="group relative isolate flex aspect-video w-full cursor-pointer overflow-hidden bg-on-secondary-fixed text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-primary lg:h-[31rem] lg:aspect-auto" aria-label={`Reproducir entrevista destacada: ${entrevistaDestacada.titulo}`}>
+                            <img src={entrevistaDestacada.miniatura} alt="" loading="eager" decoding="async" class="absolute inset-0 -z-20 h-full w-full scale-105 object-cover brightness-75 transition duration-700 group-hover:scale-110 group-hover:brightness-90" />
+
+                            <img src={entrevistaDestacada.miniaturaAltaResolucion} alt="" loading="eager" decoding="async" fetchpriority="high" data-imagen-destacada data-fallback={entrevistaDestacada.miniaturaAlternativa} class="imagen-destacada absolute inset-0 -z-20 h-full w-full scale-105 object-cover opacity-0 brightness-75 transition duration-700 group-hover:scale-110 group-hover:brightness-90" />
+
+                            <span class="absolute inset-0 -z-10 bg-linear-to-t from-on-secondary-fixed via-on-secondary-fixed/35 to-transparent" aria-hidden="true"></span>
+
+                            <span class="absolute right-4 top-4 rounded-full border border-primary/60 bg-on-secondary-fixed/75 px-3 py-1 text-xs font-bold uppercase tracking-wider text-primary backdrop-blur-sm">
+                                Última entrevista
+                            </span>
+
+                            <span class="absolute inset-0 flex items-center justify-center z-30" aria-hidden="true">
+                                <span class="flex h-16 w-16 items-center justify-center rounded-full border-2 border-white/70 bg-on-secondary-fixed/65 text-white shadow-lg backdrop-blur-sm transition duration-300 group-hover:scale-110 group-hover:border-primary group-hover:bg-primary group-hover:text-on-primary">
+                                    <svg viewBox="0 0 24 24" class="h-7 w-7 translate-x-0.5" fill="currentColor">
+                                        <path d="M8 5v14l11-7L8 5Z"></path>
+                                    </svg>
+                                </span>
+                            </span>
+
+                            <div class="relative mt-auto flex w-full flex-col gap-2 p-5 text-white sm:p-7">
+                                <time datetime={entrevistaDestacada.fechaPublicacion.toISOString()} title={formatoFecha.format(entrevistaDestacada.fechaPublicacion)} class="text-xs font-bold uppercase tracking-[0.2em] text-primary">
+                                    {formatearFechaRelativa(entrevistaDestacada.fechaPublicacion)}
+                                </time>
+
+                                <h3 class="max-w-190 text-2xl font-bold leading-tight drop-shadow-md sm:text-3xl lg:text-4xl">
+                                    {entrevistaDestacada.titulo}
+                                </h3>
+
+                                <span class="mt-1 inline-flex items-center gap-2 text-sm font-bold text-white/80 transition-colors group-hover:text-primary">
+                                    Ver entrevista
+
+                                    <svg viewBox="0 0 24 24" class="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" fill="none" stroke="currentColor" stroke-width="2">
+                                        <path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"></path>
+                                    </svg>
+                                </span>
+                            </div>
+                        </button>
+                    )}
+
+                    {entrevistasSecundarias.length > 0 && (
+                        <ul class="lista-entrevistas grid max-h-136 gap-px overflow-y-auto bg-outline-variant/50 sm:grid-cols-2 lg:max-h-124 lg:grid-cols-1">
+                            {entrevistasSecundarias.map((entrevista) => (
+                                <li class="bg-surface-container-lowest">
+                                    <button type="button" data-reproducir-entrevista data-video-id={entrevista.videoId} data-video-title={entrevista.titulo} class="group grid h-full w-full cursor-pointer grid-cols-[6rem_1fr_auto] items-center gap-3 bg-surface-container-lowest p-3 text-left transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-secondary sm:grid-cols-[7rem_1fr_auto] sm:p-4" aria-label={`Reproducir entrevista: ${entrevista.titulo}`}>
+                                        <span class="relative block aspect-video overflow-hidden rounded-lg bg-surface-container">
+                                            <img src={entrevista.miniatura} alt="" loading="lazy" decoding="async" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
+
+                                            <span class="absolute inset-0 flex items-center justify-center bg-on-secondary-fixed/25 opacity-0 transition-opacity group-hover:opacity-100" aria-hidden="true">
+                                                <span class="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-on-primary">
+                                                    <svg viewBox="0 0 24 24" class="h-4 w-4 translate-x-px" fill="currentColor">
+                                                        <path d="M8 5v14l11-7L8 5Z"></path>
+                                                    </svg>
+                                                </span>
+                                            </span>
+                                        </span>
+
+                                        <span class="flex min-w-0 flex-col gap-1">
+                                            <span class="line-clamp-2 text-sm font-bold leading-snug text-on-secondary-fixed transition-colors group-hover:text-secondary sm:text-base">
+                                                {entrevista.titulo}
+                                            </span>
+
+                                            <time datetime={entrevista.fechaPublicacion.toISOString()} title={formatoFecha.format(entrevista.fechaPublicacion)} class="text-xs text-on-surface-variant">
+                                                {formatearFechaRelativa(entrevista.fechaPublicacion)}
+                                            </time>
+                                        </span>
+
+                                        <svg viewBox="0 0 24 24" class="h-5 w-5 shrink-0 text-outline transition-all duration-300 group-hover:translate-x-1 group-hover:text-secondary" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                            <path d="m9 18 6-6-6-6" stroke-linecap="round" stroke-linejoin="round"></path>
+                                        </svg>
+                                    </button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            )}
+        </div>
+    </div>
+</section>
+
+<dialog id="reproductor-entrevista" class="m-auto w-[calc(100%-2rem)] max-w-[960px] overflow-hidden rounded-2xl border border-outline-variant bg-on-secondary-fixed p-0 shadow-2xl backdrop:bg-on-secondary-fixed/80 backdrop:backdrop-blur-sm">
+    <div class="flex items-center justify-between gap-4 border-b border-white/15 px-4 py-3 text-white sm:px-5">
+        <p id="titulo-reproductor-entrevista" class="truncate font-semibold">Entrevista C.B. Andratx</p>
+
+        <button type="button" data-cerrar-reproductor class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-full text-white/70 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label="Cerrar reproductor">
+            <svg viewBox="0 0 24 24" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="m7 7 10 10M17 7 7 17" stroke-linecap="round"></path>
+            </svg>
+        </button>
+    </div>
+
+    <div class="aspect-video w-full bg-black">
+        <iframe id="iframe-entrevista" class="h-full w-full" title="Reproductor de entrevista" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe>
+    </div>
+</dialog>
+
+<script>
+    const imagenDestacada = document.querySelector<HTMLImageElement>("[data-imagen-destacada]");
+
+    if (imagenDestacada) {
+        const mostrarImagen = () => {
+            imagenDestacada.classList.add("cargada");
+        };
+
+        const cargarAlternativa = () => {
+            const imagenAlternativa = imagenDestacada.dataset.fallback;
+
+            if (imagenAlternativa && imagenDestacada.src !== imagenAlternativa) {
+                imagenDestacada.src = imagenAlternativa;
+                return;
+            }
+
+            mostrarImagen();
+        };
+
+        imagenDestacada.addEventListener("load", () => {
+            const esMarcadorDeYouTube = imagenDestacada.naturalWidth === 120 && imagenDestacada.naturalHeight === 90;
+
+            if (esMarcadorDeYouTube) {
+                cargarAlternativa();
+                return;
+            }
+
+            mostrarImagen();
+        });
+
+        imagenDestacada.addEventListener("error", cargarAlternativa);
+
+        if (imagenDestacada.complete && imagenDestacada.naturalWidth > 0) {
+            mostrarImagen();
+        }
+    }
+
+    const dialogo = document.querySelector<HTMLDialogElement>("#reproductor-entrevista");
+    const iframe = document.querySelector<HTMLIFrameElement>("#iframe-entrevista");
+    const tituloReproductor = document.querySelector<HTMLElement>("#titulo-reproductor-entrevista");
+    const botonesReproduccion = document.querySelectorAll<HTMLElement>("[data-reproducir-entrevista]");
+    const botonCerrar = document.querySelector<HTMLElement>("[data-cerrar-reproductor]");
+
+    const cerrarReproductor = () => {
+        if (!dialogo || !iframe) {
+            return;
+        }
+
+        iframe.src = "";
+        dialogo.close();
+    };
+
+    botonesReproduccion.forEach((boton) => {
+        boton.addEventListener("click", () => {
+            if (!dialogo || !iframe) {
+                return;
+            }
+
+            const videoId = boton.dataset.videoId;
+            const titulo = boton.dataset.videoTitle;
+
+            if (!videoId) {
+                return;
+            }
+
+            iframe.src = `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&rel=0`;
+
+            if (tituloReproductor && titulo) {
+                tituloReproductor.textContent = titulo;
+            }
+
+            dialogo.showModal();
+        });
+    });
+
+    botonCerrar?.addEventListener("click", cerrarReproductor);
+
+    dialogo?.addEventListener("click", (evento) => {
+        if (evento.target === dialogo) {
+            cerrarReproductor();
+        }
+    });
+
+    dialogo?.addEventListener("close", () => {
+        if (iframe) {
+            iframe.src = "";
+        }
+    });
+</script>
+
+<style>
+    .imagen-destacada.cargada {
+        opacity: 1;
+    }
+
+    .lista-entrevistas {
+        scrollbar-width: thin;
+        scrollbar-color: var(--color-secondary) transparent;
+        scrollbar-gutter: stable;
+    }
+
+    .lista-entrevistas::-webkit-scrollbar {
+        width: 8px;
+    }
+
+    .lista-entrevistas::-webkit-scrollbar-track {
+        background: transparent;
+    }
+
+    .lista-entrevistas::-webkit-scrollbar-thumb {
+        border: 2px solid transparent;
+        border-radius: 999px;
+        background-color: var(--color-secondary);
+        background-clip: content-box;
+    }
+
+    #reproductor-entrevista::backdrop {
+        background: rgb(0 27 60 / 80%);
+        backdrop-filter: blur(4px);
+    }
+</style>
