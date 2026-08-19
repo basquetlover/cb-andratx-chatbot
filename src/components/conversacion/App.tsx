@@ -3,17 +3,25 @@ import { useEffect, useRef, useState } from "react";
 import Consulta from "@components/conversacion/Consulta";
 import MensajeBienvenida from "@components/conversacion/MensajeBienvenida";
 import MensajeDespedida from "@components/resultados/MensajeDespedida";
+import ToastContainer, { useToast } from "@components/notificaciones/SistemaNotificaciones";
 
 interface BloqueConsulta {
   id: number;
 }
 
 export default function App() {
+  const { addToast } = useToast();
   const [consultas, setConsultas] = useState<BloqueConsulta[]>([
     {
       id: 1,
     },
   ]);
+
+  addToast({
+  type: "favoriteRemoved",
+  message: "Infantil Masculino ya está entre tus equipos favoritos.",
+  duration: 0,
+});
 
   const [conversacionFinalizada, setConversacionFinalizada] = useState(false);
 
@@ -143,6 +151,7 @@ export default function App() {
       )}
 
       <div className="h-15 w-full" aria-hidden="true" />
+      <ToastContainer/>
     </section>
   );
 }

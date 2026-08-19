@@ -1,5 +1,5 @@
 @import "tailwindcss";
-
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @theme {
   /* Colores */
 
@@ -222,10 +222,62 @@ button {
   cursor: pointer;
 }
 
+*{
+  font-family: "Inter", sans-serif;
+  font-optical-sizing: auto;
+  /* font-weight: <weight>;
+  font-style: normal; */
+
+}
 .rounded-ia {
   border-radius: 0px 10px 10px 10px;
 }
 
 .rounded-usuario {
   border-radius: 10px 0 10px 10px;
+}
+
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+
+  to {
+    width: 0%;
+  }
+}
+
+.toast-enter {
+  animation: toast-enter 220ms ease-out both;
+}
+
+.toast-progress {
+  width: 100%;
+  animation: toast-progress var(--toast-duration) linear forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter {
+    animation: none;
+  }
+
+  .toast-progress {
+    animation: none;
+  }
+}
+
+.lados-doblados{
+ clip-path: polygon(5% 0, 100% 0%, 95% 100%, 0% 100%);
 }

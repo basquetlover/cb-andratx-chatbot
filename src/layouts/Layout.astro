@@ -1,12 +1,34 @@
 ---
+import SistemaNotificaciones from "@components/notificaciones/SistemaNotificaciones";
 import "../global.css";
 import Header from "@components/Header.astro";
+import ToastContainer from "@components/notificaciones/SistemaNotificaciones";
 
-const titulo = "Chatbot | C.B. Andratx";
+
 const descripcion = "Asistente virtual del C.B. Andratx para consultar horarios de entrenamiento, próximos partidos, resultados, clasificación y otra información del club.";
 const dominio = "https://cb-andratx-chatbot.vercel.app";
 const urlCanonical = new URL(Astro.url.pathname, dominio);
 const imagenSocial = new URL("/og-cb-andratx-chatbot.jpg", dominio);
+
+interface Props {
+  title?: string;
+  menu?: boolean;
+  menuMobile?: boolean;
+  description?: string;
+}
+
+const {
+  title,
+  menu,
+  menuMobile,
+  description = "Información, equipos, entrenamientos y partidos del C.B. Andratx.",
+} = Astro.props;
+
+let titulo = "C.B. Andratx"
+
+if(title){
+	titulo = `${title} | C.B. Andratx`
+}
 ---
 <!doctype html>
 <html lang="es">
@@ -52,12 +74,14 @@ const imagenSocial = new URL("/og-cb-andratx-chatbot.jpg", dominio);
 		<meta name="generator" content={Astro.generator} />
 	</head>
 	<body>
-		<Header />
+		<div class={`${menu ? "md:block" : "md:hidden"} ${menuMobile ? "max-md:block" : "max-md:hidden"}`}>
+			<Header />
+		</div>
 		<main>
 			<slot />
 		</main>
 		
-		
+		<ToastContainer client:only="react" />
 	</body>
 </html>
 
