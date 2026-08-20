@@ -87,7 +87,7 @@ export default function BannerRedesSociales() {
             <p className="text-center w-max mx-auto uppercase italic text-on-primary flex items-center max-md:text-sm">
                 <span className="inline-block h-5 w-5 max-md:w-4 max-md:h-4 bg-on-primary mask-[url('/iconos/tag.svg')] mask-center mask-no-repeat mask-contain" aria-hidden="true" />
                 sentiment
-                <span className="text-on-secondary-fixed">blau</span><span className="text-primary-container">groc</span>
+                <span className="text-on-secondary-fixed">blau</span><span className="text-tertiary-container">groc</span>
             </p>
         </div>
       </div>

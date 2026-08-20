@@ -1,4 +1,5 @@
 import MensajeIA from "@components/MensajeIA";
+import MapaLocalizaciones, { type LocalizacionMapa } from "@components/mapas/MapaLocalizaciones";
 
 import type { ResultadoEntrenamientos } from "@tipos/Entrenamiento";
 
@@ -40,10 +41,36 @@ function formatearHora(hora: string | null): string {
   return hora ? hora.slice(0, 5) : "Hora pendiente";
 }
 
+function obtenerInstalaciones(resultado: ResultadoEntrenamientos): LocalizacionMapa[] {
+  const instalacionesPorId = new Map<string, LocalizacionMapa>();
+
+  resultado.entrenamientos.forEach((entrenamiento) => {
+    const instalacion = entrenamiento.instalacion;
+
+    if (!instalacion?.id) {
+      return;
+    }
+
+    instalacionesPorId.set(instalacion.id, {
+      id: instalacion.id,
+      nombre: instalacion.nombre,
+      nombre_corto: instalacion.nombreCorto,
+      direccion: instalacion.direccion,
+      localidad: instalacion.localidad,
+      codigo_postal: instalacion.codigoPostal,
+      latitud: instalacion.latitud,
+      longitud: instalacion.longitud,
+    });
+  });
+
+  return Array.from(instalacionesPorId.values());
+}
+
 export default function RespuestaHorariosEntrenamiento({ resultado }: Propiedades) {
   const nombreEquipo = resultado.equipo.nombre?.trim() || "Equipo";
   const antesDelInicio = resultado.periodo.estado === "antes-inicio";
   const despuesDelFinal = resultado.periodo.estado === "despues-fin";
+  const instalaciones = obtenerInstalaciones(resultado);
 
   let titulo = `Entrenamientos de esta semana: ${nombreEquipo}`;
   let descripcion = `Del ${formatearFechaCorta(resultado.semana.inicio)} al ${formatearFechaCorta(resultado.semana.fin)}`;
@@ -95,6 +122,24 @@ export default function RespuestaHorariosEntrenamiento({ resultado }: Propiedade
           );
         })}
       </div>
+
+      {instalaciones.length > 0 && (
+        <section className="mt-5" aria-labelledby="titulo-ubicaciones-entrenamientos">
+          <div className="mb-3">
+            <p id="titulo-ubicaciones-entrenamientos" className="font-semibold text-on-secondary-fixed">
+              {instalaciones.length === 1 ? "Ubicación del entrenamiento" : "Ubicaciones de los entrenamientos"}
+            </p>
+
+            <p className="mt-1 text-sm text-on-surface-variant">
+              {instalaciones.length === 1 ? "Consulta dónde se realizan los entrenamientos." : "Los entrenamientos de esta semana se realizan en distintas instalaciones."}
+            </p>
+          </div>
+
+          <div className="h-80 w-full overflow-hidden rounded-2xl border border-outline-variant md:h-110">
+            <MapaLocalizaciones localizaciones={instalaciones} zoom={15} mostrarControles mostrarLeyenda temaMapa="azul" />
+          </div>
+        </section>
+      )}
 
       <p className="mt-4 text-xs text-on-surface-variant">Los horarios pueden sufrir modificaciones. Comprueba los avisos oficiales del club.</p>
     </MensajeIA>

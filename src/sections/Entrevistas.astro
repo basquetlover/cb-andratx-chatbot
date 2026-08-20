@@ -207,7 +207,7 @@ const entrevistasSecundarias = entrevistas.slice(1);
             ) : (
                 <div class:list={["grid gap-px bg-outline-variant/50", entrevistasSecundarias.length > 0 ? "lg:grid-cols-[minmax(0,1.15fr)_minmax(340px,0.85fr)]" : "grid-cols-1"]}>
                     {entrevistaDestacada && (
-                        <button type="button" data-reproducir-entrevista data-video-id={entrevistaDestacada.videoId} data-video-title={entrevistaDestacada.titulo} class="group relative isolate flex aspect-video w-full cursor-pointer overflow-hidden bg-on-secondary-fixed text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-primary lg:h-[31rem] lg:aspect-auto" aria-label={`Reproducir entrevista destacada: ${entrevistaDestacada.titulo}`}>
+                        <button type="button" data-reproducir-entrevista data-video-id={entrevistaDestacada.videoId} data-video-title={entrevistaDestacada.titulo} class="group relative isolate flex aspect-video w-full cursor-pointer overflow-hidden bg-on-secondary-fixed text-left focus-visible:outline-2 focus-visible:outline-offset-[-3px] focus-visible:outline-primary lg:h-124 lg:aspect-auto" aria-label={`Reproducir entrevista destacada: ${entrevistaDestacada.titulo}`}>
                             <img src={entrevistaDestacada.miniatura} alt="" loading="eager" decoding="async" class="absolute inset-0 -z-20 h-full w-full scale-105 object-cover brightness-75 transition duration-700 group-hover:scale-110 group-hover:brightness-90" />
 
                             <img src={entrevistaDestacada.miniaturaAltaResolucion} alt="" loading="eager" decoding="async" fetchpriority="high" data-imagen-destacada data-fallback={entrevistaDestacada.miniaturaAlternativa} class="imagen-destacada absolute inset-0 -z-20 h-full w-full scale-105 object-cover opacity-0 brightness-75 transition duration-700 group-hover:scale-110 group-hover:brightness-90" />
@@ -287,7 +287,7 @@ const entrevistasSecundarias = entrevistas.slice(1);
     </div>
 </section>
 
-<dialog id="reproductor-entrevista" class="m-auto w-[calc(100%-2rem)] max-w-[960px] overflow-hidden rounded-2xl border border-outline-variant bg-on-secondary-fixed p-0 shadow-2xl backdrop:bg-on-secondary-fixed/80 backdrop:backdrop-blur-sm">
+<dialog id="reproductor-entrevista" class="m-auto w-[calc(100%-2rem)] max-w-240 overflow-hidden rounded-2xl border border-outline-variant bg-on-secondary-fixed p-0 shadow-2xl backdrop:bg-on-secondary-fixed/80 backdrop:backdrop-blur-sm">
     <div class="flex items-center justify-between gap-4 border-b border-white/15 px-4 py-3 text-white sm:px-5">
         <p id="titulo-reproductor-entrevista" class="truncate font-semibold">Entrevista C.B. Andratx</p>
 

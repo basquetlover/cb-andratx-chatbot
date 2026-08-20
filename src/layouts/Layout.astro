@@ -1,92 +1,97 @@
 ---
-import SistemaNotificaciones from "@components/notificaciones/SistemaNotificaciones";
+import Footer from "@components/Footer.astro";
 import Header from "@components/Header.astro";
 import HeaderMobile from "@components/HeaderMobile.astro";
+import SistemaNotificaciones from "@components/notificaciones/SistemaNotificaciones";
 
 import "../global.css";
 
 interface Props {
-    title?: string;
-    menu?: boolean;
-    menuMobile?: boolean;
-    description?: string;
+  title?: string;
+  menu?: boolean;
+  menuMobile?: boolean;
+  description?: string;
 }
 
 const {
-    title,
-    menu = false,
-    menuMobile = false,
-    description = "Consulta equipos, entrenamientos, partidos, eventos y otra información del C.B. Andratx.",
+  title,
+  menu = false,
+  menuMobile = false,
+  description = "Consulta equipos, entrenamientos, partidos, eventos y otra información del C.B. Andratx.",
 } = Astro.props;
 
 const dominio = "https://cb-andratx-chatbot.vercel.app";
 const titulo = title ? `${title} | C.B. Andratx` : "C.B. Andratx";
 const urlCanonical = new URL(Astro.url.pathname, dominio);
-const imagenSocial = new URL("/og-cb-andratx-chatbot.jpg", dominio);
+const imagenSocial = new URL("/og-cb-andratx.png", dominio);
 ---
 
 <!doctype html>
-<html lang="es">
-    <head>
-        <meta charset="utf-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
+<html lang="es" class="min-h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-        <title>{titulo}</title>
+    <title>{titulo}</title>
 
-        <meta name="description" content={description} />
-        <meta name="application-name" content="C.B. Andratx" />
-        <meta name="author" content="C.B. Andratx" />
-        <meta name="robots" content="index, follow" />
-        <meta name="googlebot" content="index, follow" />
-        <meta name="referrer" content="strict-origin-when-cross-origin" />
-        <meta name="theme-color" content="#032a55" />
-        <meta name="color-scheme" content="light" />
+    <meta name="description" content={description} />
+    <meta name="application-name" content="C.B. Andratx" />
+    <meta name="author" content="C.B. Andratx" />
+    <meta name="robots" content="index, follow" />
+    <meta name="googlebot" content="index, follow" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
+    <meta name="theme-color" content="#032a55" />
+    <meta name="color-scheme" content="light" />
 
-        <link rel="canonical" href={urlCanonical} />
+    <link rel="canonical" href={urlCanonical} />
 
-        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-        <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
 
-        <meta property="og:type" content="website" />
-        <meta property="og:locale" content="es_ES" />
-        <meta property="og:site_name" content="C.B. Andratx" />
-        <meta property="og:title" content={titulo} />
-        <meta property="og:description" content={description} />
-        <meta property="og:url" content={urlCanonical} />
-        <meta property="og:image" content={imagenSocial} />
-        <meta property="og:image:secure_url" content={imagenSocial} />
-        <meta property="og:image:type" content="image/jpeg" />
-        <meta property="og:image:width" content="1200" />
-        <meta property="og:image:height" content="630" />
-        <meta property="og:image:alt" content="Información del C.B. Andratx" />
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_ES" />
+    <meta property="og:site_name" content="C.B. Andratx" />
+    <meta property="og:title" content={titulo} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={urlCanonical} />
+    <meta property="og:image" content={imagenSocial} />
+    <meta property="og:image:secure_url" content={imagenSocial} />
+    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Información del C.B. Andratx" />
 
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={titulo} />
-        <meta name="twitter:description" content={description} />
-        <meta name="twitter:image" content={imagenSocial} />
-        <meta name="twitter:image:alt" content="Información del C.B. Andratx" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={titulo} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={imagenSocial} />
+    <meta name="twitter:image:alt" content="Información del C.B. Andratx" />
 
-        <meta name="generator" content={Astro.generator} />
-    </head>
+    <meta name="generator" content={Astro.generator} />
+  </head>
 
-    <body class="flex min-h-dvh flex-col">
-        {menu && (
-            <div class="hidden md:block">
-                <Header />
-            </div>
-        )}
+  <body class="flex min-h-dvh flex-col">
+    {menu && (
+      <div class="sticky top-0 z-50 hidden w-full shrink-0 md:block">
+        <Header />
+      </div>
+    )}
 
-        <main>
-            <slot />
-        </main>
+    <main class:list={["relative min-w-0 flex-1", menuMobile && "pb-24 md:pb-0"]}>
+      <slot />
+    </main>
 
-        {menuMobile && (
-            <div class="md:hidden">
-                <HeaderMobile />
-            </div>
-        )}
+    <div class="w-full shrink-0">
+      <Footer />
+    </div>
 
-        <SistemaNotificaciones client:only="react" />
-    </body>
+    {menuMobile && (
+      <div class="fixed inset-x-0 bottom-0 z-50 w-full md:hidden">
+        <HeaderMobile />
+      </div>
+    )}
+
+    <SistemaNotificaciones client:only="react" />
+  </body>
 </html>

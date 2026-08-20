@@ -1,8 +1,8 @@
 import { supabaseServidor } from "../../supabase/servidor";
 
-export interface EquipoChatbot {
-  id: string | null;
-  temporadaId: string | null;
+export interface EquipoTemporada {
+  id: string;
+  temporadaId: string;
   nombre: string | null;
   nombreCorto: string | null;
   slug: string | null;
@@ -13,10 +13,16 @@ export interface EquipoChatbot {
   imagen: string | null;
   sponsorId: string | null;
   mostrarSponsor: boolean;
+  chatbot: boolean;
+}
+
+export interface ResultadoEquiposTemporada {
+  temporadaId: string;
+  equipos: EquipoTemporada[];
 }
 
 interface FilaEquipoSupabase {
-  id: string | null;
+  id: string;
   temporada_id: string | null;
   nombre: string | null;
   nombre_corto: string | null;
@@ -28,15 +34,15 @@ interface FilaEquipoSupabase {
   imagen: string | null;
   sponsor_id: string | null;
   mostrar_sponsor: boolean | null;
+  chatbot: boolean | null;
 }
 
-export async function obtenerEquiposChatbotTemporadaActiva(): Promise<
-  EquipoChatbot[]
-> {
-  const {
-    data: temporada,
-    error: errorTemporada,
-  } = await supabaseServidor
+interface OpcionesConsulta {
+  soloChatbot?: boolean;
+}
+
+export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: OpcionesConsulta = {}): Promise<ResultadoEquiposTemporada | null> {
+  const { data: temporada, error: errorTemporada } = await supabaseServidor
     .from("temporadas")
     .select("id")
     .eq("activa", true)
@@ -44,19 +50,16 @@ export async function obtenerEquiposChatbotTemporadaActiva(): Promise<
     .maybeSingle();
 
   if (errorTemporada) {
-    throw new Error(
-      `Error al obtener la temporada activa: ${errorTemporada.message}`
-    );
+    throw new Error(`Error al obtener la temporada activa: ${errorTemporada.message}`);
   }
 
   if (!temporada?.id) {
-    return [];
+    return null;
   }
 
-  const {
-    data: equipos,
-    error: errorEquipos,
-  } = await supabaseServidor
+  const temporadaId = String(temporada.id);
+
+  let consulta = supabaseServidor
     .from("equipos")
     .select(`
       id,
@@ -70,39 +73,50 @@ export async function obtenerEquiposChatbotTemporadaActiva(): Promise<
       descripcion,
       imagen,
       sponsor_id,
-      mostrar_sponsor
+      mostrar_sponsor,
+      chatbot
     `)
-    .eq("temporada_id", String(temporada.id))
-    .eq("chatbot", true)
-    .order("categoria", {
-      ascending: true,
-    })
-    .order("nombre", {
-      ascending: true,
-    });
+    .eq("temporada_id", temporadaId)
+    .eq("activo", true);
 
-  if (errorEquipos) {
-    throw new Error(
-      `Error al obtener los equipos: ${errorEquipos.message}`
-    );
+  if (soloChatbot) {
+    consulta = consulta.eq("chatbot", true);
   }
 
-  const filas =
-    (equipos ?? []) as FilaEquipoSupabase[];
+  const { data: equipos, error: errorEquipos } = await consulta
+    .order("categoria", { ascending: true })
+    .order("nombre", { ascending: true });
 
-  return filas.map((equipo) => ({
-    id: equipo.id,
-    temporadaId: equipo.temporada_id,
-    nombre: equipo.nombre,
-    nombreCorto: equipo.nombre_corto,
-    slug: equipo.slug,
-    categoria: equipo.categoria,
-    genero: equipo.genero,
-    nivel: equipo.nivel,
-    descripcion: equipo.descripcion,
-    imagen: equipo.imagen,
-    sponsorId: equipo.sponsor_id,
-    mostrarSponsor:
-      equipo.mostrar_sponsor ?? true,
-  }));
+  if (errorEquipos) {
+    throw new Error(`Error al obtener los equipos: ${errorEquipos.message}`);
+  }
+
+  const filas = (equipos ?? []) as FilaEquipoSupabase[];
+
+  return {
+    temporadaId,
+    equipos: filas.map((equipo) => ({
+      id: equipo.id,
+      temporadaId,
+      nombre: equipo.nombre,
+      nombreCorto: equipo.nombre_corto,
+      slug: equipo.slug,
+      categoria: equipo.categoria,
+      genero: equipo.genero,
+      nivel: equipo.nivel,
+      descripcion: equipo.descripcion,
+      imagen: equipo.imagen,
+      sponsorId: equipo.sponsor_id,
+      mostrarSponsor: equipo.mostrar_sponsor ?? true,
+      chatbot: equipo.chatbot === true,
+    })),
+  };
+}
+
+export async function obtenerEquiposChatbotTemporadaActiva(): Promise<EquipoTemporada[]> {
+  const resultado = await obtenerEquiposTemporadaActiva({
+    soloChatbot: true,
+  });
+
+  return resultado?.equipos ?? [];
 }

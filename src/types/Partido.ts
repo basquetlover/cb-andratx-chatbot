@@ -5,9 +5,13 @@ export interface EquipoPartido {
 }
 
 export interface InstalacionPartido {
+  id: string | null;
   nombre: string | null;
   direccion: string | null;
   localidad: string | null;
+  codigoPostal: string | null;
+  latitud: string | null;
+  longitud: string | null;
 }
 
 export interface ProximoPartido {

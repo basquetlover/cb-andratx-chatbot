@@ -1,7 +1,8 @@
+import type { ProximoPartido } from "@tipos/Partido";
+
+import { obtenerEscudosEquiposFbib } from "../equipos/obtenerEscudosEquiposFbib";
 import { obtenerPartidosPendientesEquipoFbib, type PartidoPendienteFbib } from "./obtenerPartidosPendientesEquipoFbib";
 import { seleccionarProximoPartido } from "./seleccionarProximoPartido";
-import { obtenerEscudosEquiposFbib } from "../equipos/obtenerEscudosEquiposFbib";
-import type { ProximoPartido } from "@tipos/Partido";
 
 function convertirTexto(valor: unknown): string | null {
   if (typeof valor === "string") {
@@ -12,36 +13,6 @@ function convertirTexto(valor: unknown): string | null {
 
   if (typeof valor === "number" && Number.isFinite(valor)) {
     return String(valor);
-  }
-
-  return null;
-}
-
-function convertirImagen(valor: unknown): string | null {
-  if (typeof valor !== "string") {
-    return null;
-  }
-
-  const imagen = valor.trim();
-
-  if (!imagen) {
-    return null;
-  }
-
-  if (imagen.startsWith("https://") || imagen.startsWith("data:image/")) {
-    return imagen;
-  }
-
-  if (imagen.startsWith("http://")) {
-    return imagen.replace("http://", "https://");
-  }
-
-  if (imagen.startsWith("/")) {
-    return `https://www.fbib.es${imagen}`;
-  }
-
-  if (/^[A-Za-z0-9+/]+=*$/.test(imagen)) {
-    return `data:image/png;base64,${imagen}`;
   }
 
   return null;
@@ -105,17 +76,30 @@ function convertirPartido(partido: PartidoPendienteFbib): ProximoPartido | null 
     return null;
   }
 
+  const idInstalacion = convertirTexto(partido.idField);
   const nombreInstalacion = convertirTexto(partido.nameField);
   const direccion = convertirTexto(partido.adressField);
   const localidad = convertirTexto(partido.nameTown);
-  
+  const codigoPostal = convertirTexto(partido.postalCodeField);
+  const latitud = convertirTexto(partido.latitudeField);
+  const longitud = convertirTexto(partido.longitudeField);
+
+  const tieneInstalacion = Boolean(
+    idInstalacion ||
+    nombreInstalacion ||
+    direccion ||
+    localidad ||
+    codigoPostal ||
+    latitud ||
+    longitud
+  );
 
   return {
     id,
     fecha,
     hora: obtenerHora(partido.matchDay),
     jornada: convertirTexto(partido.numMatchDay),
-    categoria: convertirTexto(partido.nameCategorySigned),
+    categoria: convertirTexto(partido.nameCategorySigned) ?? convertirTexto(partido.nameCategory),
     competicion: convertirTexto(partido.nameCompetition),
     grupo: convertirTexto(partido.nameGroup),
     estado: "Pendiente",
@@ -129,20 +113,24 @@ function convertirPartido(partido: PartidoPendienteFbib): ProximoPartido | null 
       puntos: convertirPuntos(partido.visitorScore),
       escudo: null,
     },
-    instalacion:
-      nombreInstalacion || direccion || localidad
-        ? {
-            nombre: nombreInstalacion,
-            direccion,
-            localidad,
-          }
-        : null,
+    instalacion: tieneInstalacion
+      ? {
+          id: idInstalacion,
+          nombre: nombreInstalacion,
+          direccion,
+          localidad,
+          codigoPostal,
+          latitud,
+          longitud,
+        }
+      : null,
     urlFbib: `https://www.fbib.es/partido/${encodeURIComponent(id)}`,
   };
 }
 
 export async function obtenerProximoPartidoFbib(idEquipoFbib: string): Promise<ProximoPartido | null> {
   const partidosFbib = await obtenerPartidosPendientesEquipoFbib(idEquipoFbib);
+
   const partidos = partidosFbib.map(convertirPartido).filter((partido): partido is ProximoPartido => partido !== null);
 
   if (partidosFbib.length > 0 && partidos.length === 0) {
@@ -168,17 +156,23 @@ export async function obtenerProximoPartidoFbib(idEquipoFbib: string): Promise<P
     return proximoPartido;
   }
 
-  const escudos = await obtenerEscudosEquiposFbib(idEquipoLocal, idEquipoVisitante);
+  try {
+    const escudos = await obtenerEscudosEquiposFbib(idEquipoLocal, idEquipoVisitante);
 
-  return {
-    ...proximoPartido,
-    equipoLocal: {
-      ...proximoPartido.equipoLocal,
-      escudo: escudos.local,
-    },
-    equipoVisitante: {
-      ...proximoPartido.equipoVisitante,
-      escudo: escudos.visitante,
-    },
-  };
+    return {
+      ...proximoPartido,
+      equipoLocal: {
+        ...proximoPartido.equipoLocal,
+        escudo: escudos.local,
+      },
+      equipoVisitante: {
+        ...proximoPartido.equipoVisitante,
+        escudo: escudos.visitante,
+      },
+    };
+  } catch (error) {
+    console.error("Error al obtener los escudos del próximo partido:", error);
+
+    return proximoPartido;
+  }
 }

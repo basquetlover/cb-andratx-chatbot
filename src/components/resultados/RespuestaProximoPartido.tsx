@@ -1,4 +1,5 @@
 import MensajeIA from "@components/MensajeIA";
+import MapaLocalizaciones, { type LocalizacionMapa } from "@components/mapas/MapaLocalizaciones";
 
 import type { ResultadoProximoPartido } from "@tipos/Partido";
 
@@ -47,6 +48,21 @@ export default function RespuestaProximoPartido({ resultado }: Propiedades) {
   const informacionJornada = partido.jornada ? `Jornada ${partido.jornada}` : null;
   const direccion = [partido.instalacion?.direccion, partido.instalacion?.localidad].filter(Boolean).join(", ");
 
+  const localizaciones: LocalizacionMapa[] = partido.instalacion
+  ? [
+      {
+        id: partido.instalacion.id ?? `instalacion-${partido.id}`,
+        nombre: partido.instalacion.nombre,
+        nombre_corto: null,
+        direccion: partido.instalacion.direccion,
+        localidad: partido.instalacion.localidad,
+        codigo_postal: partido.instalacion.codigoPostal,
+        latitud: partido.instalacion.latitud,
+        longitud: partido.instalacion.longitud,
+      },
+    ]
+  : [];
+
   return (
     <MensajeIA>
       <p className="font-semibold text-on-secondary-fixed">Próximo partido</p>
@@ -91,11 +107,23 @@ export default function RespuestaProximoPartido({ resultado }: Propiedades) {
             </div>
         </div>
 
-        {partido.instalacion && (
+        {/* {partido.instalacion && (
           <div className="border-t border-outline-variant bg-surface-container px-4 py-3">
             <p className="text-sm font-semibold text-on-surface">{partido.instalacion.nombre ?? "Instalación pendiente"}</p>
             {direccion && <p className="mt-1 text-sm text-on-surface-variant">{direccion}</p>}
           </div>
+        )} */}
+        {localizaciones.length > 0 && (
+          <section className="mt-5 p-2" aria-labelledby={`ubicacion-partido-${partido.id}`}>
+            <div className="mb-3">
+              <p id={`ubicacion-partido-${partido.id}`} className="font-semibold text-on-secondary-fixed">Ubicación del partido</p>
+              <p className="mt-1 text-sm text-on-surface-variant">Consulta dónde se disputará el encuentro.</p>
+            </div>
+
+            <div className="h-105 w-full overflow-hidden rounded-2xl border border-outline-variant">
+              <MapaLocalizaciones localizaciones={localizaciones} zoom={16} mostrarControles mostrarLeyenda temaMapa="azul" />
+            </div>
+          </section>
         )}
       </article>
 
