@@ -1,6 +1,8 @@
 import type { APIRoute } from "astro";
 
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
 import { crearNuevoUsuario } from "@servicios/backend/usuarios/crearNuevoUsuario";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
 
 export const prerender = false;
 
@@ -27,7 +29,31 @@ function respuestaError(error: string, estado: number, errores: Array<{ campo: s
   );
 }
 
-export const POST: APIRoute = async ({ request }) => {
+export const POST: APIRoute = async ({ request, cookies }) => {
+  const tokenSesion = cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+  if (!tokenSesion) {
+    return respuestaError("Debes iniciar sesión para crear usuarios.", 401);
+  }
+
+  let sesion;
+
+  try {
+    sesion = await obtenerUsuarioSesion(tokenSesion);
+  } catch (error) {
+    console.error("Error comprobando la sesión al crear un usuario:", error);
+
+    return respuestaError("No se ha podido comprobar la sesión.", 500);
+  }
+
+  if (!sesion) {
+    cookies.delete(NOMBRE_COOKIE_SESION, {
+      path: "/",
+    });
+
+    return respuestaError("La sesión no es válida o ha caducado.", 401);
+  }
+
   const tipoContenido = request.headers.get("content-type");
   const longitudContenido = Number(request.headers.get("content-length") ?? 0);
 
@@ -48,7 +74,7 @@ export const POST: APIRoute = async ({ request }) => {
   }
 
   try {
-    const creadoPor = null;
+    const creadoPor = sesion.usuario.id;
     const resultado = await crearNuevoUsuario(contenido, creadoPor);
 
     if (!resultado.ok) {

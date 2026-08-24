@@ -258,7 +258,7 @@ export default function ActivarCuenta() {
             <span className="text-sm font-semibold text-on-surface">Nueva contraseña</span>
 
             <span className="relative block">
-              <input type={mostrarPassword ? "text" : "password"} value={password} onChange={(evento) => setPassword(evento.target.value)} minLength={12} maxLength={128} autoComplete="new-password" className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 pr-12 text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20" />
+              <input type={mostrarPassword ? "text" : "password"} value={password} onChange={(evento) => setPassword(evento.target.value)} minLength={8} maxLength={128} autoComplete="new-password" className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 pr-12 text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20" />
 
               <button type="button" onClick={() => setMostrarPassword((valor) => !valor)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container" aria-label={mostrarPassword ? "Ocultar contraseña" : "Mostrar contraseña"}>
                 <span className="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style={{ maskImage: `url('/iconos/panel/${mostrarPassword ? "ocultar" : "mostrar"}.svg')`, WebkitMaskImage: `url('/iconos/panel/${mostrarPassword ? "ocultar" : "mostrar"}.svg')` }} aria-hidden="true" />
