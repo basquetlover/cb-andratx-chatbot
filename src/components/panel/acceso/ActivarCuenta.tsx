@@ -280,7 +280,7 @@ export default function ActivarCuenta() {
             <span className="text-sm font-semibold text-on-surface">Confirmar contraseña</span>
 
             <span className="relative block">
-              <input type={mostrarConfirmacion ? "text" : "password"} value={confirmarPassword} onChange={(evento) => setConfirmarPassword(evento.target.value)} minLength={12} maxLength={128} autoComplete="new-password" className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 pr-12 text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20" />
+              <input type={mostrarConfirmacion ? "text" : "password"} value={confirmarPassword} onChange={(evento) => setConfirmarPassword(evento.target.value)} minLength={8} maxLength={128} autoComplete="new-password" className="h-12 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-4 pr-12 text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20" />
 
               <button type="button" onClick={() => setMostrarConfirmacion((valor) => !valor)} className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container" aria-label={mostrarConfirmacion ? "Ocultar contraseña" : "Mostrar contraseña"}>
                 <span className="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style={{ maskImage: `url('/iconos/panel/${mostrarConfirmacion ? "ocultar" : "mostrar"}.svg')`, WebkitMaskImage: `url('/iconos/panel/${mostrarConfirmacion ? "ocultar" : "mostrar"}.svg')` }} aria-hidden="true" />
