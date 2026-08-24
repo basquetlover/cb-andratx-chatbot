@@ -3,93 +3,199 @@ import { navegacionPanelOrdenada, type EnlacePanel } from "../../configuracion/n
 
 const rutaActual = Astro.url.pathname;
 
-const idsAccesoDirecto = ["resumen", "usuarios", "equipos"];
+const idsIzquierda = ["resumen", "usuarios"];
+const idDerecha = "permisos";
+const idsBarraInferior = [...idsIzquierda, idDerecha];
 
-const accesosDirectos = idsAccesoDirecto
+const enlacesIzquierda = idsIzquierda
     .map((id) => navegacionPanelOrdenada.find((enlace) => enlace.id === id))
     .filter((enlace): enlace is EnlacePanel => enlace !== undefined);
 
-const enlacesMenuCompleto = navegacionPanelOrdenada.filter((enlace) => !idsAccesoDirecto.includes(enlace.id));
+const enlaceDerecha = navegacionPanelOrdenada.find((enlace) => enlace.id === idDerecha);
+
+const enlacesMenuCompleto = navegacionPanelOrdenada.filter((enlace) => !idsBarraInferior.includes(enlace.id));
 
 function esRutaActual(enlace: EnlacePanel): boolean {
     if (enlace.enlace === "/panel") {
         return rutaActual === "/panel";
     }
 
-    return rutaActual === enlace.enlace || rutaActual.startsWith(`${enlace.enlace}/`) || enlace.rutasRelacionadas?.some((ruta) => rutaActual === ruta || rutaActual.startsWith(`${ruta}/`)) === true;
+    if (rutaActual === enlace.enlace || rutaActual.startsWith(`${enlace.enlace}/`)) {
+        return true;
+    }
+
+    return enlace.rutasRelacionadas?.some((ruta) => rutaActual === ruta || rutaActual.startsWith(`${ruta}/`)) === true;
 }
 
-const hayRutaSeleccionadaEnMas = enlacesMenuCompleto.some((enlace) => enlace.estado === "activo" && esRutaActual(enlace));
+const hayRutaSeleccionadaEnMenu = enlacesMenuCompleto.some((enlace) => enlace.estado === "activo" && esRutaActual(enlace));
 ---
 
-<details class="group fixed inset-x-0 bottom-0 z-50 md:hidden">
-    <div class="fixed inset-0 -z-10 hidden bg-on-surface/40 backdrop-blur-[2px] group-open:block" aria-hidden="true"></div>
+<div class="md:hidden" data-menu-mobile-panel>
+    <button type="button" class="pointer-events-none fixed inset-0 z-50 bg-on-surface/0 backdrop-blur-none transition-all duration-300" data-menu-overlay aria-label="Cerrar menú" aria-hidden="true"></button>
 
-    <div class="absolute inset-x-3 bottom-[calc(5rem+env(safe-area-inset-bottom))] overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_18px_60px_rgba(0,30,50,0.24)]">
-        <div class="flex items-center justify-between border-b border-outline-variant/60 bg-surface-container-low px-4 py-3">
-            <div>
-                <p class="font-bold text-on-surface">Menú del panel</p>
-                <p class="text-xs text-on-surface-variant">Todas las herramientas de gestión</p>
+    <aside class="fixed inset-y-0 right-0 z-60 flex w-[min(88vw,360px)] translate-x-full flex-col border-l border-outline-variant/60 bg-surface-container-lowest shadow-[-16px_0_50px_rgba(0,30,50,0.20)] transition-transform duration-300 ease-out" data-menu-drawer aria-hidden="true" aria-label="Menú completo del panel">
+        <header class="flex items-center justify-between border-b border-outline-variant/60 bg-primary px-5 py-5 text-on-primary">
+            <div class="flex min-w-0 items-center gap-3">
+                <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-container-lowest shadow-sm">
+                    <img src="/favicon.png" alt="" class="h-10 w-10 object-contain" />
+                </span>
+
+                <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-primary-fixed">C.B. Andratx</span>
+                    <span class="block truncate text-lg font-bold">Panel de gestión</span>
+                </span>
             </div>
 
-            <span class="flex h-8 w-8 items-center justify-center rounded-full bg-surface-container text-on-surface-variant">
-                <span class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/cerrar.svg'); -webkit-mask-image: url('/iconos/panel/cerrar.svg');" aria-hidden="true"></span>
-            </span>
-        </div>
+            <button type="button" class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-on-primary transition-colors hover:bg-on-primary/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-primary" data-menu-cerrar aria-label="Cerrar menú">
+                <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/cerrar.svg'); -webkit-mask-image: url('/iconos/panel/cerrar.svg');" aria-hidden="true"></span>
+            </button>
+        </header>
 
-        <nav class="max-h-[60dvh] overflow-y-auto p-3" aria-label="Más opciones del panel">
-            <div class="grid grid-cols-2 gap-2">
-                {enlacesMenuCompleto.map((enlace) => {
+        <nav class="flex-1 overflow-y-auto p-3" aria-label="Opciones adicionales del panel">
+            {
+                enlacesMenuCompleto.map((enlace) => {
                     const estaDisponible = enlace.estado === "activo";
                     const estaSeleccionado = estaDisponible && esRutaActual(enlace);
 
                     if (!estaDisponible) {
                         return (
-                            <div class="relative flex min-h-20 flex-col justify-center rounded-xl border border-outline-variant/50 bg-surface-container-low p-3 opacity-50" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
-                                <span class="inline-block h-5 w-5 bg-on-surface-variant mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                                <span class="mt-2 text-sm font-semibold text-on-surface">{enlace.nombre}</span>
-                                <span class="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-on-surface-variant">Próximamente</span>
+                            <div class="flex items-center gap-3 rounded-xl px-3 py-3 text-on-surface-variant opacity-40" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
+                                <span class="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
+
+                                <span class="min-w-0 flex-1">
+                                    <span class="block truncate text-sm font-semibold text-on-surface">{enlace.nombre}</span>
+                                    <span class="block text-[10px] font-bold uppercase tracking-wide">Próximamente</span>
+                                </span>
                             </div>
                         );
                     }
 
                     return (
-                        <a href={enlace.enlace} class:list={["flex min-h-20 flex-col justify-center rounded-xl border p-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", estaSeleccionado ? "border-primary bg-primary-fixed text-primary" : "border-outline-variant/60 bg-surface-container-lowest text-on-surface-variant hover:border-primary hover:bg-primary-fixed/40 hover:text-primary"]} aria-current={estaSeleccionado ? "page" : undefined}>
-                            <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                            <span class="mt-2 text-sm font-semibold">{enlace.nombre}</span>
-                            {enlace.descripcion && <span class="mt-0.5 line-clamp-1 text-[11px] opacity-75">{enlace.descripcion}</span>}
+                        <a href={enlace.enlace} class:list={["flex items-center gap-3 rounded-xl px-3 py-3 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary", estaSeleccionado ? "bg-primary-fixed text-on-primary-fixed" : "text-on-surface-variant hover:bg-surface-container hover:text-primary"]} aria-current={estaSeleccionado ? "page" : undefined}>
+                            <span class="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
+
+                            <span class="min-w-0 flex-1">
+                                <span class="block truncate text-sm font-semibold">{enlace.nombre}</span>
+                                {enlace.descripcion && <span class="mt-0.5 block truncate text-xs opacity-70">{enlace.descripcion}</span>}
+                            </span>
+
+                            {estaSeleccionado && <span class="h-2 w-2 shrink-0 rounded-full bg-primary" aria-hidden="true"></span>}
                         </a>
                     );
-                })}
-            </div>
-        </nav>
-    </div>
-
-    <nav class="grid h-[calc(4.5rem+env(safe-area-inset-bottom))] grid-cols-4 border-t border-outline-variant/60 bg-surface-container-lowest px-2 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_24px_rgba(0,30,50,0.10)]" aria-label="Navegación principal del panel">
-        {accesosDirectos.map((enlace) => {
-            const estaDisponible = enlace.estado === "activo";
-            const estaSeleccionado = estaDisponible && esRutaActual(enlace);
-
-            if (!estaDisponible) {
-                return (
-                    <span class="flex h-full flex-col items-center justify-center gap-1 text-on-surface-variant opacity-35" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
-                        <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                        <span class="max-w-full truncate text-[10px] font-semibold">{enlace.nombreCorto ?? enlace.nombre}</span>
-                    </span>
-                );
+                })
             }
+        </nav>
 
-            return (
-                <a href={enlace.enlace} class:list={["flex h-full flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary", estaSeleccionado ? "text-primary" : "text-on-surface-variant hover:text-primary"]} aria-current={estaSeleccionado ? "page" : undefined}>
-                    <span class:list={["inline-block bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 active:scale-90", estaSeleccionado ? "h-7 w-7" : "h-6 w-6"]} style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                    <span class="max-w-full truncate text-[10px] font-semibold">{enlace.nombreCorto ?? enlace.nombre}</span>
+        <footer class="border-t border-outline-variant/60 bg-surface-container-low p-3">
+            <form method="POST" action="/api/acceso/cerrar-sesion">
+                <button type="submit" class="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-bold text-error transition-colors hover:bg-error-container">
+                    <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/cerrar-sesion.svg'); -webkit-mask-image: url('/iconos/panel/cerrar-sesion.svg');" aria-hidden="true"></span>
+                    Cerrar sesión
+                </button>
+            </form>
+        </footer>
+    </aside>
+
+    <nav class="fixed inset-x-0 bottom-0 z-40 grid h-[calc(4.5rem+env(safe-area-inset-bottom))] grid-cols-5 items-end border-t border-outline-variant/60 bg-surface-container-lowest px-1 pb-[env(safe-area-inset-bottom)] shadow-[0_-8px_28px_rgba(0,30,50,0.12)]" aria-label="Navegación principal del panel">
+        {
+            enlacesIzquierda.map((enlace) => {
+                const estaSeleccionado = esRutaActual(enlace);
+
+                return (
+                    <a href={enlace.enlace} class:list={["relative flex h-18 flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary", estaSeleccionado ? "text-primary" : "text-on-surface-variant hover:text-primary"]} aria-current={estaSeleccionado ? "page" : undefined}>
+                        {estaSeleccionado && <span class="absolute top-0 h-0.5 w-8 rounded-full bg-primary" aria-hidden="true"></span>}
+
+                        <span class:list={["inline-block bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 active:scale-90", estaSeleccionado ? "h-7 w-7" : "h-6 w-6"]} style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
+
+                        <span class="max-w-full truncate px-1 text-[10px] font-semibold">{enlace.nombreCorto ?? enlace.nombre}</span>
+                    </a>
+                );
+            })
+        }
+
+        <div class="relative flex h-18 items-center justify-center">
+            <a href="/panel" class:list={["absolute -top-7 flex h-20 w-20 items-center justify-center rounded-full border bg-surface-container-lowest shadow-[0_-7px_22px_rgba(0,80,107,0.16)] transition-transform duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-95", rutaActual === "/panel" ? "border-primary" : "border-outline-variant/60"]} aria-label="Ir al resumen del panel">
+                <img src="/favicon.png" alt="" class="h-15 w-15 object-contain" />
+            </a>
+        </div>
+
+        {
+            enlaceDerecha ? (
+                <a href={enlaceDerecha.enlace} class:list={["relative flex h-18 flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary", esRutaActual(enlaceDerecha) ? "text-primary" : "text-on-surface-variant hover:text-primary"]} aria-current={esRutaActual(enlaceDerecha) ? "page" : undefined}>
+                    {esRutaActual(enlaceDerecha) && <span class="absolute top-0 h-0.5 w-8 rounded-full bg-primary" aria-hidden="true"></span>}
+
+                    <span class:list={["inline-block bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 active:scale-90", esRutaActual(enlaceDerecha) ? "h-7 w-7" : "h-6 w-6"]} style={`mask-image: url('/iconos/panel/${enlaceDerecha.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlaceDerecha.icono}.svg');`} aria-hidden="true"></span>
+
+                    <span class="max-w-full truncate px-1 text-[10px] font-semibold">{enlaceDerecha.nombreCorto ?? enlaceDerecha.nombre}</span>
                 </a>
-            );
-        })}
+            ) : (
+                <span aria-hidden="true"></span>
+            )
+        }
 
-        <summary class:list={["flex h-full cursor-pointer list-none flex-col items-center justify-center gap-1 transition-colors marker:hidden focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary", hayRutaSeleccionadaEnMas ? "text-primary" : "text-on-surface-variant hover:text-primary"]} aria-label="Mostrar más opciones">
-            <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-open:rotate-90" style="mask-image: url('/iconos/panel/mas.svg'); -webkit-mask-image: url('/iconos/panel/mas.svg');" aria-hidden="true"></span>
+        <button type="button" class:list={["relative flex h-18 flex-col items-center justify-center gap-1 transition-colors focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-primary", hayRutaSeleccionadaEnMenu ? "text-primary" : "text-on-surface-variant hover:text-primary"]} data-menu-abrir aria-label="Abrir más opciones" aria-expanded="false">
+            {hayRutaSeleccionadaEnMenu && <span class="absolute top-0 h-0.5 w-8 rounded-full bg-primary" aria-hidden="true"></span>}
+
+            <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/menu.svg'); -webkit-mask-image: url('/iconos/panel/menu.svg');" aria-hidden="true"></span>
             <span class="text-[10px] font-semibold">Más</span>
-        </summary>
+        </button>
     </nav>
-</details>
+</div>
+
+<script>
+    const contenedorMenu = document.querySelector<HTMLElement>("[data-menu-mobile-panel]");
+    const botonAbrir = contenedorMenu?.querySelector<HTMLButtonElement>("[data-menu-abrir]");
+    const botonCerrar = contenedorMenu?.querySelector<HTMLButtonElement>("[data-menu-cerrar]");
+    const overlay = contenedorMenu?.querySelector<HTMLButtonElement>("[data-menu-overlay]");
+    const drawer = contenedorMenu?.querySelector<HTMLElement>("[data-menu-drawer]");
+
+    let menuAbierto = false;
+
+    const cambiarEstadoMenu = (abierto: boolean) => {
+        if (!botonAbrir || !overlay || !drawer) {
+            return;
+        }
+
+        menuAbierto = abierto;
+
+        botonAbrir.setAttribute("aria-expanded", String(abierto));
+        overlay.setAttribute("aria-hidden", String(!abierto));
+        drawer.setAttribute("aria-hidden", String(!abierto));
+
+        overlay.classList.toggle("pointer-events-none", !abierto);
+        overlay.classList.toggle("pointer-events-auto", abierto);
+        overlay.classList.toggle("bg-on-surface/0", !abierto);
+        overlay.classList.toggle("bg-on-surface/40", abierto);
+        overlay.classList.toggle("backdrop-blur-none", !abierto);
+        overlay.classList.toggle("backdrop-blur-[2px]", abierto);
+        drawer.classList.toggle("translate-x-full", !abierto);
+        drawer.classList.toggle("translate-x-0", abierto);
+
+        document.body.style.overflow = abierto ? "hidden" : "";
+    };
+
+    botonAbrir?.addEventListener("click", () => {
+        cambiarEstadoMenu(!menuAbierto);
+    });
+
+    botonCerrar?.addEventListener("click", () => {
+        cambiarEstadoMenu(false);
+    });
+
+    overlay?.addEventListener("click", () => {
+        cambiarEstadoMenu(false);
+    });
+
+    document.addEventListener("keydown", (evento) => {
+        if (evento.key === "Escape" && menuAbierto) {
+            cambiarEstadoMenu(false);
+            botonAbrir?.focus();
+        }
+    });
+
+    window.addEventListener("resize", () => {
+        if (window.innerWidth >= 768 && menuAbierto) {
+            cambiarEstadoMenu(false);
+        }
+    });
+</script>

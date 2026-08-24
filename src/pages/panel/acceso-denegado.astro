@@ -1,0 +1,66 @@
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+export const prerender = false;
+
+Astro.response.status = 403;
+
+const rutaRecibida = Astro.url.searchParams.get("desde");
+const rutaSolicitada = rutaRecibida?.startsWith("/panel") ? rutaRecibida : null;
+---
+
+<LayoutPanel title="Acceso restringido" description="No tienes permiso para acceder a este apartado.">
+    <section class="flex min-h-[calc(100dvh-15rem)] items-center justify-center py-8">
+        <div class="w-full max-w-xl overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_18px_55px_rgba(0,80,107,0.10)]">
+            <div class="relative overflow-hidden bg-primary px-6 py-9 text-center text-on-primary sm:px-10">
+                <span class="absolute -right-10 -top-12 h-40 w-40 rounded-full bg-on-primary/5" aria-hidden="true"></span>
+                <span class="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-on-primary/5" aria-hidden="true"></span>
+
+                <div class="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-on-primary/25 bg-on-primary/10">
+                    <span class="inline-block h-10 w-10 bg-on-primary mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/acceso-denegado.svg'); -webkit-mask-image: url('/iconos/panel/acceso-denegado.svg');" aria-hidden="true"></span>
+                </div>
+
+                <p class="relative mt-5 text-sm font-bold uppercase tracking-[0.22em] text-primary-fixed">Error 403</p>
+                <h2 class="relative mt-2 text-2xl font-bold sm:text-3xl">Este apartado está restringido</h2>
+            </div>
+
+            <div class="px-6 py-7 text-center sm:px-10 sm:py-9">
+                <p class="text-on-surface-variant">Tu cuenta está activa, pero no tiene el permiso necesario para consultar o modificar este apartado del panel.</p>
+
+                {rutaSolicitada && (
+                    <div class="mt-5 rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3">
+                        <p class="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Ruta solicitada</p>
+                        <p class="mt-1 break-all font-mono text-sm text-on-surface">{rutaSolicitada}</p>
+                    </div>
+                )}
+
+                <p class="mt-5 text-sm text-on-surface-variant">Si necesitas acceder, solicita el permiso correspondiente a una persona autorizada del club.</p>
+
+                <div class="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+                    <a href="/panel" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/resumen.svg'); -webkit-mask-image: url('/iconos/panel/resumen.svg');" aria-hidden="true"></span>
+                        Volver al panel
+                    </a>
+
+                    <button type="button" data-volver-anterior class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:bg-primary-fixed hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');" aria-hidden="true"></span>
+                        Página anterior
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+</LayoutPanel>
+
+<script>
+    const botonVolver = document.querySelector<HTMLButtonElement>("[data-volver-anterior]");
+
+    botonVolver?.addEventListener("click", () => {
+        if (window.history.length > 1) {
+            window.history.back();
+            return;
+        }
+
+        window.location.assign("/panel");
+    });
+</script>

@@ -1,0 +1,48 @@
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+export const prerender = false;
+
+Astro.response.status = 404;
+
+const rutaSolicitada = Astro.url.pathname;
+---
+
+<LayoutPanel title="Página no encontrada" description="Este apartado no existe dentro del panel.">
+    <section class="flex min-h-[calc(100dvh-15rem)] items-center justify-center py-8">
+        <div class="w-full max-w-xl overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_18px_55px_rgba(0,80,107,0.10)]">
+            <div class="relative overflow-hidden bg-on-primary-fixed px-6 py-9 text-center text-on-primary sm:px-10">
+                <span class="absolute -right-12 -top-14 h-44 w-44 rounded-full bg-primary/10" aria-hidden="true"></span>
+                <span class="absolute -bottom-16 -left-12 h-44 w-44 rounded-full bg-primary/10" aria-hidden="true"></span>
+
+                <div class="relative mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-primary/30 bg-primary/10">
+                    <span class="inline-block h-11 w-11 bg-primary mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/pagina-no-encontrada.svg'); -webkit-mask-image: url('/iconos/panel/pagina-no-encontrada.svg');" aria-hidden="true"></span>
+                </div>
+
+                <p class="relative mt-5 text-sm font-bold uppercase tracking-[0.22em] text-primary-fixed-dim">Error 404</p>
+                <h2 class="relative mt-2 text-2xl font-bold sm:text-3xl">Este apartado está fuera de juego</h2>
+            </div>
+
+            <div class="px-6 py-7 text-center sm:px-10 sm:py-9">
+                <p class="text-on-surface-variant">La página que buscas no existe, ha cambiado de dirección o todavía no se ha creado dentro del panel.</p>
+
+                <div class="mt-5 rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3">
+                    <p class="text-xs font-bold uppercase tracking-wide text-on-surface-variant">Ruta solicitada</p>
+                    <p class="mt-1 break-all font-mono text-sm text-on-surface">{rutaSolicitada}</p>
+                </div>
+
+                <div class="mt-7 flex flex-col justify-center gap-3 sm:flex-row">
+                    <a href="/panel" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/resumen.svg'); -webkit-mask-image: url('/iconos/panel/resumen.svg');" aria-hidden="true"></span>
+                        Ir al resumen
+                    </a>
+
+                    <a href="/" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:bg-primary-fixed hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                        <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/web.svg'); -webkit-mask-image: url('/iconos/panel/web.svg');" aria-hidden="true"></span>
+                        Volver a la web
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+</LayoutPanel>

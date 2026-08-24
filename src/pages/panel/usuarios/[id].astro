@@ -1,0 +1,62 @@
+---
+import EditorUsuario from "@components/panel/usuarios/EditorUsuario";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerUsuarioPanelPorId } from "@servicios/backend/usuarios/obtenerUsuarioPanelPorId";
+
+import type { UsuarioDetallePanel } from "../../../types/UsuarioDetallePanel";
+
+export const prerender = false;
+
+const usuarioId = Astro.params.id?.trim() ?? "";
+
+let usuario: UsuarioDetallePanel | null = null;
+let errorCarga: string | null = null;
+
+try {
+    usuario = await obtenerUsuarioPanelPorId(usuarioId);
+} catch (error) {
+    console.error(`Error cargando el usuario ${usuarioId}:`, error);
+    errorCarga = "No se ha podido cargar la información del usuario.";
+}
+
+if (!usuario && !errorCarga) {
+    Astro.response.status = 404;
+}
+
+const nombreUsuario = usuario ? [usuario.datosPersonales.nombre, usuario.datosPersonales.apellidos].filter(Boolean).join(" ").trim() : null;
+---
+
+<LayoutPanel title={nombreUsuario ?? (errorCarga ? "Error al cargar el usuario" : "Usuario no encontrado")} description={usuario ? "Consulta y modifica los datos, permisos, equipos y seguridad de esta cuenta." : undefined} volverA="/panel/usuarios" textoVolver="Volver a usuarios" anchoCompleto>
+    {
+        errorCarga ? (
+            <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+                <div class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm">
+                    <span class="mx-auto inline-block h-12 w-12 bg-error mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');" aria-hidden="true"></span>
+                    <h2 class="mt-4 text-xl font-bold">No se ha podido cargar el usuario</h2>
+                    <p class="mt-2 text-sm">{errorCarga}</p>
+
+                    <a href="/panel/usuarios" class="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error">
+                        Volver a usuarios
+                    </a>
+                </div>
+            </section>
+        ) : usuario ? (
+            <EditorUsuario client:load usuarioInicial={usuario} />
+        ) : (
+            <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+                <div class="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-7 text-center shadow-sm">
+                    <span class="mx-auto inline-block h-14 w-14 bg-outline mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/usuario-no-encontrado.svg'); -webkit-mask-image: url('/iconos/panel/usuario-no-encontrado.svg');" aria-hidden="true"></span>
+                    <p class="mt-4 text-sm font-bold uppercase tracking-wide text-primary">Error 404</p>
+                    <h2 class="mt-1 text-2xl font-bold text-on-surface">Usuario no encontrado</h2>
+                    <p class="mt-2 text-sm text-on-surface-variant">El usuario solicitado no existe o ha sido eliminado.</p>
+
+                    <a href="/panel/usuarios" class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary">
+                        <span class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');" aria-hidden="true"></span>
+                        Volver a usuarios
+                    </a>
+                </div>
+            </section>
+        )
+    }
+</LayoutPanel>

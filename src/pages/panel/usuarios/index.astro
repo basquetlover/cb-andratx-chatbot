@@ -1,0 +1,24 @@
+---
+import ListadoUsuarios from "@components/panel/usuarios/ListadoUsuarios";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerUsuariosPanel } from "@servicios/backend/usuarios/obtenerUsuariosPanel";
+
+import type { UsuarioListadoPanel } from "@tipos/UsuarioPanel";
+
+export const prerender = false;
+
+let usuarios: UsuarioListadoPanel[] = [];
+let errorCarga: string | null = null;
+
+try {
+    usuarios = await obtenerUsuariosPanel();
+} catch (error) {
+    console.error("Error cargando los usuarios del panel:", error);
+    errorCarga = "No se ha podido cargar la lista de usuarios.";
+}
+---
+
+<LayoutPanel title="Usuarios del club" description="Gestiona administradores, entrenadores y otras personas autorizadas.">
+    <ListadoUsuarios client:load usuariosIniciales={usuarios} errorInicial={errorCarga} />
+</LayoutPanel>
