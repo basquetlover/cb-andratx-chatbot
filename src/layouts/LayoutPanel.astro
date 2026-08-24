@@ -1,0 +1,108 @@
+---
+import HeaderPanel from "@components/panel/HeaderPanel.astro";
+import MenuLateralPanel from "@components/panel/MenuLateral.astro";
+import MenuMobilePanel from "@components/panel/MenuMobilePanel.astro";
+import SistemaNotificaciones from "@components/notificaciones/SistemaNotificaciones";
+
+import { obtenerUsuarioSesion, type UsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+import "../global.css";
+
+interface Props {
+    title: string;
+    description?: string;
+    volverA?: string;
+    textoVolver?: string;
+    anchoCompleto?: boolean;
+}
+
+const {
+    title,
+    description,
+    volverA,
+    textoVolver,
+    anchoCompleto = false,
+} = Astro.props;
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+    return Astro.redirect("/panel/iniciar-sesion");
+}
+
+let sesion: UsuarioSesion | null = null;
+
+try {
+    sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+    console.error("Error comprobando la sesión del panel:", error);
+}
+
+if (!sesion) {
+    Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+        path: "/",
+    });
+
+    return Astro.redirect("/panel/iniciar-sesion");
+}
+
+const tituloDocumento = `${title} | Panel C.B. Andratx`;
+---
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        <title>{tituloDocumento}</title>
+
+        <meta name="description" content={description ?? "Panel de gestión del C.B. Andratx."} />
+        <meta name="application-name" content="Panel C.B. Andratx" />
+        <meta name="author" content="C.B. Andratx" />
+        <meta name="robots" content="noindex, nofollow, noarchive" />
+        <meta name="googlebot" content="noindex, nofollow, noarchive" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        <meta name="theme-color" content="#006688" />
+        <meta name="color-scheme" content="light" />
+
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+
+        <meta name="generator" content={Astro.generator} />
+    </head>
+
+    <body class="min-h-dvh bg-background text-on-background">
+        <div class="flex min-h-dvh w-full">
+            <MenuLateralPanel />
+
+            <div class="flex min-h-dvh min-w-0 flex-1 flex-col">
+                <HeaderPanel titulo={title} descripcion={description} volverA={volverA} textoVolver={textoVolver} usuario={sesion.usuario} />
+
+                <main class="flex-1 px-4 py-5 pb-24 sm:px-6 sm:py-6 md:pb-8 lg:px-8">
+                    <div class:list={["mx-auto w-full", anchoCompleto ? "max-w-none" : "max-w-7xl"]}>
+                        <slot />
+                    </div>
+                </main>
+            </div>
+        </div>
+
+        <MenuMobilePanel />
+
+        <SistemaNotificaciones client:only="react" />
+    </body>
+</html>
+
+<style>
+    html {
+        min-height: 100%;
+        background-color: var(--color-background);
+    }
+
+    body {
+        min-height: 100%;
+        margin: 0;
+    }
+</style>

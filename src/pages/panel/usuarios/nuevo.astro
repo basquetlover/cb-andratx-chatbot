@@ -1,0 +1,8 @@
+---
+import CreadorUsuario from "@components/panel/usuarios/CreadorUsuario";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+---
+
+<LayoutPanel title="Crear nuevo usuario" description="Configura sus datos personales, permisos y equipos asignados." volverA="/panel/usuarios" textoVolver="Volver a usuarios">
+    <CreadorUsuario client:load />
+</LayoutPanel>

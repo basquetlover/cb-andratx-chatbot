@@ -1,0 +1,154 @@
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect("/panel/iniciar-sesion");
+}
+
+let sesion;
+
+try {
+  sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error("Error cargando la sesión del panel:", error);
+
+  return Astro.redirect("/panel/iniciar-sesion");
+}
+
+if (!sesion) {
+  Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+    path: "/",
+  });
+
+  return Astro.redirect("/panel/iniciar-sesion");
+}
+
+const nombreCompleto = [sesion.usuario.nombre, sesion.usuario.apellidos].filter(Boolean).join(" ");
+const primerNombre = sesion.usuario.nombre.trim().split(/\s+/)[0] || sesion.usuario.nombre;
+---
+
+<LayoutPanel title="Panel de gestión">
+  <section class="mx-auto w-full max-w-7xl">
+    <header class="overflow-hidden rounded-2xl bg-primary px-6 py-7 text-on-primary shadow-[0_14px_40px_rgba(0,80,107,0.15)] sm:px-8 sm:py-9">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p class="text-sm font-semibold text-primary-fixed">Panel de gestión</p>
+          <h1 class="mt-1 text-3xl font-bold sm:text-4xl">Hola, {primerNombre}</h1>
+          <p class="mt-2 max-w-2xl text-sm text-on-primary/80 sm:text-base">Gestiona la información del C.B. Andratx desde un único lugar.</p>
+        </div>
+
+        <!-- <div class="flex items-center gap-3 rounded-xl border border-on-primary/20 bg-on-primary/10 px-4 py-3">
+          {
+            sesion.usuario.imagen ? (
+              <img src={sesion.usuario.imagen} alt="" class="h-12 w-12 rounded-full object-cover" />
+            ) : (
+              <span class="flex h-12 w-12 items-center justify-center rounded-full bg-primary-fixed font-bold text-on-primary-fixed">
+                {sesion.usuario.nombre.charAt(0)}
+                {sesion.usuario.apellidos?.charAt(0) ?? ""}
+              </span>
+            )
+          }
+
+           <span class="flex min-w-0 flex-col">
+            <span class="truncate font-bold">{nombreCompleto}</span>
+            <span class="truncate text-sm text-on-primary/75">{sesion.usuario.cargo ?? "Usuario autorizado"}</span>
+          </span>
+        </div> -->
+      </div>
+    </header>
+
+    <div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <a href="/panel/usuarios" class="group rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-primary-fixed text-on-primary-fixed">
+          <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/usuarios.svg'); -webkit-mask-image: url('/iconos/panel/usuarios.svg');"></span>
+        </span>
+
+        <h2 class="mt-4 text-lg font-bold text-on-surface">Usuarios</h2>
+        <p class="mt-1 text-sm text-on-surface-variant">Crea usuarios y gestiona sus permisos y equipos.</p>
+      </a>
+
+      <a href="/panel/equipos" class="group rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary-fixed text-on-secondary-fixed">
+          <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/equipos.svg'); -webkit-mask-image: url('/iconos/panel/equipos.svg');"></span>
+        </span>
+
+        <h2 class="mt-4 text-lg font-bold text-on-surface">Equipos</h2>
+        <p class="mt-1 text-sm text-on-surface-variant">Consulta y actualiza los equipos de la temporada.</p>
+      </a>
+
+      <a href="/panel/entrenamientos" class="group rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-tertiary-fixed text-on-tertiary-fixed">
+          <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/calendario.svg'); -webkit-mask-image: url('/iconos/calendario.svg');"></span>
+        </span>
+
+        <h2 class="mt-4 text-lg font-bold text-on-surface">Entrenamientos</h2>
+        <p class="mt-1 text-sm text-on-surface-variant">Gestiona horarios, instalaciones y periodos.</p>
+      </a>
+
+      <a href="/panel/eventos" class="group rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm transition-all duration-200 hover:-translate-y-1 hover:border-primary hover:shadow-lg">
+        <span class="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-container-high text-primary">
+          <span class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/eventos.svg'); -webkit-mask-image: url('/iconos/panel/eventos.svg');"></span>
+        </span>
+
+        <h2 class="mt-4 text-lg font-bold text-on-surface">Eventos</h2>
+        <p class="mt-1 text-sm text-on-surface-variant">Publica y modifica eventos generales del club.</p>
+      </a>
+    </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-[1.35fr_0.65fr]">
+      <section class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <h2 class="text-xl font-bold text-on-surface">Acciones rápidas</h2>
+            <p class="mt-1 text-sm text-on-surface-variant">Accede directamente a las tareas más habituales.</p>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-3 sm:grid-cols-2">
+          <a href="/panel/usuarios/crear" class="flex items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low p-4 text-on-surface transition-colors hover:border-primary hover:bg-primary-fixed">
+            <span class="inline-block h-6 w-6 shrink-0 bg-primary mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/usuario-nuevo.svg'); -webkit-mask-image: url('/iconos/panel/usuario-nuevo.svg');"></span>
+            <span class="font-semibold">Crear un usuario</span>
+          </a>
+
+          <a href="/panel/entrenamientos" class="flex items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low p-4 text-on-surface transition-colors hover:border-primary hover:bg-primary-fixed">
+            <span class="inline-block h-6 w-6 shrink-0 bg-primary mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/editar.svg'); -webkit-mask-image: url('/iconos/panel/editar.svg');"></span>
+            <span class="font-semibold">Modificar entrenamientos</span>
+          </a>
+        </div>
+      </section>
+
+      <aside class="rounded-2xl border border-outline-variant/60 bg-surface-container p-5 shadow-sm sm:p-6">
+        <h2 class="text-lg font-bold text-on-surface">Tu acceso</h2>
+
+        <dl class="mt-4 flex flex-col gap-3 text-sm">
+          <div class="flex items-center justify-between gap-4">
+            <dt class="text-on-surface-variant">Estado</dt>
+            <dd class="rounded-full bg-success-container px-3 py-1 font-semibold text-on-success-container">Activo</dd>
+          </div>
+
+          <div class="flex items-center justify-between gap-4">
+            <dt class="text-on-surface-variant">Cargo</dt>
+            <dd class="text-right font-semibold text-on-surface">{sesion.usuario.cargo ?? "Sin especificar"}</dd>
+          </div>
+
+          <div class="flex items-center justify-between gap-4">
+            <dt class="text-on-surface-variant">Acceso total</dt>
+            <dd class="font-semibold text-on-surface">{sesion.acceso.total ? "Sí" : "No"}</dd>
+          </div>
+
+          <div class="flex items-center justify-between gap-4">
+            <dt class="text-on-surface-variant">Todos los equipos</dt>
+            <dd class="font-semibold text-on-surface">{sesion.acceso.todosEquipos ? "Sí" : "No"}</dd>
+          </div>
+        </dl>
+      </aside>
+    </div>
+  </section>
+</LayoutPanel>

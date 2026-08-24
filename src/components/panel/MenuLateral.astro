@@ -1,0 +1,137 @@
+---
+import {
+  navegacionAdministracionPanel,
+  navegacionCuentaPanel,
+  navegacionPrincipalPanel,
+  type EnlacePanel,
+} from "../../configuracion/navegacionPanel";
+
+const rutaActual = normalizarRuta(Astro.url.pathname);
+
+function normalizarRuta(ruta: string): string {
+  if (ruta === "/") {
+    return ruta;
+  }
+
+  return ruta.replace(/\/+$/, "");
+}
+
+function coincideRuta(ruta: string): boolean {
+  const rutaNormalizada = normalizarRuta(ruta);
+
+  if (rutaNormalizada === "/") {
+    return rutaActual === "/";
+  }
+
+  if (rutaNormalizada === "/panel") {
+    return rutaActual === "/panel";
+  }
+
+  return rutaActual === rutaNormalizada || rutaActual.startsWith(`${rutaNormalizada}/`);
+}
+
+function esRutaActual(enlace: EnlacePanel): boolean {
+  if (coincideRuta(enlace.enlace)) {
+    return true;
+  }
+
+  return enlace.rutasRelacionadas?.some(coincideRuta) ?? false;
+}
+
+const secciones = [
+  {
+    id: "principal",
+    titulo: "Gestión",
+    enlaces: navegacionPrincipalPanel,
+  },
+  {
+    id: "administracion",
+    titulo: "Administración",
+    enlaces: navegacionAdministracionPanel,
+  },
+  {
+    id: "cuenta",
+    titulo: "Cuenta",
+    enlaces: navegacionCuentaPanel,
+  },
+];
+
+const creandoUsuario = coincideRuta("/panel/usuarios/nuevo");
+---
+
+<aside class="sticky top-0 hidden h-dvh w-64 shrink-0 flex-col overflow-hidden bg-on-surface text-inverse-on-surface md:flex" aria-label="Menú lateral del panel">
+  <div class="shrink-0 border-b border-white/10 px-5 py-6">
+    <a href="/panel" class="flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary-fixed-dim" aria-label="Ir al resumen del panel">
+      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-container-lowest p-1.5 shadow-md">
+        <img src="/favicon.png" alt="" class="h-full w-full object-contain" />
+      </span>
+
+      <span class="min-w-0">
+        <span class="block truncate text-lg font-bold text-white">C.B. Andratx</span>
+        <span class="block text-xs font-semibold text-primary-fixed">Panel de gestión</span>
+      </span>
+    </a>
+  </div>
+
+  <div class="shrink-0 px-4 py-5">
+    <a href="/panel/usuarios/nuevo" class:list={["group flex w-full items-center justify-center gap-2 rounded-lg px-4 py-3 text-sm font-bold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fixed-dim", creandoUsuario ? "bg-primary-container text-on-primary-container" : "bg-primary text-on-primary hover:bg-primary-container hover:text-on-primary-container"]} aria-current={creandoUsuario ? "page" : undefined}>
+      <span class="text-lg leading-none" aria-hidden="true">+</span>
+      Nuevo usuario
+    </a>
+  </div>
+
+  <nav class="min-h-0 flex-1 overflow-y-auto px-3 pb-5" aria-label="Navegación del panel">
+    {
+      secciones.map((seccion) => (
+        seccion.enlaces.length > 0 && (
+          <section class="mb-6" aria-labelledby={`seccion-panel-${seccion.id}`}>
+            <p id={`seccion-panel-${seccion.id}`} class="mb-2 px-3 text-[10px] font-bold uppercase tracking-[0.18em] text-primary-fixed/60">{seccion.titulo}</p>
+
+            <ul class="flex flex-col gap-1">
+              {seccion.enlaces.map((enlace) => {
+                const estaSeleccionado = enlace.estado === "activo" && esRutaActual(enlace);
+
+                return (
+                  <li>
+                    {enlace.estado === "proximamente" ? (
+                      <div class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-inverse-on-surface/35" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
+                        <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
+
+                        <span class="min-w-0 flex-1 truncate text-sm font-semibold">{enlace.nombre}</span>
+
+                        <span class="rounded-full border border-white/10 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide">Próximamente</span>
+                      </div>
+                    ) : (
+                      <a href={enlace.enlace} class:list={["group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-fixed-dim", estaSeleccionado ? "bg-primary/20 text-primary-fixed" : "text-inverse-on-surface/75 hover:bg-white/5 hover:text-white"]} aria-current={estaSeleccionado ? "page" : undefined}>
+                        {estaSeleccionado && <span class="absolute inset-y-2 left-0 w-0.5 rounded-full bg-tertiary-fixed-dim" aria-hidden="true"></span>}
+
+                        <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-hover:scale-105" style={`mask-image: url('/iconos/panel/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/panel/${enlace.icono}.svg');`} aria-hidden="true"></span>
+
+                        <span class="min-w-0 flex-1 truncate">{enlace.nombre}</span>
+                      </a>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )
+      ))
+    }
+  </nav>
+
+  <div class="shrink-0 border-t border-white/10 p-4">
+    <div class="rounded-xl bg-white/5 px-3 py-3">
+      <div class="flex items-center gap-2">
+        <span class="relative flex h-2.5 w-2.5">
+          <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-success opacity-50"></span>
+          <span class="relative inline-flex h-2.5 w-2.5 rounded-full bg-success"></span>
+        </span>
+
+        <p class="text-xs font-bold text-white">Modo desarrollo</p>
+      </div>
+
+      <p class="mt-1 text-[11px] leading-relaxed text-inverse-on-surface/55">La comprobación de sesión y permisos está temporalmente desactivada.</p>
+    </div>
+  </div>
+</aside>

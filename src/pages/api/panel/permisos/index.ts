@@ -1,0 +1,60 @@
+import type { APIRoute } from "astro";
+
+import { obtenerPermisosActivos } from "@servicios/backend/permisos/obtenerPermisosActivos";
+
+export const prerender = false;
+
+const cabecerasRespuesta = {
+  "Cache-Control": "no-store, max-age=0",
+  "Content-Type": "application/json; charset=utf-8",
+  "X-Content-Type-Options": "nosniff",
+};
+
+export const GET: APIRoute = async () => {
+  try {
+    const permisos = await obtenerPermisosActivos();
+
+    return Response.json(
+      {
+        ok: true,
+        data: permisos,
+        total: permisos.length,
+      },
+      {
+        status: 200,
+        headers: cabecerasRespuesta,
+      },
+    );
+  } catch (error) {
+    console.error("Error en GET /api/panel/permisos:", error);
+
+    return Response.json(
+      {
+        ok: false,
+        data: [],
+        total: 0,
+        error: "No se ha podido obtener la lista de permisos.",
+      },
+      {
+        status: 500,
+        headers: cabecerasRespuesta,
+      },
+    );
+  }
+};
+
+export const ALL: APIRoute = async () => {
+  return Response.json(
+    {
+      ok: false,
+      error: "Método no permitido.",
+    },
+    {
+      status: 405,
+      headers: {
+        ...cabecerasRespuesta,
+        Allow: "GET",
+      },
+    },
+  );
+};

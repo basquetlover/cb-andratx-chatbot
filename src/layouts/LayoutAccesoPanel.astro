@@ -1,0 +1,65 @@
+---
+import "../global.css";
+
+interface Props {
+    title: string;
+    description?: string;
+}
+
+const {
+    title,
+    description = "Activa tu acceso al panel de gestión del C.B. Andratx.",
+} = Astro.props;
+
+const tituloDocumento = `${title} | C.B. Andratx`;
+---
+
+<!doctype html>
+<html lang="es">
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+        <title>{tituloDocumento}</title>
+
+        <meta name="description" content={description} />
+        <meta name="application-name" content="Panel C.B. Andratx" />
+        <meta name="author" content="C.B. Andratx" />
+        <meta name="robots" content="noindex, nofollow, noarchive" />
+        <meta name="googlebot" content="noindex, nofollow, noarchive" />
+        <meta name="referrer" content="strict-origin-when-cross-origin" />
+        <meta name="theme-color" content="#006688" />
+        <meta name="color-scheme" content="light" />
+
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+        <link rel="apple-touch-icon" href="/favicon.png" />
+
+        <meta name="generator" content={Astro.generator} />
+    </head>
+
+    <body class="min-h-dvh bg-background text-on-background">
+        <main class="relative flex min-h-dvh items-center justify-center overflow-hidden px-4 py-8 sm:px-6 sm:py-12">
+            <div class="absolute -left-28 -top-28 h-72 w-72 rounded-full bg-primary-fixed/50 blur-3xl" aria-hidden="true"></div>
+            <div class="absolute -bottom-32 -right-24 h-80 w-80 rounded-full bg-secondary-fixed/50 blur-3xl" aria-hidden="true"></div>
+
+            <div class="relative z-10 w-full max-w-2xl">
+                <header class="mb-6 flex items-center justify-center gap-3">
+                    <img src="/favicon.png" alt="Escudo del C.B. Andratx" class="h-16 w-16 object-contain sm:h-20 sm:w-20" />
+
+                    <span class="flex flex-col">
+                        <span class="text-sm font-semibold text-primary sm:text-base">C.B. Andratx</span>
+                        <span class="text-xl font-bold text-on-surface sm:text-2xl">Panel de gestión</span>
+                    </span>
+                </header>
+
+                <slot />
+
+                <footer class="mt-6 text-center">
+                    <p class="text-xs text-on-surface-variant">© {new Date().getFullYear()} C.B. Andratx</p>
+                    <p class="mt-1 text-xs font-semibold uppercase tracking-wide text-primary">#FentBasquetDesde1985 · #SentimentBlauGroc</p>
+                </footer>
+            </div>
+        </main>
+    </body>
+</html>

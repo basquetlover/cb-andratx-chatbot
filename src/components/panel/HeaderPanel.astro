@@ -1,0 +1,103 @@
+---
+interface UsuarioHeader {
+    nombre: string;
+    apellidos: string | null;
+    email: string;
+    cargo: string | null;
+    imagen: string | null;
+}
+
+interface Props {
+    titulo: string;
+    descripcion?: string;
+    volverA?: string;
+    textoVolver?: string;
+    usuario: UsuarioHeader;
+}
+
+const {
+    titulo,
+    descripcion,
+    volverA,
+    textoVolver = "Volver",
+    usuario,
+} = Astro.props;
+
+const nombreCompleto = [usuario.nombre, usuario.apellidos].filter(Boolean).join(" ");
+const inicialNombre = usuario.nombre.trim().charAt(0).toUpperCase();
+const inicialApellido = usuario.apellidos?.trim().charAt(0).toUpperCase() ?? "";
+const iniciales = `${inicialNombre}${inicialApellido}` || "CB";
+---
+
+<header class="sticky top-0 z-40 w-full border-b border-outline-variant/60 bg-surface-container-lowest/95 px-4 py-4 backdrop-blur-md sm:px-6 lg:px-8">
+    <div class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4">
+        <div class="min-w-0 flex-1">
+            {volverA && (
+                <a href={volverA} class="group mb-1 inline-flex w-max items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-on-surface-variant transition-colors hover:text-primary focus-visible:rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                    <span class="inline-block h-4 w-4 shrink-0 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-hover:-translate-x-0.5" style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');" aria-hidden="true"></span>
+                    {textoVolver}
+                </a>
+            )}
+
+            <h1 class="truncate text-xl font-bold text-on-surface sm:text-2xl lg:text-3xl">{titulo}</h1>
+
+            {descripcion && <p class="mt-1 max-w-3xl text-sm text-on-surface-variant sm:text-base">{descripcion}</p>}
+        </div>
+
+        <div class="flex shrink-0 items-center gap-2 sm:gap-3">
+            <button type="button" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/60 bg-surface-container-low text-on-surface-variant transition-colors hover:border-primary hover:bg-primary-fixed hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary" aria-label="Notificaciones">
+                <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/notificaciones.svg'); -webkit-mask-image: url('/iconos/panel/notificaciones.svg');" aria-hidden="true"></span>
+            </button>
+
+            <div class="hidden h-8 w-px bg-outline-variant sm:block" aria-hidden="true"></div>
+
+            <details class="group relative">
+                <summary class="flex cursor-pointer list-none items-center gap-2 rounded-xl p-1.5 text-left transition-colors hover:bg-surface-container-low focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+                    {
+                        usuario.imagen ? (
+                            <img src={usuario.imagen} alt="" class="h-9 w-9 rounded-full border border-outline-variant/60 object-cover shadow-sm" />
+                        ) : (
+                            <span class="flex h-9 w-9 items-center justify-center rounded-full bg-primary text-sm font-bold text-on-primary shadow-sm">{iniciales}</span>
+                        )
+                    }
+
+                    <span class="hidden min-w-0 flex-col leading-tight sm:flex">
+                        <span class="max-w-40 truncate text-sm font-semibold text-on-surface">{nombreCompleto}</span>
+                        <span class="max-w-40 truncate text-xs text-on-surface-variant">{usuario.cargo ?? "Usuario autorizado"}</span>
+                    </span>
+
+                    <span class="hidden h-4 w-4 bg-on-surface-variant mask-center mask-contain mask-no-repeat transition-transform duration-200 group-open:rotate-180 sm:inline-block" style="mask-image: url('/iconos/panel/desplegar.svg'); -webkit-mask-image: url('/iconos/panel/desplegar.svg');" aria-hidden="true"></span>
+                </summary>
+
+                <div class="absolute right-0 top-[calc(100%+0.75rem)] w-72 overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_16px_45px_rgba(0,80,107,0.16)]">
+                    <div class="border-b border-outline-variant/60 bg-surface-container-low px-4 py-4">
+                        <p class="truncate font-bold text-on-surface">{nombreCompleto}</p>
+                        <p class="mt-0.5 truncate text-sm text-on-surface-variant">{usuario.email}</p>
+                        <p class="mt-2 w-max rounded-full bg-primary-fixed px-3 py-1 text-xs font-semibold text-on-primary-fixed">{usuario.cargo ?? "Usuario autorizado"}</p>
+                    </div>
+
+                    <nav class="p-2" aria-label="Opciones de usuario">
+                        <a href="/panel/perfil" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container">
+                            <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/usuario.svg'); -webkit-mask-image: url('/iconos/panel/usuario.svg');" aria-hidden="true"></span>
+                            Mi perfil
+                        </a>
+
+                        <a href="/" class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container">
+                            <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/web.svg'); -webkit-mask-image: url('/iconos/panel/web.svg');" aria-hidden="true"></span>
+                            Ver la web
+                        </a>
+
+                        <div class="my-2 h-px bg-outline-variant/60"></div>
+
+                        <form method="POST" action="/api/acceso/cerrar-sesion">
+                            <button type="submit" class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-bold text-error transition-colors hover:bg-error-container">
+                                <span class="inline-block h-5 w-5 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/cerrar-sesion.svg'); -webkit-mask-image: url('/iconos/panel/cerrar-sesion.svg');" aria-hidden="true"></span>
+                                Cerrar sesión
+                            </button>
+                        </form>
+                    </nav>
+                </div>
+            </details>
+        </div>
+    </div>
+</header>
