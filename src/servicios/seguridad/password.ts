@@ -16,7 +16,7 @@ export function validarFormatoPassword(password: string): string | null {
     return "La contraseña no es válida";
   }
 
-  if (password.length < LONGITUD_MINIMA_PASSWORD) {
+  if (password.length <= LONGITUD_MINIMA_PASSWORD) {
     return `La contraseña debe tener al menos ${LONGITUD_MINIMA_PASSWORD} caracteres`;
   }
 
