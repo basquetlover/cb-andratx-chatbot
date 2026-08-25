@@ -1,0 +1,51 @@
+---
+import ListadoPatrocinadores from "@components/panel/patrocinadores/ListadoPatrocinadores";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+import { obtenerPatrocinadoresPanel } from "@servicios/backend/patrocinadores/obtenerPatrocinadoresPanel";
+
+import type { ResultadoPatrocinadoresPanel } from "@tipos/PatrocinadorPanel";
+
+export const prerender = false;
+
+let resultado: ResultadoPatrocinadoresPanel | null = null;
+let errorCarga: string | null = null;
+
+try {
+  resultado = await obtenerPatrocinadoresPanel();
+} catch (error) {
+  console.error("Error cargando la página de patrocinadores:", error);
+  errorCarga = "No se han podido cargar los patrocinadores.";
+}
+---
+
+<LayoutPanel title="Patrocinadores" description="Gestiona las empresas y entidades que colaboran con el club.">
+  <section class="flex flex-col gap-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
+      <a href="/panel/sponsors/nuevo" class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary shadow-sm transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+        <span class="inline-block h-5 w-5 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/mas.svg'); -webkit-mask-image: url('/iconos/panel/mas.svg');" aria-hidden="true"></span>
+        Crear patrocinador
+      </a>
+    </div>
+
+    {
+      errorCarga && (
+        <div class="rounded-2xl border border-error/40 bg-error-container p-5 text-on-error-container" role="alert">
+          <div class="flex items-start gap-3">
+            <span class="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');" aria-hidden="true"></span>
+
+            <div>
+              <h2 class="font-bold">No se han podido cargar los patrocinadores</h2>
+              <p class="mt-1 text-sm">{errorCarga}</p>
+
+              <a href="/panel/sponsors" class="mt-4 inline-flex rounded-xl border border-error px-4 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error">
+                Volver a intentarlo
+              </a>
+            </div>
+          </div>
+        </div>
+      )
+    }
+
+    {resultado && <ListadoPatrocinadores resultadoInicial={resultado} client:load />}
+  </section>
+</LayoutPanel>

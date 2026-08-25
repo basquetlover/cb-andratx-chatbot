@@ -1,0 +1,10 @@
+---
+import FormularioPatrocinador from "@components/panel/patrocinadores/FormularioPatrocinador";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+export const prerender = false;
+---
+
+<LayoutPanel title="Nuevo patrocinador" description="Añade los datos del patrocinador, su identidad visual y los equipos con los que colabora." volverA="/panel/sponsors" textoVolver="Volver a patrocinadores">
+  <FormularioPatrocinador client:load />
+</LayoutPanel>

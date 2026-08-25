@@ -1,0 +1,73 @@
+---
+import { obtenerPatrocinadoresPublicos } from "@servicios/backend/patrocinadores/obtenerPatrocinadoresPublicos";
+
+import type { PatrocinadorPublico } from "@servicios/backend/patrocinadores/obtenerPatrocinadoresPublicos";
+
+interface Props {
+  patrocinadoresIds?: string[];
+}
+
+const {
+  patrocinadoresIds,
+} = Astro.props;
+
+let patrocinadores: PatrocinadorPublico[] = [];
+
+try {
+  const patrocinadoresEncontrados = await obtenerPatrocinadoresPublicos(patrocinadoresIds);
+
+  patrocinadores = patrocinadoresEncontrados.filter((patrocinador) => patrocinador.banner !== null);
+} catch (error) {
+  console.error("Error cargando los patrocinadores públicos:", error);
+}
+---
+
+{
+  patrocinadores.length > 0 && (
+    <section class="w-full bg-surface-container-low py-8 sm:py-10" aria-label="Patrocinadores del C.B. Andratx">
+      <div class="mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8">
+        <header class="mb-8 flex flex-col gap-3 text-center md:mb-10">
+            <div class="mx-auto flex items-center gap-3" aria-hidden="true">
+                <span class="h-px w-12 bg-outline-variant sm:w-24"></span>
+
+                <span class="inline-block h-6 w-6 shrink-0 bg-primary mask-center mask-contain mask-no-repeat" style="mask-image: url('/iconos/balon.svg'); -webkit-mask-image: url('/iconos/balon.svg');"></span>
+
+                <span class="h-px w-12 bg-outline-variant sm:w-24"></span>
+            </div>
+
+            <p class="text-sm font-bold uppercase tracking-[0.22em] text-secondary">
+                Juntos hacemos club
+            </p>
+
+            <h2 id="titulo-patrocinadores" class="text-3xl font-bold text-on-secondary-fixed sm:text-4xl lg:text-5xl">
+                Nuestros patrocinadores
+            </h2>
+
+            {/* <p class="mx-auto max-w-2xl text-on-surface-variant">
+                Gracias a las empresas y entidades que apoyan al C.B. Andratx y hacen posible que sigamos creciendo.
+            </p> */}
+        </header>
+
+        <div class="grid grid-cols-3 gap-4 md:grid-cols-4">
+          {
+            patrocinadores.map((patrocinador) => {
+              const banner = (
+                <img src={patrocinador.banner!} alt={`Banner de ${patrocinador.nombre}`} class="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]" loading="lazy" decoding="async" />
+              );
+
+              return patrocinador.enlace ? (
+                <a href={patrocinador.enlace} target="_blank" rel="noopener noreferrer sponsored" class="group aspect-12/5 w-full overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary hover:shadow-[0_12px_30px_rgba(0,102,136,0.14)] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-primary" aria-label={`Visitar la página de ${patrocinador.nombre}`}>
+                  {banner}
+                </a>
+              ) : (
+                <div class="group aspect-12/5 w-full overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
+                  {banner}
+                </div>
+              );
+            })
+          }
+        </div>
+      </div>
+    </section>
+  )
+}

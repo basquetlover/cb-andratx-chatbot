@@ -1,0 +1,39 @@
+---
+import EditorPatrocinador from "@components/panel/patrocinadores/EditorPatrocinador";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+import { obtenerPatrocinadorPanelPorId } from "@servicios/backend/patrocinadores/obtenerPatrocinadorPanelPorId";
+
+export const prerender = false;
+
+const patrocinadorId = Astro.params.id?.trim();
+let patrocinador = null;
+let errorCarga: string | null = null;
+
+if (patrocinadorId) {
+  try {
+    patrocinador = await obtenerPatrocinadorPanelPorId(patrocinadorId);
+  } catch (error) {
+    console.error("Error cargando el patrocinador:", error);
+    errorCarga = "No se ha podido cargar el patrocinador.";
+  }
+}
+---
+
+<LayoutPanel title={patrocinador?.nombre ?? "Patrocinador"} description="Consulta y modifica la información del patrocinador." volverA="/panel/sponsors" textoVolver="Volver a patrocinadores">
+  {
+    errorCarga ? (
+      <div class="rounded-2xl border border-error/40 bg-error-container p-5 text-on-error-container" role="alert">
+        <h2 class="font-bold">No se ha podido cargar el patrocinador</h2>
+        <p class="mt-1 text-sm">{errorCarga}</p>
+      </div>
+    ) : !patrocinador ? (
+      <div class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-8 text-center shadow-sm">
+        <h2 class="text-xl font-bold text-on-surface">Patrocinador no encontrado</h2>
+        <p class="mt-2 text-sm text-on-surface-variant">El patrocinador no existe o ya no está disponible.</p>
+        <a href="/panel/sponsors" class="mt-5 inline-flex rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary">Volver al listado</a>
+      </div>
+    ) : (
+      <EditorPatrocinador patrocinadorInicial={patrocinador} client:load />
+    )
+  }
+</LayoutPanel>
