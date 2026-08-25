@@ -11,7 +11,7 @@ export interface EquipoTemporada {
   nivel: string | null;
   descripcion: string | null;
   imagen: string | null;
-  sponsorId: string | null;
+  patrocinador: string | null;
   mostrarSponsor: boolean;
   chatbot: boolean;
 }
@@ -32,7 +32,7 @@ interface FilaEquipoSupabase {
   nivel: string | null;
   descripcion: string | null;
   imagen: string | null;
-  sponsor_id: string | null;
+  patrcinador: string | null;
   mostrar_sponsor: boolean | null;
   chatbot: boolean | null;
 }
@@ -72,7 +72,7 @@ export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: Opc
       nivel,
       descripcion,
       imagen,
-      sponsor_id,
+      patrocinador,
       mostrar_sponsor,
       chatbot
     `)
@@ -106,7 +106,7 @@ export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: Opc
       nivel: equipo.nivel,
       descripcion: equipo.descripcion,
       imagen: equipo.imagen,
-      sponsorId: equipo.sponsor_id,
+      sponsorId: equipo.patrocinador,
       mostrarSponsor: equipo.mostrar_sponsor ?? true,
       chatbot: equipo.chatbot === true,
     })),
