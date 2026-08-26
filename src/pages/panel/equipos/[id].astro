@@ -1,0 +1,402 @@
+---
+import EditorEquipo from "@components/panel/equipos/editor/EditorEquipo";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  ErrorObtenerEquipoDetalle,
+  obtenerEquipoDetallePanel,
+} from "@servicios/backend/equipos/obtenerEquipoDetallePanel";
+
+import {
+  obtenerAccesoEquiposUsuario,
+  usuarioPuedeAccederEquipo,
+} from "@servicios/backend/permisos/obtenerAccesoEquiposUsuario";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+import type { EquipoDetallePanel } from "@tipos/EquipoDetallePanel";
+
+export const prerender = false;
+
+const PREFIJO_LOG =
+  "[SEGURIDAD EDITOR EQUIPO]";
+
+const equipoId =
+  Astro.params.id?.trim() ?? "";
+
+const equipoIdNormalizado =
+  equipoId.toLowerCase();
+
+const rutaActual =
+  `/panel/equipos/${equipoId}`;
+
+console.log(`${PREFIJO_LOG} Inicio`, {
+  equipoId,
+  equipoIdNormalizado,
+  rutaActual,
+});
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  console.warn(
+    `${PREFIJO_LOG} No existe la cookie de sesión`,
+    {
+      equipoId,
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error(
+    `${PREFIJO_LOG} Error comprobando la sesión`,
+    {
+      equipoId,
+      error,
+    },
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  console.warn(
+    `${PREFIJO_LOG} La sesión no existe o ha caducado`,
+    {
+      equipoId,
+    },
+  );
+
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+console.log(
+  `${PREFIJO_LOG} Sesión válida`,
+  {
+    usuarioId: sesion.usuario.id,
+    equipoId,
+  },
+);
+
+let equipo: EquipoDetallePanel | null =
+  null;
+
+let errorCarga: string | null = null;
+let accesoDenegado = false;
+
+if (!equipoId) {
+  console.warn(
+    `${PREFIJO_LOG} No se ha recibido el ID del equipo`,
+  );
+
+  Astro.response.status = 404;
+} else {
+  try {
+    const [
+      puedeEditarEquipos,
+      alcanceEquipos,
+    ] = await Promise.all([
+      comprobarPermisoUsuario(
+        sesion.acceso,
+        "equipos.editar",
+      ),
+      obtenerAccesoEquiposUsuario(
+        sesion.usuario.id,
+      ),
+    ]);
+
+    const equiposIdsNormalizados =
+      alcanceEquipos.equiposIds.map(
+        (id) =>
+          id.trim().toLowerCase(),
+      );
+
+    const coincidenciaExacta =
+      alcanceEquipos.equiposIds.includes(
+        equipoId,
+      );
+
+    const coincidenciaNormalizada =
+      equiposIdsNormalizados.includes(
+        equipoIdNormalizado,
+      );
+
+    const puedeAccederEquipo =
+      usuarioPuedeAccederEquipo(
+        alcanceEquipos,
+        equipoId,
+      );
+
+    console.log(
+      `${PREFIJO_LOG} Resultado de permisos`,
+      {
+        usuarioId: sesion.usuario.id,
+        equipoId,
+        equipoIdNormalizado,
+        puedeEditarEquipos,
+        accesoTodosEquipos:
+          alcanceEquipos.accesoTodosEquipos,
+        totalEquiposAsignados:
+          alcanceEquipos.equiposIds.length,
+        equiposIds:
+          alcanceEquipos.equiposIds,
+        equiposIdsNormalizados,
+        coincidenciaExacta,
+        coincidenciaNormalizada,
+        puedeAccederEquipo,
+      },
+    );
+
+    if (
+      !puedeEditarEquipos ||
+      !puedeAccederEquipo
+    ) {
+      accesoDenegado = true;
+      Astro.response.status = 403;
+
+      console.warn(
+        `${PREFIJO_LOG} Acceso denegado`,
+        {
+          usuarioId:
+            sesion.usuario.id,
+          equipoId,
+          motivo:
+            !puedeEditarEquipos
+              ? "El usuario no tiene el permiso equipos.editar"
+              : "El equipo no está dentro del alcance del usuario",
+          puedeEditarEquipos,
+          puedeAccederEquipo,
+          accesoTodosEquipos:
+            alcanceEquipos.accesoTodosEquipos,
+          equiposIds:
+            alcanceEquipos.equiposIds,
+        },
+      );
+    } else {
+      console.log(
+        `${PREFIJO_LOG} Acceso autorizado`,
+        {
+          usuarioId:
+            sesion.usuario.id,
+          equipoId,
+          motivo:
+            alcanceEquipos.accesoTodosEquipos
+              ? "El usuario tiene acceso a todos los equipos"
+              : "El equipo está asignado al usuario",
+        },
+      );
+
+      equipo =
+        await obtenerEquipoDetallePanel(
+          equipoId,
+        );
+
+      console.log(
+        `${PREFIJO_LOG} Equipo cargado`,
+        {
+          equipoId,
+          nombre:
+            equipo.datosGenerales.nombre,
+        },
+      );
+    }
+  } catch (error) {
+    if (
+      error instanceof ErrorObtenerEquipoDetalle &&
+      error.status === 404
+    ) {
+      console.warn(
+        `${PREFIJO_LOG} Equipo no encontrado`,
+        {
+          equipoId,
+        },
+      );
+
+      Astro.response.status = 404;
+    } else {
+      console.error(
+        `${PREFIJO_LOG} Error cargando o comprobando el equipo`,
+        {
+          usuarioId:
+            sesion.usuario.id,
+          equipoId,
+          error,
+        },
+      );
+
+      errorCarga =
+        "No se ha podido cargar la información del equipo.";
+
+      if (
+        error instanceof
+        ErrorObtenerEquipoDetalle
+      ) {
+        Astro.response.status =
+          error.status;
+      } else {
+        Astro.response.status = 500;
+      }
+    }
+  }
+}
+
+const tituloPagina = accesoDenegado
+  ? "Acceso denegado"
+  : equipo?.datosGenerales.nombre ??
+    (errorCarga
+      ? "Error al cargar el equipo"
+      : "Equipo no encontrado");
+
+const descripcionPagina =
+  equipo && !accesoDenegado
+    ? "Consulta y modifica los datos, entrenamientos, patrocinadores e integraciones del equipo."
+    : undefined;
+---
+
+<LayoutPanel
+  title={tituloPagina}
+  description={descripcionPagina}
+  volverA="/panel/equipos"
+  textoVolver="Volver a equipos"
+  anchoCompleto
+>
+  {
+    accesoDenegado ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-7 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-error mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide">
+            Error 403
+          </p>
+
+          <h2 class="mt-1 text-2xl font-bold">
+            Acceso denegado
+          </h2>
+
+          <p class="mt-2 text-sm">
+            No estás autorizado a editar este
+            equipo.
+          </p>
+
+          <p class="mt-2 text-xs opacity-80">
+            Si necesitas acceder, solicita que
+            te asignen este equipo.
+          </p>
+
+          <a
+            href="/panel/equipos"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+          >
+            <span
+              class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');"
+              aria-hidden="true"
+            />
+
+            Volver a equipos
+          </a>
+        </div>
+      </section>
+    ) : errorCarga ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-12 w-12 bg-error mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <h2 class="mt-4 text-xl font-bold">
+            No se ha podido cargar el equipo
+          </h2>
+
+          <p class="mt-2 text-sm">
+            {errorCarga}
+          </p>
+
+          <a
+            href="/panel/equipos"
+            class="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+          >
+            Volver a equipos
+          </a>
+        </div>
+      </section>
+    ) : equipo ? (
+      <EditorEquipo
+        client:load
+        equipoInicial={equipo}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-7 text-center shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-outline mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/equipos.svg'); -webkit-mask-image: url('/iconos/panel/equipos.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide text-primary">
+            Error 404
+          </p>
+
+          <h2 class="mt-1 text-2xl font-bold text-on-surface">
+            Equipo no encontrado
+          </h2>
+
+          <p class="mt-2 text-sm text-on-surface-variant">
+            El equipo solicitado no existe o ha
+            sido eliminado.
+          </p>
+
+          <a
+            href="/panel/equipos"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary"
+          >
+            <span
+              class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');"
+              aria-hidden="true"
+            />
+
+            Volver a equipos
+          </a>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

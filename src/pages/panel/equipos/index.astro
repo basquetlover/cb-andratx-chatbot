@@ -1,0 +1,105 @@
+---
+import ListadoEquipos from "@components/panel/equipos/ListadoEquipos";
+import PanelLayout from "@layouts/LayoutPanel.astro";
+
+import { obtenerListadoEquiposPanel } from "@servicios/backend/equipos/obtenerListadoEquiposPanel";
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+    return Astro.redirect("/iniciar-sesion?redirect=/panel/equipos");
+}
+
+let sesion;
+
+try {
+    sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+    console.error("Error comprobando la sesión en /panel/equipos:", error);
+
+    return Astro.redirect("/panel/acceso-denegado?motivo=sesion");
+}
+
+if (!sesion) {
+    Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+        path: "/",
+    });
+
+    return Astro.redirect("/iniciar-sesion?redirect=/panel/equipos");
+}
+
+let puedeVer = false;
+let puedeCrear = false;
+
+try {
+    [puedeVer, puedeCrear] = await Promise.all([
+        comprobarPermisoUsuario(sesion.acceso, "equipos.ver"),
+        comprobarPermisoUsuario(sesion.acceso, "equipos.crear"),
+    ]);
+} catch (error) {
+    console.error("Error comprobando los permisos de equipos:", error);
+
+    return Astro.redirect("/panel/acceso-denegado?motivo=permisos");
+}
+
+if (!puedeVer) {
+    return Astro.redirect("/panel/acceso-denegado");
+}
+
+let resultado;
+
+try {
+    resultado = await await obtenerListadoEquiposPanel(sesion.usuario.id,);
+} catch (error) {
+    console.error("Error cargando los equipos del panel:", error);
+    resultado = null;
+}
+---
+
+<PanelLayout
+    title="Equipos"
+    description="Gestiona los equipos, entrenamientos, patrocinadores e integraciones del club."
+>
+    {
+        resultado ? (
+            <ListadoEquipos
+                resultadoInicial={resultado}
+                puedeCrear={puedeCrear}
+                client:load
+            />
+        ) : (
+            <section class="rounded-2xl border border-error/30 bg-error-container p-6 text-on-error-container shadow-sm">
+                <div class="flex items-start gap-4">
+                    <span
+                        class="inline-block h-7 w-7 shrink-0 bg-current mask-center mask-contain mask-no-repeat"
+                        style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+                        aria-hidden="true"
+                    ></span>
+
+                    <div>
+                        <h2 class="font-bold">
+                            No se han podido cargar los equipos
+                        </h2>
+
+                        <p class="mt-1 text-sm">
+                            Ha ocurrido un problema al consultar los equipos de
+                            la temporada activa.
+                        </p>
+
+                        <a
+                            href="/panel/equipos"
+                            class="mt-4 inline-flex min-h-10 items-center justify-center rounded-xl border border-error px-4 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+                        >
+                            Volver a intentarlo
+                        </a>
+                    </div>
+                </div>
+            </section>
+        )
+    }
+</PanelLayout>
