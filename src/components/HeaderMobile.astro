@@ -50,12 +50,12 @@ function esRutaActual(enlace: string): boolean {
                 return enlace.estado === "proximamente" ? (
                 <span class="flex h-full flex-col items-center justify-center opacity-35" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
                     <span class="inline-block h-7 w-7 bg-on-secondary-fixed mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                    <p class="text-[10px]">{enlace.nombre}</p>
+                    <p class="text-[9px] text-center">{enlace.nombre}</p>
                 </span>
                 ) : (
                 <a href={enlace.enlace} class:list={["group flex h-full flex-col items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary", estaSeleccionado ? "text-primary" : "text-on-secondary-fixed hover:text-primary"]} aria-label={enlace.nombre} aria-current={estaSeleccionado ? "page" : undefined}>
                     <span class="inline-block h-7 w-7 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-active:scale-90" style={`mask-image: url('/iconos/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                    <p class="text-[10px]">{enlace.nombre}</p>
+                    <p class="text-[9px] text-center">{enlace.nombre}</p>
                 </a>
                 );
             })
@@ -75,12 +75,12 @@ function esRutaActual(enlace: string): boolean {
                 return enlace.estado === "proximamente" ? (
                 <span class="flex h-full flex-col items-center justify-center opacity-35" aria-label={`${enlace.nombre}, próximamente`} aria-disabled="true">
                     <span class="inline-block h-7 w-7 bg-on-secondary-fixed mask-center mask-contain mask-no-repeat" style={`mask-image: url('/iconos/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                    <p class="text-[10px]">{enlace.nombre}</p>
+                    <p class="text-[9px] text-center">{enlace.nombre}</p>
                 </span>
                 ) : (
                 <a href={enlace.enlace} class:list={["group flex h-full flex-col items-center justify-center transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary", estaSeleccionado ? "text-primary" : "text-on-secondary-fixed hover:text-primary"]} aria-label={enlace.nombre} aria-current={estaSeleccionado ? "page" : undefined}>
                     <span class="inline-block h-7 w-7 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-active:scale-90" style={`mask-image: url('/iconos/${enlace.icono}.svg'); -webkit-mask-image: url('/iconos/${enlace.icono}.svg');`} aria-hidden="true"></span>
-                    <p class="text-[10px]">{enlace.nombre}</p>
+                    <p class="text-[9px] text-center">{enlace.nombre}</p>
                 </a>
                 );
             })
