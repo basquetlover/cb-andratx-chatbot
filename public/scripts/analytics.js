@@ -48,7 +48,7 @@ async function getIPAndCountry() {
     });
 
     const geoData = await geoResponse.json();
-    console.log('Geo:', geoData);
+    //console.log('Geo:', geoData);
 
 
     return {
@@ -57,7 +57,7 @@ async function getIPAndCountry() {
       region: geoData.geo.city || 'Unknown'
     };
   } catch (error) {
-    console.error('Error obteniendo IP o geo:', error);
+    //console.error('Error obteniendo IP o geo:', error);
     return { ip: 'Unknown', country: 'Unknown', region: 'Unknown' };
   }
 }
@@ -105,7 +105,7 @@ const ua = navigator.userAgent;
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   };
 
-  console.log('Analytics payload:', payload);
+  //console.log('Analytics payload:', payload);
 
   //Enviar datos al servidor
 let sent = false;
