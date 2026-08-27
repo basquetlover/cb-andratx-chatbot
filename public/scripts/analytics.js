@@ -34,7 +34,7 @@ function getOS() {
 // Función para obtener país/región usando una API gratuita (ipapi.co)
 async function getIPAndCountry() {
   try {
-    console.log('Obteniendo IP y geolocalización...');
+    //console.log('Obteniendo IP y geolocalización...');
     // Paso 1: Obtener IP pública
     // const ipResponse = await fetch('https://api.ipify.org?format=json');
     // const ipData = await ipResponse.json();
