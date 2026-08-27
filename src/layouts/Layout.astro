@@ -24,6 +24,13 @@ const dominio = "https://cb-andratx-chatbot.vercel.app";
 const titulo = title ? `${title} | C.B. Andratx` : "C.B. Andratx";
 const urlCanonical = new URL(Astro.url.pathname, dominio);
 const imagenSocial = new URL("/og-cb-andratx.png", dominio);
+
+export const prerender = false;
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "no-store, max-age=0",
+);
 ---
 
 <!doctype html>
