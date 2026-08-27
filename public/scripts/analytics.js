@@ -118,6 +118,8 @@ function sendAnalytics() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
+  }).catch(() => {
+    // Ignoramos errores de analytics para que no afecten a la web
   });
 }
 
