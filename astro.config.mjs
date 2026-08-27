@@ -11,6 +11,7 @@ export default defineConfig({
     enabled: false,
   },
   integrations: [react()],
+  output: "server",
   adapter: vercel(),
   vite: {
     plugins: [tailwindcss()],
