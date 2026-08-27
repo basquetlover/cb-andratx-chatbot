@@ -1,0 +1,322 @@
+---
+import Layout from "@layouts/Layout.astro";
+
+export const prerender = true;
+---
+
+<Layout
+	title="Política de privacidad"
+	description="Política de privacidad del sitio web del C.B. Andratx."
+	menu
+	menuMobile
+>
+	<main class="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 md:py-12 lg:px-8">
+		<article class="overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_12px_40px_rgba(3,42,85,0.08)]">
+			<header class="border-b border-outline-variant/60 bg-surface-container-low px-5 py-8 sm:px-8 md:px-12 md:py-10">
+				<div class="flex flex-col gap-5 sm:flex-row sm:items-start">
+					<span class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-sm">
+						<span
+							class="inline-block h-7 w-7 bg-current mask-center mask-contain mask-no-repeat"
+							style="mask-image: url('/iconos/panel/informacion.svg'); -webkit-mask-image: url('/iconos/panel/informacion.svg');"
+							aria-hidden="true"
+						></span>
+					</span>
+
+					<div>
+						<h1 class="text-3xl font-bold text-on-tertiary-fixed sm:text-4xl md:text-5xl">
+							Política de privacidad
+						</h1>
+
+						<p class="mt-3 text-sm font-bold text-secondary sm:text-base">
+							Última actualización: 27 de agosto de 2026
+						</p>
+					</div>
+				</div>
+
+				<p class="mt-6 max-w-3xl text-sm leading-7 text-on-surface-variant sm:text-base">
+					Esta Política de Privacidad explica cómo se tratan los datos personales relacionados con el uso de la web del C.B. Andratx.
+				</p>
+			</header>
+
+			<div class="space-y-5 px-5 py-6 sm:px-8 sm:py-8 md:px-12 md:py-10">
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						1. Responsable del tratamiento
+					</h2>
+
+					<p class="mt-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						El responsable del tratamiento de los datos es:
+					</p>
+
+					<div class="mt-4 space-y-2 rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-4 text-sm leading-6 text-on-surface-variant sm:text-base">
+						<p><strong class="text-on-surface">Responsable:</strong>{" "}Club Bàsquet Andratx</p>
+						<!-- <p><strong class="text-on-surface">NIF/CIF:</strong>{" "}[CIF DEL CLUB]</p>
+						<p><strong class="text-on-surface">Domicilio:</strong>{" "}[DOMICILIO DEL CLUB]</p> -->
+						<p><strong class="text-on-surface">Correo electrónico:</strong>{" "}[EMAIL DE CONTACTO]</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						2. Datos tratados
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>La mayor parte de la web puede utilizarse sin registrarse ni proporcionar directamente datos personales.</p>
+
+						<p>No obstante, dependiendo del uso que se haga de la web, pueden tratarse determinados datos.</p>
+
+						<div class="pt-2">
+							<h3 class="text-lg font-bold text-on-surface">
+								Usuarios de la web pública
+							</h3>
+
+							<p class="mt-3">Durante la utilización de la web pueden tratarse datos técnicos y de uso, como:</p>
+
+							<ul class="mt-3 list-disc space-y-1 pl-6 marker:text-primary">
+								<li>dirección IP;</li>
+								<li>páginas o rutas visitadas;</li>
+								<li>fecha y hora de acceso;</li>
+								<li>información básica sobre el dispositivo o navegador;</li>
+								<li>ubicación aproximada obtenida a partir de la dirección IP;</li>
+								<li>interacciones realizadas dentro de la web.</li>
+							</ul>
+
+							<p class="mt-4">Estos datos se utilizan para obtener estadísticas internas, conocer el funcionamiento y utilización de la web, mejorar sus contenidos y detectar posibles errores o usos indebidos.</p>
+
+							<p class="mt-4">El sistema de estadísticas es gestionado internamente y no utiliza servicios externos de analítica con fines publicitarios.</p>
+						</div>
+
+						<div class="pt-2">
+							<h3 class="text-lg font-bold text-on-surface">
+								Usuarios del panel privado
+							</h3>
+
+							<p class="mt-3">La web dispone de un área privada destinada exclusivamente a personas autorizadas, como entrenadores, miembros de la directiva u otras personas responsables de la gestión de contenidos.</p>
+
+							<p class="mt-4">Para acceder al área privada se utilizan unas credenciales formadas por correo electrónico y contraseña.</p>
+
+							<p class="mt-4">Estos datos se utilizan exclusivamente para identificar al usuario, permitir el acceso al área correspondiente y proteger las funciones de administración frente a accesos no autorizados.</p>
+						</div>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						3. Finalidad del tratamiento
+					</h2>
+
+					<div class="mt-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>Los datos tratados a través de la web pueden utilizarse para las siguientes finalidades:</p>
+
+						<ul class="mt-3 list-disc space-y-1 pl-6 marker:text-primary">
+							<li>permitir el funcionamiento y mantenimiento de la web;</li>
+							<li>proporcionar las funcionalidades solicitadas por los usuarios;</li>
+							<li>gestionar y proteger el acceso al panel privado;</li>
+							<li>obtener estadísticas internas sobre el uso de la web;</li>
+							<li>conocer qué apartados o funcionalidades resultan más utilizados;</li>
+							<li>detectar errores, problemas técnicos o posibles usos indebidos;</li>
+							<li>mantener la seguridad de la web y de sus servicios;</li>
+							<li>mejorar el funcionamiento y los contenidos ofrecidos.</li>
+						</ul>
+
+						<p class="mt-4">Los datos no se utilizan para elaborar perfiles publicitarios ni para mostrar publicidad personalizada.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						4. Asistente virtual
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>La web dispone de un asistente virtual que funciona mediante menús y opciones predefinidas.</p>
+
+						<p>El asistente no utiliza inteligencia artificial y no permite al usuario introducir consultas de texto libre.</p>
+
+						<p>Las opciones seleccionadas se utilizan para realizar las consultas necesarias al sistema de la web y mostrar la información correspondiente.</p>
+
+						<p>Las interacciones con el asistente podrán contabilizarse de forma interna con fines estadísticos y de mejora del servicio.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						5. Almacenamiento local
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>La web utiliza tecnologías de almacenamiento del navegador, como <code class="rounded bg-surface-container-lowest px-1.5 py-0.5 font-mono text-on-surface">localStorage</code>, para guardar determinadas preferencias y facilitar el uso de la aplicación.</p>
+
+						<p>Por ejemplo, pueden almacenarse localmente equipos favoritos, preferencias de visualización u otras configuraciones.</p>
+
+						<p>Esta información permanece almacenada en el dispositivo y navegador del usuario hasta que sea eliminada, sustituida por una nueva configuración o se borren los datos almacenados por el navegador.</p>
+
+						<p>El almacenamiento local utilizado para estas funciones no tiene como finalidad realizar seguimiento publicitario del usuario.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						6. Estadísticas internas
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>El C.B. Andratx puede recopilar información sobre la utilización de la web mediante un sistema propio de estadísticas.</p>
+
+						<p>Este sistema puede registrar información como la dirección IP, ubicación aproximada, rutas visitadas, fecha y hora de acceso, dispositivo o navegador utilizado e interacciones realizadas dentro de la aplicación.</p>
+
+						<p>La finalidad de esta información es conocer el uso de la web, detectar problemas, mantener la seguridad y mejorar el servicio.</p>
+
+						<p>La información obtenida mediante este sistema no se utiliza para publicidad personalizada ni se facilita a plataformas externas de analítica con fines comerciales.</p>
+
+						<p>Los datos estadísticos se conservarán únicamente durante el tiempo necesario para las finalidades indicadas y, cuando sea posible, podrán ser anonimizados o agregados.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						7. Contenido y servicios externos
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>La web puede mostrar información o contenidos procedentes de servicios externos.</p>
+
+						<div class="pt-2">
+							<h3 class="text-lg font-bold text-on-surface">
+								YouTube
+							</h3>
+
+							<p class="mt-3">La web puede acceder a información relacionada con vídeos o listas de reproducción de YouTube, como títulos, miniaturas y vídeos, para mostrar contenido audiovisual relacionado con el C.B. Andratx.</p>
+
+							<p class="mt-4">Cuando el usuario accede o interactúa con contenido proporcionado por YouTube, pueden producirse comunicaciones con los servicios de Google o YouTube, que tratarán la información conforme a sus propias condiciones y políticas de privacidad.</p>
+						</div>
+
+						<div class="pt-2">
+							<h3 class="text-lg font-bold text-on-surface">
+								Enlaces externos
+							</h3>
+
+							<p class="mt-3">La web también puede contener enlaces a páginas externas, como federaciones deportivas, redes sociales u otros servicios.</p>
+
+							<p class="mt-4">Al acceder a estos enlaces, el usuario abandona esta web y pasa a estar sujeto a las políticas y condiciones del servicio externo correspondiente.</p>
+						</div>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						8. Base jurídica
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>El tratamiento de los datos necesarios para el funcionamiento, seguridad y administración de la web se realizará conforme a las bases jurídicas previstas en la normativa aplicable.</p>
+
+						<p>Cuando el tratamiento sea necesario para gestionar el acceso de usuarios autorizados al panel privado, los datos se utilizarán para gestionar dicha relación y proporcionar las funcionalidades correspondientes.</p>
+
+						<p>Determinados tratamientos relacionados con la seguridad, prevención de abusos y mejora del funcionamiento de la web podrán basarse en el interés legítimo del responsable, previa consideración de los derechos e intereses de los usuarios.</p>
+
+						<p>Cuando un tratamiento requiera consentimiento, este será solicitado antes de realizarlo.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						9. Proveedores tecnológicos
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>Para el funcionamiento técnico de la web pueden utilizarse proveedores de infraestructura, alojamiento, bases de datos u otros servicios tecnológicos.</p>
+
+						<p>Estos proveedores podrán tratar únicamente la información necesaria para prestar sus servicios, de acuerdo con sus respectivas condiciones y con la normativa aplicable en materia de protección de datos.</p>
+
+						<p>La utilización de proveedores tecnológicos no implica que los datos de los usuarios sean vendidos o utilizados por el C.B. Andratx con fines publicitarios.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						10. Conservación de los datos
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>Los datos personales se conservarán únicamente durante el tiempo necesario para cumplir la finalidad para la que fueron recogidos y, cuando corresponda, durante los plazos exigidos por la legislación aplicable.</p>
+
+						<p>Los datos relacionados con las cuentas del panel privado podrán conservarse mientras el usuario mantenga autorización para acceder al sistema.</p>
+
+						<p>Los datos utilizados para estadísticas y seguridad se conservarán durante un periodo limitado y podrán posteriormente eliminarse, anonimizarse o mantenerse únicamente de forma agregada.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						11. Seguridad
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>El C.B. Andratx adopta medidas técnicas y organizativas destinadas a proteger la web y los datos tratados frente a accesos no autorizados, pérdida, alteración o utilización indebida.</p>
+
+						<p>El acceso a las funciones de administración está restringido a usuarios autorizados y las rutas y servicios privados cuentan con mecanismos de control de acceso.</p>
+
+						<p>No obstante, ningún sistema conectado a Internet puede garantizar una seguridad absoluta.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						12. Derechos de los usuarios
+					</h2>
+
+					<div class="mt-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>Las personas cuyos datos sean tratados pueden ejercer, cuando corresponda, sus derechos de:</p>
+
+						<ul class="mt-3 list-disc space-y-1 pl-6 marker:text-primary">
+							<li>acceso;</li>
+							<li>rectificación;</li>
+							<li>supresión;</li>
+							<li>oposición;</li>
+							<li>limitación del tratamiento;</li>
+							<li>portabilidad.</li>
+						</ul>
+
+						<p class="mt-4">También podrán retirar su consentimiento en aquellos tratamientos que se basen en él.</p>
+
+						<p class="mt-4">Para ejercer estos derechos puede contactarse con el C.B. Andratx mediante:</p>
+
+						<p class="mt-4 font-bold text-on-surface">[EMAIL DE CONTACTO / PRIVACIDAD]</p>
+
+						<p class="mt-4">La persona interesada también tiene derecho a presentar una reclamación ante la Agencia Española de Protección de Datos (AEPD) si considera que el tratamiento de sus datos personales no se ajusta a la normativa aplicable.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						13. Menores de edad
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>La web contiene información relacionada con equipos y actividades deportivas en las que pueden participar menores de edad.</p>
+
+						<p>La parte pública de la web no requiere que los visitantes proporcionen directamente nombre, correo electrónico u otros datos identificativos para consultar la información disponible.</p>
+
+						<p>Los usuarios no deben intentar introducir, enviar o comunicar mediante la web información personal o sensible de menores salvo cuando exista una función específicamente habilitada para ello y se disponga de la autorización correspondiente.</p>
+
+						<p>El C.B. Andratx prestará especial atención a la protección de los datos personales de menores de edad conforme a la normativa aplicable.</p>
+					</div>
+				</section>
+
+				<section class="rounded-2xl border border-outline-variant/50 bg-surface-container-low p-5 sm:p-6">
+					<h2 class="text-xl font-bold text-on-secondary-fixed sm:text-2xl">
+						14. Modificaciones de esta política
+					</h2>
+
+					<div class="mt-4 space-y-4 text-sm leading-7 text-on-surface-variant sm:text-base">
+						<p>El C.B. Andratx podrá modificar esta Política de Privacidad cuando sea necesario debido a cambios en el funcionamiento de la web, incorporación de nuevas funcionalidades o modificaciones de la normativa aplicable.</p>
+
+						<p>La fecha de la última actualización aparecerá indicada al inicio de esta página.</p>
+					</div>
+				</section>
+			</div>
+		</article>
+	</main>
+</Layout>

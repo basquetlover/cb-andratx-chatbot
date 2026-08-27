@@ -101,7 +101,15 @@ function esRutaActual(enlace: string): boolean {
                         );
                     })
                 }
+                <a href="/panel" class="group relative flex items-center gap-2 rounded-md py-3 font-semibold transition-colors text-on-surface-variant hover:text-secondary duration-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-secondary">
+                    <span
+                        class="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat transition-transform duration-200 group-hover:scale-110"
+                        style={`mask-image: url('/iconos/cuenta.svg'); -webkit-mask-image: url('/iconos/cuenta.svg');`}
+                        aria-hidden="true"
+                    />
+                </a>
             </ul>
+            
         </nav>
     </div>
 </header>
