@@ -1,4 +1,12 @@
-export type EstadoPeriodoEntrenamientos = "actual" | "antes-inicio" | "despues-fin";
+export type EstadoPeriodoEntrenamientos =
+  | "actual"
+  | "antes-inicio"
+  | "despues-fin";
+
+  export type EstadoEntrenamientoCalendario =
+  | "normal"
+  | "modificado"
+  | "cancelado";
 
 export interface InstalacionEntrenamiento {
   id: string;
@@ -19,6 +27,7 @@ export interface EntrenamientoSemana {
   horaFin: string | null;
   observaciones: string | null;
   instalacion: InstalacionEntrenamiento | null;
+  estado: EstadoEntrenamientoCalendario;
 }
 
 export interface ResultadoEntrenamientos {
@@ -36,6 +45,7 @@ export interface ResultadoEntrenamientos {
     fechaFin: string | null;
   };
   entrenamientos: EntrenamientoSemana[];
+  entrenamientosCalendario: EntrenamientoSemana[];
 }
 
 export interface RespuestaEntrenamientosApi {
