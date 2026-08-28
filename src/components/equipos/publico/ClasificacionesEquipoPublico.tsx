@@ -176,7 +176,7 @@ export default function ClasificacionesEquipoPublico({
           </div>
 
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[46rem] border-collapse text-sm">
+            <table className="w-full min-w-184 border-collapse text-sm">
               <thead>
                 <tr className="border-b border-outline-variant/60 bg-surface-container-low text-xs font-black uppercase text-on-surface-variant">
                   <th className="w-14 px-3 py-3 text-center">

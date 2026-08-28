@@ -1,0 +1,209 @@
+---
+import GeneradorPartidosPublicacion from "@components/panel/publicaciones/partidos/GeneradorPartidosPublicacion";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerPublicacionPartidos } from "@servicios/backend/publicaciones/partidos/obtenerPublicacionPartidos";
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+import type { PublicacionPartidosPanel } from "@tipos/PublicacionPartidosPanel";
+
+export const prerender = false;
+
+const publicacionId =
+  Astro.params.id?.trim() ?? "";
+
+const rutaActual =
+  `/panel/publicaciones/partidos/${publicacionId}`;
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión al editar una publicación de partidos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let autorizado = false;
+
+try {
+  autorizado =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "publicaciones.gestionar",
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando el permiso publicaciones.gestionar:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!autorizado) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+
+let publicacion:
+  | PublicacionPartidosPanel
+  | null = null;
+
+let errorCarga: string | null = null;
+
+if (!publicacionId) {
+  Astro.response.status = 404;
+} else {
+  try {
+    publicacion =
+      await obtenerPublicacionPartidos(
+        publicacionId,
+      );
+
+    if (!publicacion) {
+      Astro.response.status = 404;
+    }
+  } catch (error) {
+    console.error(
+      `Error cargando la publicación ${publicacionId}:`,
+      error,
+    );
+
+    errorCarga =
+      "No se ha podido cargar la configuración de la publicación.";
+
+    Astro.response.status = 500;
+  }
+}
+
+const tituloPagina =
+  publicacion?.titulo?.trim() ||
+  (errorCarga
+    ? "Error al cargar la publicación"
+    : "Publicación no encontrada");
+---
+
+<LayoutPanel
+  title={tituloPagina}
+  description={publicacion
+    ? "Modifica la configuración guardada y vuelve a descargar las imágenes cuando lo necesites."
+    : undefined}
+  volverA="/panel/publicaciones/partidos"
+  textoVolver="Volver a publicaciones"
+  anchoCompleto
+>
+  {
+    errorCarga ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-12 w-12 bg-current mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <h2 class="mt-4 text-xl font-bold">
+            No se ha podido cargar la publicación
+          </h2>
+
+          <p class="mt-2 text-sm">
+            {errorCarga}
+          </p>
+
+          <a
+            href={rutaActual}
+            class="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+          >
+            Volver a intentarlo
+          </a>
+        </div>
+      </section>
+    ) : publicacion ? (
+      <GeneradorPartidosPublicacion
+        client:load
+        publicacionInicial={publicacion}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-7 text-center shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-outline mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/publicaciones.svg'); -webkit-mask-image: url('/iconos/panel/publicaciones.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide text-primary">
+            Error 404
+          </p>
+
+          <h2 class="mt-1 text-2xl font-bold text-on-surface">
+            Publicación no encontrada
+          </h2>
+
+          <p class="mt-2 text-sm text-on-surface-variant">
+            La configuración solicitada no existe,
+            ha sido archivada o su identificador no
+            es válido.
+          </p>
+
+          <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+            <a
+              href="/panel/publicaciones/partidos"
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:text-primary"
+            >
+              Ver publicaciones
+            </a>
+
+            <a
+              href="/panel/publicaciones/partidos/nueva"
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container"
+            >
+              Crear publicación
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

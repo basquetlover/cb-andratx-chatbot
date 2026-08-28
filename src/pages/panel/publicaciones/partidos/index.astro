@@ -1,0 +1,92 @@
+---
+import HistorialPublicacionesPartidos from "@components/panel/publicaciones/partidos/HistorialPublicacionesPartidos";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const rutaActual =
+  "/panel/publicaciones/partidos";
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en el historial de publicaciones de partidos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let autorizado = false;
+
+try {
+  autorizado =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "publicaciones.gestionar",
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando el permiso publicaciones.gestionar:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!autorizado) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Publicaciones de partidos"
+  description="Crea, modifica y recupera las configuraciones utilizadas para generar publicaciones de Instagram."
+  anchoCompleto
+>
+  <HistorialPublicacionesPartidos
+    client:load
+  />
+</LayoutPanel>
