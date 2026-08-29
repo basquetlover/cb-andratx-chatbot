@@ -1,25 +1,34 @@
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+interface PeriodoPublicacion {
+  fechaInicio: string;
+  fechaFin: string;
+}
+
 interface Propiedades {
   fechaInicio: string;
   fechaFin: string;
 
   alCambiar: (
-    fechaInicio: string,
-    fechaFin: string,
+    periodo: PeriodoPublicacion,
   ) => void;
 
   deshabilitado?: boolean;
 }
 
 type TipoPeriodo =
-  | "semana-actual"
-  | "semana-siguiente"
+  | "esta-semana"
+  | "proxima-semana"
   | "personalizado";
 
-function obtenerFechaMadrid():
-  Date {
+function obtenerFechaMadrid(): Date {
   const partes =
     new Intl.DateTimeFormat(
-      "es-ES",
+      "en-CA",
       {
         timeZone:
           "Europe/Madrid",
@@ -51,21 +60,6 @@ function obtenerFechaMadrid():
   );
 }
 
-function sumarDias(
-  fecha: Date,
-  dias: number,
-): Date {
-  const resultado =
-    new Date(fecha);
-
-  resultado.setUTCDate(
-    resultado.getUTCDate() +
-      dias,
-  );
-
-  return resultado;
-}
-
 function convertirFechaIso(
   fecha: Date,
 ): string {
@@ -83,81 +77,159 @@ function convertirFechaIso(
   return `${anio}-${mes}-${dia}`;
 }
 
-function obtenerSemana(
-  desplazamientoSemanas = 0,
-): {
-  inicio: string;
-  fin: string;
-} {
-  const hoy =
-    obtenerFechaMadrid();
+function sumarDias(
+  fecha: Date,
+  dias: number,
+): Date {
+  const resultado =
+    new Date(fecha);
 
+  resultado.setUTCDate(
+    resultado.getUTCDate() +
+      dias,
+  );
+
+  return resultado;
+}
+
+function obtenerInicioSemana(
+  fecha: Date,
+): Date {
   const diaSemana =
-    hoy.getUTCDay();
+    fecha.getUTCDay();
 
   const diasDesdeLunes =
     diaSemana === 0
       ? 6
       : diaSemana - 1;
 
-  const lunes =
-    sumarDias(
-      hoy,
-      -diasDesdeLunes +
-        desplazamientoSemanas *
-          7,
+  return sumarDias(
+    fecha,
+    -diasDesdeLunes,
+  );
+}
+
+function obtenerPeriodoSemanaActual():
+  PeriodoPublicacion {
+  const inicio =
+    obtenerInicioSemana(
+      obtenerFechaMadrid(),
     );
 
-  const domingo =
-    sumarDias(lunes, 6);
-
   return {
-    inicio:
-      convertirFechaIso(
-        lunes,
-      ),
+    fechaInicio:
+      convertirFechaIso(inicio),
 
-    fin:
+    fechaFin:
       convertirFechaIso(
-        domingo,
+        sumarDias(inicio, 6),
       ),
   };
 }
 
-function formatearPeriodo(
-  inicio: string,
-  fin: string,
+function obtenerPeriodoProximaSemana():
+  PeriodoPublicacion {
+  const inicioSemanaActual =
+    obtenerInicioSemana(
+      obtenerFechaMadrid(),
+    );
+
+  const inicioProximaSemana =
+    sumarDias(
+      inicioSemanaActual,
+      7,
+    );
+
+  return {
+    fechaInicio:
+      convertirFechaIso(
+        inicioProximaSemana,
+      ),
+
+    fechaFin:
+      convertirFechaIso(
+        sumarDias(
+          inicioProximaSemana,
+          6,
+        ),
+      ),
+  };
+}
+
+function formatearFecha(
+  fecha: string,
 ): string {
-  if (!inicio || !fin) {
-    return "Periodo pendiente";
+  if (!fecha) {
+    return "Sin definir";
   }
 
-  const fechaInicio =
+  const fechaConvertida =
     new Date(
-      `${inicio}T12:00:00`,
+      `${fecha}T12:00:00`,
     );
 
-  const fechaFin =
-    new Date(
-      `${fin}T12:00:00`,
-    );
+  if (
+    Number.isNaN(
+      fechaConvertida.getTime(),
+    )
+  ) {
+    return "Fecha no válida";
+  }
 
-  const formateador =
-    new Intl.DateTimeFormat(
-      "es-ES",
-      {
-        day: "numeric",
-        month: "long",
-        timeZone:
-          "Europe/Madrid",
-      },
-    );
+  return new Intl.DateTimeFormat(
+    "es-ES",
+    {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+      timeZone:
+        "Europe/Madrid",
+    },
+  ).format(fechaConvertida);
+}
 
-  return `Del ${formateador.format(
+function periodosIguales(
+  primero:
+    PeriodoPublicacion,
+  segundo:
+    PeriodoPublicacion,
+): boolean {
+  return (
+    primero.fechaInicio ===
+      segundo.fechaInicio &&
+    primero.fechaFin ===
+      segundo.fechaFin
+  );
+}
+
+function detectarTipoPeriodo(
+  fechaInicio: string,
+  fechaFin: string,
+): TipoPeriodo {
+  const periodoRecibido = {
     fechaInicio,
-  )} al ${formateador.format(
     fechaFin,
-  )}`;
+  };
+
+  if (
+    periodosIguales(
+      periodoRecibido,
+      obtenerPeriodoSemanaActual(),
+    )
+  ) {
+    return "esta-semana";
+  }
+
+  if (
+    periodosIguales(
+      periodoRecibido,
+      obtenerPeriodoProximaSemana(),
+    )
+  ) {
+    return "proxima-semana";
+  }
+
+  return "personalizado";
 }
 
 export default function SelectorPeriodoPublicacion({
@@ -166,242 +238,332 @@ export default function SelectorPeriodoPublicacion({
   alCambiar,
   deshabilitado = false,
 }: Propiedades) {
-  const semanaActual =
-    obtenerSemana(0);
+  const [
+    tipoPeriodo,
+    setTipoPeriodo,
+  ] = useState<TipoPeriodo>(() =>
+    detectarTipoPeriodo(
+      fechaInicio,
+      fechaFin,
+    ),
+  );
 
-  const semanaSiguiente =
-    obtenerSemana(1);
+  const [
+    fechaInicioPersonalizada,
+    setFechaInicioPersonalizada,
+  ] = useState(fechaInicio);
 
-  let tipoSeleccionado:
-    TipoPeriodo =
-      "personalizado";
+  const [
+    fechaFinPersonalizada,
+    setFechaFinPersonalizada,
+  ] = useState(fechaFin);
 
-  if (
-    fechaInicio ===
-      semanaActual.inicio &&
-    fechaFin ===
-      semanaActual.fin
-  ) {
-    tipoSeleccionado =
-      "semana-actual";
-  }
+  useEffect(() => {
+    setFechaInicioPersonalizada(
+      fechaInicio,
+    );
 
-  if (
-    fechaInicio ===
-      semanaSiguiente.inicio &&
-    fechaFin ===
-      semanaSiguiente.fin
-  ) {
-    tipoSeleccionado =
-      "semana-siguiente";
-  }
+    setFechaFinPersonalizada(
+      fechaFin,
+    );
+
+    /*
+     * Si el usuario ya ha abierto el modo
+     * personalizado, lo mantenemos abierto
+     * aunque sus fechas coincidan con una
+     * de las semanas predeterminadas.
+     */
+    setTipoPeriodo(
+      (tipoActual) =>
+        tipoActual ===
+        "personalizado"
+          ? "personalizado"
+          : detectarTipoPeriodo(
+              fechaInicio,
+              fechaFin,
+            ),
+    );
+  }, [fechaInicio, fechaFin]);
+
+  const errorPeriodo =
+    useMemo(() => {
+      if (
+        !fechaInicioPersonalizada ||
+        !fechaFinPersonalizada
+      ) {
+        return null;
+      }
+
+      if (
+        fechaFinPersonalizada <
+        fechaInicioPersonalizada
+      ) {
+        return (
+          "La fecha final no puede ser " +
+          "anterior a la fecha inicial."
+        );
+      }
+
+      return null;
+    }, [
+      fechaInicioPersonalizada,
+      fechaFinPersonalizada,
+    ]);
 
   const seleccionarPeriodo = (
     tipo: TipoPeriodo,
   ) => {
+    if (deshabilitado) {
+      return;
+    }
+
     if (
-      tipo ===
-      "semana-actual"
+      tipo === "personalizado"
     ) {
-      alCambiar(
-        semanaActual.inicio,
-        semanaActual.fin,
+      setTipoPeriodo(
+        "personalizado",
       );
 
       return;
     }
 
-    if (
-      tipo ===
-      "semana-siguiente"
-    ) {
-      alCambiar(
-        semanaSiguiente.inicio,
-        semanaSiguiente.fin,
-      );
-    }
+    const periodo =
+      tipo === "esta-semana"
+        ? obtenerPeriodoSemanaActual()
+        : obtenerPeriodoProximaSemana();
+
+    setTipoPeriodo(tipo);
+
+    setFechaInicioPersonalizada(
+      periodo.fechaInicio,
+    );
+
+    setFechaFinPersonalizada(
+      periodo.fechaFin,
+    );
+
+    alCambiar(periodo);
   };
 
   const cambiarFechaInicio = (
     nuevaFecha: string,
   ) => {
-    if (
-      fechaFin &&
-      nuevaFecha > fechaFin
-    ) {
-      alCambiar(
-        nuevaFecha,
-        nuevaFecha,
-      );
+    setTipoPeriodo(
+      "personalizado",
+    );
 
+    setFechaInicioPersonalizada(
+      nuevaFecha,
+    );
+
+    if (!nuevaFecha) {
       return;
     }
 
-    alCambiar(
-      nuevaFecha,
-      fechaFin,
+    const siguienteFinal =
+      fechaFinPersonalizada &&
+      fechaFinPersonalizada >=
+        nuevaFecha
+        ? fechaFinPersonalizada
+        : nuevaFecha;
+
+    setFechaFinPersonalizada(
+      siguienteFinal,
     );
+
+    alCambiar({
+      fechaInicio: nuevaFecha,
+      fechaFin: siguienteFinal,
+    });
   };
 
   const cambiarFechaFin = (
     nuevaFecha: string,
   ) => {
-    if (
-      fechaInicio &&
-      nuevaFecha < fechaInicio
-    ) {
-      alCambiar(
-        nuevaFecha,
-        nuevaFecha,
-      );
+    setTipoPeriodo(
+      "personalizado",
+    );
 
+    setFechaFinPersonalizada(
+      nuevaFecha,
+    );
+
+    if (
+      !fechaInicioPersonalizada ||
+      !nuevaFecha ||
+      nuevaFecha <
+        fechaInicioPersonalizada
+    ) {
       return;
     }
 
-    alCambiar(
-      fechaInicio,
-      nuevaFecha,
-    );
+    alCambiar({
+      fechaInicio:
+        fechaInicioPersonalizada,
+
+      fechaFin:
+        nuevaFecha,
+    });
   };
 
   return (
-    <fieldset
-      className="rounded-2xl border border-outline-variant/60 bg-surface-container-low p-4 sm:p-5"
-      disabled={deshabilitado}
-    >
-      <legend className="px-1 text-sm font-bold text-on-surface">
-        Periodo de partidos
-      </legend>
+    <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 shadow-sm sm:p-5">
+      <div>
+        <h2 className="font-bold text-on-surface">
+          Periodo de los partidos
+        </h2>
 
-      <p className="mt-1 text-xs leading-5 text-on-surface-variant">
-        Selecciona las fechas que se
-        utilizarán para consultar los partidos
-        en la FBIB.
-      </p>
+        <p className="mt-1 text-sm text-on-surface-variant">
+          Selecciona una semana o define
+          un periodo personalizado.
+        </p>
+      </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+      <div className="mt-4 grid gap-2 sm:grid-cols-3">
         <button
           type="button"
           onClick={() =>
             seleccionarPeriodo(
-              "semana-actual",
+              "esta-semana",
             )
           }
           disabled={deshabilitado}
-          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-            tipoSeleccionado ===
-            "semana-actual"
-              ? "border-primary bg-primary-fixed/60 text-on-primary-fixed"
-              : "border-outline-variant bg-surface-container-lowest text-on-surface hover:border-primary/60"
+          className={`min-h-11 rounded-xl border px-4 py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            tipoPeriodo ===
+            "esta-semana"
+              ? "border-primary bg-primary text-on-primary shadow-sm"
+              : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:text-primary"
           }`}
+          aria-pressed={
+            tipoPeriodo ===
+            "esta-semana"
+          }
         >
-          <span className="block text-sm font-bold">
-            Esta semana
-          </span>
-
-          <span className="mt-1 block text-xs opacity-75">
-            {formatearPeriodo(
-              semanaActual.inicio,
-              semanaActual.fin,
-            )}
-          </span>
+          Esta semana
         </button>
 
         <button
           type="button"
           onClick={() =>
             seleccionarPeriodo(
-              "semana-siguiente",
+              "proxima-semana",
             )
           }
           disabled={deshabilitado}
-          className={`rounded-xl border px-4 py-3 text-left transition-colors ${
-            tipoSeleccionado ===
-            "semana-siguiente"
-              ? "border-primary bg-primary-fixed/60 text-on-primary-fixed"
-              : "border-outline-variant bg-surface-container-lowest text-on-surface hover:border-primary/60"
+          className={`min-h-11 rounded-xl border px-4 py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            tipoPeriodo ===
+            "proxima-semana"
+              ? "border-primary bg-primary text-on-primary shadow-sm"
+              : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:text-primary"
           }`}
+          aria-pressed={
+            tipoPeriodo ===
+            "proxima-semana"
+          }
         >
-          <span className="block text-sm font-bold">
-            Próxima semana
-          </span>
-
-          <span className="mt-1 block text-xs opacity-75">
-            {formatearPeriodo(
-              semanaSiguiente.inicio,
-              semanaSiguiente.fin,
-            )}
-          </span>
+          Próxima semana
         </button>
 
-        <div
-          className={`rounded-xl border px-4 py-3 ${
-            tipoSeleccionado ===
+        <button
+          type="button"
+          onClick={() =>
+            seleccionarPeriodo(
+              "personalizado",
+            )
+          }
+          disabled={deshabilitado}
+          className={`min-h-11 rounded-xl border px-4 py-3 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+            tipoPeriodo ===
             "personalizado"
-              ? "border-primary bg-primary-fixed/60"
-              : "border-outline-variant bg-surface-container-lowest"
+              ? "border-primary bg-primary text-on-primary shadow-sm"
+              : "border-outline-variant bg-surface-container-low text-on-surface-variant hover:border-primary hover:text-primary"
           }`}
+          aria-pressed={
+            tipoPeriodo ===
+            "personalizado"
+          }
         >
-          <span className="block text-sm font-bold text-on-surface">
-            Personalizado
-          </span>
+          Fecha personalizada
+        </button>
+      </div>
 
-          <span className="mt-1 block text-xs text-on-surface-variant">
-            Elige las fechas manualmente.
-          </span>
+      {tipoPeriodo ===
+        "personalizado" && (
+        <div className="mt-4 grid gap-4 rounded-xl border border-outline-variant/60 bg-surface-container-low p-4 sm:grid-cols-2">
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">
+              Fecha inicial
+            </span>
+
+            <input
+              type="date"
+              value={
+                fechaInicioPersonalizada
+              }
+              onChange={(evento) =>
+                cambiarFechaInicio(
+                  evento.target.value,
+                )
+              }
+              disabled={deshabilitado}
+              className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1.5">
+            <span className="text-sm font-semibold text-on-surface">
+              Fecha final
+            </span>
+
+            <input
+              type="date"
+              value={
+                fechaFinPersonalizada
+              }
+              min={
+                fechaInicioPersonalizada ||
+                undefined
+              }
+              onChange={(evento) =>
+                cambiarFechaFin(
+                  evento.target.value,
+                )
+              }
+              disabled={deshabilitado}
+              className={`h-11 rounded-xl border bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50 ${
+                errorPeriodo
+                  ? "border-error focus:border-error focus:ring-error/20"
+                  : "border-outline-variant focus:border-primary focus:ring-primary/20"
+              }`}
+            />
+          </label>
+
+          {errorPeriodo && (
+            <p
+              className="text-sm font-medium text-error sm:col-span-2"
+              role="alert"
+            >
+              {errorPeriodo}
+            </p>
+          )}
         </div>
+      )}
+
+      <div className="mt-4 rounded-xl bg-primary-fixed/40 px-4 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-on-primary-fixed-variant">
+          Periodo seleccionado
+        </p>
+
+        <p className="mt-1 text-sm font-bold text-on-primary-fixed">
+          {formatearFecha(
+            fechaInicio,
+          )}{" "}
+          –{" "}
+          {formatearFecha(
+            fechaFin,
+          )}
+        </p>
       </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-on-surface">
-            Fecha inicial
-          </span>
-
-          <input
-            type="date"
-            value={fechaInicio}
-            onChange={(evento) =>
-              cambiarFechaInicio(
-                evento.target.value,
-              )
-            }
-            disabled={deshabilitado}
-            required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-on-surface">
-            Fecha final
-          </span>
-
-          <input
-            type="date"
-            value={fechaFin}
-            min={
-              fechaInicio ||
-              undefined
-            }
-            onChange={(evento) =>
-              cambiarFechaFin(
-                evento.target.value,
-              )
-            }
-            disabled={deshabilitado}
-            required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-          />
-        </label>
-      </div>
-
-      <p className="mt-4 rounded-xl bg-surface-container px-3 py-2 text-xs font-semibold text-on-surface-variant">
-        {formatearPeriodo(
-          fechaInicio,
-          fechaFin,
-        )}
-      </p>
-    </fieldset>
+    </section>
   );
 }

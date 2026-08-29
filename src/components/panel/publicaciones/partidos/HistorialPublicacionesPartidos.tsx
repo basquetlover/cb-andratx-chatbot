@@ -4,78 +4,47 @@ import {
   useState,
 } from "react";
 
-type IdiomaPublicacion = "es" | "ca";
-
-interface PartidoConfigurado {
-  id?: string;
-}
-
-interface PublicacionHistorial {
-  id: string;
-  titulo: string;
-  idioma: IdiomaPublicacion;
-  periodoInicio: string;
-  periodoFin: string;
-  configuracion?: {
-    partidos?: PartidoConfigurado[];
-  } | null;
-  totalPartidos?: number;
-  createdAt: string;
-  updatedAt: string | null;
-}
-
-interface RespuestaListado {
-  ok: boolean;
-  data:
-    | PublicacionHistorial[]
-    | {
-        publicaciones: PublicacionHistorial[];
-      }
-    | null;
-  error: string | null;
-}
-
-interface RespuestaArchivo {
-  ok: boolean;
-  data: PublicacionHistorial | null;
-  error: string | null;
-}
+import type {
+  RespuestaHistorialPublicaciones,
+  RespuestaPublicacionPartidos,
+  ResumenPublicacionPartidos,
+} from "@tipos/PublicacionPartidosPanel";
 
 interface Propiedades {
-  publicacionesIniciales?: PublicacionHistorial[];
+  publicacionesIniciales?:
+    ResumenPublicacionPartidos[];
 }
 
 type FiltroIdioma =
   | "todos"
-  | IdiomaPublicacion;
+  | "es"
+  | "ca";
 
 function convertirFecha(
   fecha: string,
 ): Date | null {
-  const resultado = new Date(fecha);
+  const fechaConvertida =
+    fecha.length === 10
+      ? new Date(
+          `${fecha}T12:00:00`,
+        )
+      : new Date(fecha);
 
-  return Number.isNaN(resultado.getTime())
+  return Number.isNaN(
+    fechaConvertida.getTime(),
+  )
     ? null
-    : resultado;
+    : fechaConvertida;
 }
 
 function formatearFecha(
   fecha: string,
 ): string {
-  if (!fecha) {
-    return "Fecha pendiente";
-  }
-
   const fechaConvertida =
-    fecha.length === 10
-      ? new Date(`${fecha}T12:00:00`)
-      : convertirFecha(fecha);
+    convertirFecha(fecha);
 
-  if (
-    !fechaConvertida ||
-    Number.isNaN(fechaConvertida.getTime())
-  ) {
-    return fecha;
+  if (!fechaConvertida) {
+    return "Fecha pendiente";
   }
 
   return new Intl.DateTimeFormat(
@@ -84,18 +53,15 @@ function formatearFecha(
       day: "numeric",
       month: "short",
       year: "numeric",
-      timeZone: "Europe/Madrid",
+      timeZone:
+        "Europe/Madrid",
     },
   ).format(fechaConvertida);
 }
 
-function formatearFechaActualizacion(
-  fecha: string | null,
+function formatearActualizacion(
+  fecha: string,
 ): string {
-  if (!fecha) {
-    return "Sin modificaciones";
-  }
-
   const fechaConvertida =
     convertirFecha(fecha);
 
@@ -111,70 +77,29 @@ function formatearFechaActualizacion(
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Europe/Madrid",
+      timeZone:
+        "Europe/Madrid",
     },
   ).format(fechaConvertida);
 }
 
 function normalizarTexto(
-  texto: unknown,
+  valor: unknown,
 ): string {
-  if (typeof texto !== "string") {
+  if (
+    typeof valor !== "string"
+  ) {
     return "";
   }
 
-  return texto
+  return valor
     .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
     .toLowerCase()
     .trim();
-}
-
-function obtenerPublicaciones(
-  data: RespuestaListado["data"],
-): PublicacionHistorial[] {
-  if (Array.isArray(data)) {
-    return data;
-  }
-
-  if (
-    data &&
-    Array.isArray(data.publicaciones)
-  ) {
-    return data.publicaciones;
-  }
-
-  return [];
-}
-
-function obtenerTotalPartidos(
-  publicacion: PublicacionHistorial,
-): number {
-  if (
-    typeof publicacion.totalPartidos ===
-      "number" &&
-    Number.isFinite(
-      publicacion.totalPartidos,
-    )
-  ) {
-    return Math.max(
-      0,
-      publicacion.totalPartidos,
-    );
-  }
-
-  if (
-    Array.isArray(
-      publicacion.configuracion?.partidos,
-    )
-  ) {
-    return (
-      publicacion.configuracion?.partidos
-        ?.length ?? 0
-    );
-  }
-
-  return 0;
 }
 
 export default function HistorialPublicacionesPartidos({
@@ -183,40 +108,56 @@ export default function HistorialPublicacionesPartidos({
   const [
     publicaciones,
     setPublicaciones,
-  ] = useState<PublicacionHistorial[]>(
-    publicacionesIniciales,
-  );
+  ] = useState<
+    ResumenPublicacionPartidos[]
+  >(publicacionesIniciales);
 
-  const [busqueda, setBusqueda] =
-    useState("");
+  const [
+    busqueda,
+    setBusqueda,
+  ] = useState("");
 
-  const [filtroIdioma, setFiltroIdioma] =
-    useState<FiltroIdioma>("todos");
-
-  const [cargando, setCargando] =
-    useState(
-      publicacionesIniciales.length === 0,
+  const [
+    filtroIdioma,
+    setFiltroIdioma,
+  ] =
+    useState<FiltroIdioma>(
+      "todos",
     );
 
-  const [error, setError] = useState<
+  const [
+    cargando,
+    setCargando,
+  ] = useState(
+    publicacionesIniciales.length ===
+      0,
+  );
+
+  const [
+    error,
+    setError,
+  ] = useState<
     string | null
+  >(null);
+
+  const [
+    intento,
+    setIntento,
+  ] = useState(0);
+
+  const [
+    publicacionAArchivar,
+    setPublicacionAArchivar,
+  ] = useState<
+    ResumenPublicacionPartidos | null
   >(null);
 
   const [
     publicacionArchivando,
     setPublicacionArchivando,
-  ] = useState<string | null>(null);
-
-  const [
-    publicacionAArchivar,
-    setPublicacionAArchivar,
-  ] =
-    useState<PublicacionHistorial | null>(
-      null,
-    );
-
-  const [intento, setIntento] =
-    useState(0);
+  ] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const controlador =
@@ -228,24 +169,30 @@ export default function HistorialPublicacionesPartidos({
           setCargando(true);
           setError(null);
 
-          const respuesta = await fetch(
-            "/api/panel/publicaciones/partidos",
-            {
-              method: "GET",
-              credentials: "same-origin",
-              headers: {
-                Accept: "application/json",
+          const respuesta =
+            await fetch(
+              "/api/panel/publicaciones/partidos",
+              {
+                method: "GET",
+                credentials:
+                  "same-origin",
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+                signal:
+                  controlador.signal,
               },
-              signal: controlador.signal,
-            },
-          );
+            );
 
           const contenido =
-            (await respuesta.json()) as RespuestaListado;
+            (await respuesta.json()) as
+              RespuestaHistorialPublicaciones;
 
           if (
             !respuesta.ok ||
-            !contenido.ok
+            !contenido.ok ||
+            !contenido.data
           ) {
             throw new Error(
               contenido.error ??
@@ -254,14 +201,14 @@ export default function HistorialPublicacionesPartidos({
           }
 
           setPublicaciones(
-            obtenerPublicaciones(
-              contenido.data,
-            ),
+            contenido.data.publicaciones,
           );
         } catch (error) {
           if (
-            error instanceof DOMException &&
-            error.name === "AbortError"
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
           ) {
             return;
           }
@@ -294,27 +241,31 @@ export default function HistorialPublicacionesPartidos({
 
   const publicacionesFiltradas =
     useMemo(() => {
-      const textoBusqueda =
-        normalizarTexto(busqueda);
+      const consulta =
+        normalizarTexto(
+          busqueda,
+        );
 
       return publicaciones.filter(
         (publicacion) => {
           if (
-            filtroIdioma !== "todos" &&
+            filtroIdioma !==
+              "todos" &&
             publicacion.idioma !==
               filtroIdioma
           ) {
             return false;
           }
 
-          if (!textoBusqueda) {
+          if (!consulta) {
             return true;
           }
 
-          const contenidoBusqueda = [
+          const textoPublicacion = [
+            publicacion.nombre,
             publicacion.titulo,
-            publicacion.periodoInicio,
-            publicacion.periodoFin,
+            publicacion.fechaInicio,
+            publicacion.fechaFin,
             publicacion.idioma === "ca"
               ? "catalan català"
               : "castellano español",
@@ -322,8 +273,8 @@ export default function HistorialPublicacionesPartidos({
             .map(normalizarTexto)
             .join(" ");
 
-          return contenidoBusqueda.includes(
-            textoBusqueda,
+          return textoPublicacion.includes(
+            consulta,
           );
         },
       );
@@ -349,23 +300,28 @@ export default function HistorialPublicacionesPartidos({
         setPublicacionArchivando(
           publicacion.id,
         );
+
         setError(null);
 
-        const respuesta = await fetch(
-          `/api/panel/publicaciones/partidos/${encodeURIComponent(
-            publicacion.id,
-          )}`,
-          {
-            method: "DELETE",
-            credentials: "same-origin",
-            headers: {
-              Accept: "application/json",
+        const respuesta =
+          await fetch(
+            `/api/panel/publicaciones/partidos/${encodeURIComponent(
+              publicacion.id,
+            )}`,
+            {
+              method: "DELETE",
+              credentials:
+                "same-origin",
+              headers: {
+                Accept:
+                  "application/json",
+              },
             },
-          },
-        );
+          );
 
         const contenido =
-          (await respuesta.json()) as RespuestaArchivo;
+          (await respuesta.json()) as
+            RespuestaPublicacionPartidos;
 
         if (
           !respuesta.ok ||
@@ -378,7 +334,9 @@ export default function HistorialPublicacionesPartidos({
         }
 
         setPublicaciones(
-          (publicacionesActuales) =>
+          (
+            publicacionesActuales,
+          ) =>
             publicacionesActuales.filter(
               (elemento) =>
                 elemento.id !==
@@ -386,7 +344,9 @@ export default function HistorialPublicacionesPartidos({
             ),
         );
 
-        setPublicacionAArchivar(null);
+        setPublicacionAArchivar(
+          null,
+        );
       } catch (error) {
         console.error(
           "Error archivando la publicación:",
@@ -399,7 +359,9 @@ export default function HistorialPublicacionesPartidos({
             : "No se ha podido archivar la publicación.",
         );
       } finally {
-        setPublicacionArchivando(null);
+        setPublicacionArchivando(
+          null,
+        );
       }
     };
 
@@ -459,7 +421,7 @@ export default function HistorialPublicacionesPartidos({
                   evento.target.value,
                 )
               }
-              placeholder="Buscar por título o periodo..."
+              placeholder="Buscar por nombre, título o periodo..."
               className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest pl-10 pr-4 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20"
             />
           </label>
@@ -471,29 +433,47 @@ export default function HistorialPublicacionesPartidos({
           >
             {(
               [
-                ["todos", "Todos"],
-                ["es", "Castellano"],
-                ["ca", "Català"],
+                [
+                  "todos",
+                  "Todos",
+                ],
+                [
+                  "es",
+                  "Castellano",
+                ],
+                [
+                  "ca",
+                  "Català",
+                ],
               ] as const
-            ).map(([valor, etiqueta]) => (
-              <button
-                key={valor}
-                type="button"
-                onClick={() =>
-                  setFiltroIdioma(valor)
-                }
-                className={`min-h-9 rounded-lg px-3 text-xs font-bold transition-colors sm:px-4 ${
-                  filtroIdioma === valor
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "text-on-surface-variant hover:text-primary"
-                }`}
-                aria-pressed={
-                  filtroIdioma === valor
-                }
-              >
-                {etiqueta}
-              </button>
-            ))}
+            ).map(
+              ([
+                valor,
+                etiqueta,
+              ]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() =>
+                    setFiltroIdioma(
+                      valor,
+                    )
+                  }
+                  className={`min-h-9 rounded-lg px-3 text-xs font-bold transition-colors sm:px-4 ${
+                    filtroIdioma ===
+                    valor
+                      ? "bg-primary text-on-primary shadow-sm"
+                      : "text-on-surface-variant hover:text-primary"
+                  }`}
+                  aria-pressed={
+                    filtroIdioma ===
+                    valor
+                  }
+                >
+                  {etiqueta}
+                </button>
+              ),
+            )}
           </div>
         </div>
       </section>
@@ -516,7 +496,8 @@ export default function HistorialPublicacionesPartidos({
             type="button"
             onClick={() =>
               setIntento(
-                (valor) => valor + 1,
+                (valor) =>
+                  valor + 1,
               )
             }
             className="mt-4 min-h-10 rounded-xl border border-error px-4 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
@@ -542,24 +523,17 @@ export default function HistorialPublicacionesPartidos({
             </p>
           </div>
         </section>
-      ) : publicaciones.length === 0 ? (
+      ) : publicaciones.length ===
+        0 ? (
         <section className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-8 text-center sm:p-12">
-          <svg
-            viewBox="0 0 24 24"
-            className="mx-auto h-14 w-14 fill-outline"
-            aria-hidden="true"
-          >
-            <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8.83a2 2 0 0 0-.59-1.42l-4.82-4.82A2 2 0 0 0 13.17 2H6Zm7 2v4a2 2 0 0 0 2 2h3v10H6V4h7Zm2 .41L17.59 7H15V4.41Z" />
-          </svg>
-
-          <h2 className="mt-4 text-xl font-bold text-on-surface">
+          <h2 className="text-xl font-bold text-on-surface">
             Todavía no hay publicaciones
           </h2>
 
           <p className="mx-auto mt-2 max-w-md text-sm text-on-surface-variant">
-            Crea la primera configuración para
-            preparar las imágenes de los
-            partidos.
+            Crea la primera configuración
+            para preparar las imágenes de
+            los partidos.
           </p>
 
           <a
@@ -577,15 +551,17 @@ export default function HistorialPublicacionesPartidos({
           </h2>
 
           <p className="mt-1 text-sm text-on-surface-variant">
-            Prueba con otro texto o cambia el
-            filtro de idioma.
+            Prueba con otro texto o cambia
+            el filtro de idioma.
           </p>
 
           <button
             type="button"
             onClick={() => {
               setBusqueda("");
-              setFiltroIdioma("todos");
+              setFiltroIdioma(
+                "todos",
+              );
             }}
             className="mt-4 text-sm font-bold text-primary hover:underline"
           >
@@ -594,137 +570,126 @@ export default function HistorialPublicacionesPartidos({
         </section>
       ) : (
         <>
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-on-surface-variant">
-              {publicacionesFiltradas.length}{" "}
-              {publicacionesFiltradas.length ===
-              1
-                ? "publicación"
-                : "publicaciones"}
-            </p>
-          </div>
+          <p className="text-sm text-on-surface-variant">
+            {
+              publicacionesFiltradas.length
+            }{" "}
+            {publicacionesFiltradas.length ===
+            1
+              ? "publicación"
+              : "publicaciones"}
+          </p>
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {publicacionesFiltradas.map(
-              (publicacion) => {
-                const totalPartidos =
-                  obtenerTotalPartidos(
-                    publicacion,
-                  );
+              (publicacion) => (
+                <article
+                  key={publicacion.id}
+                  className="group flex flex-col overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                >
+                  <div className="h-2 bg-primary" />
 
-                return (
-                  <article
-                    key={publicacion.id}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                  >
-                    <div className="h-2 bg-primary" />
+                  <div className="flex flex-1 flex-col p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <h3 className="line-clamp-2 text-lg font-bold text-on-surface">
+                          {publicacion.nombre ||
+                            "Publicación sin nombre"}
+                        </h3>
 
-                    <div className="flex flex-1 flex-col p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <h3 className="line-clamp-2 text-lg font-bold text-on-surface">
-                            {publicacion.titulo ||
-                              "Publicación sin título"}
-                          </h3>
+                        <p className="mt-1 line-clamp-1 text-sm text-on-surface-variant">
+                          {publicacion.titulo}
+                        </p>
 
-                          <p className="mt-1 text-xs text-on-surface-variant">
-                            Actualizada{" "}
-                            {formatearFechaActualizacion(
-                              publicacion.updatedAt ??
-                                publicacion.createdAt,
-                            )}
-                          </p>
-                        </div>
-
-                        <span className="shrink-0 rounded-full bg-secondary-container px-2.5 py-1 text-xs font-bold uppercase text-on-secondary-container">
-                          {publicacion.idioma ===
-                          "ca"
-                            ? "CA"
-                            : "ES"}
-                        </span>
+                        <p className="mt-2 text-xs text-on-surface-variant">
+                          Actualizada{" "}
+                          {formatearActualizacion(
+                            publicacion.updatedAt,
+                          )}
+                        </p>
                       </div>
 
-                      <dl className="mt-5 grid grid-cols-2 gap-3">
-                        <div className="rounded-xl bg-surface-container-low p-3">
-                          <dt className="text-xs font-semibold text-on-surface-variant">
-                            Periodo
-                          </dt>
-
-                          <dd className="mt-1 text-sm font-bold text-on-surface">
-                            {formatearFecha(
-                              publicacion.periodoInicio,
-                            )}
-                          </dd>
-
-                          <dd className="text-xs text-on-surface-variant">
-                            hasta{" "}
-                            {formatearFecha(
-                              publicacion.periodoFin,
-                            )}
-                          </dd>
-                        </div>
-
-                        <div className="rounded-xl bg-surface-container-low p-3">
-                          <dt className="text-xs font-semibold text-on-surface-variant">
-                            Partidos
-                          </dt>
-
-                          <dd className="mt-1 text-2xl font-bold text-primary">
-                            {totalPartidos}
-                          </dd>
-
-                          <dd className="text-xs text-on-surface-variant">
-                            configurados
-                          </dd>
-                        </div>
-                      </dl>
-
-                      <div className="mt-auto flex gap-2 pt-5">
-                        <a
-                          href={`/panel/publicaciones/partidos/${encodeURIComponent(
-                            publicacion.id,
-                          )}`}
-                          className="inline-flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-4 w-4 fill-current"
-                            aria-hidden="true"
-                          >
-                            <path d="m14.69 3.31 6 6-12.9 12.9a1 1 0 0 1-.7.29H2.5a1 1 0 0 1-1-1v-4.59a1 1 0 0 1 .29-.7l12.9-12.9Zm0 2.83L3.5 17.33v3.17h3.17L17.86 9.31l-3.17-3.17Zm1.41-4.24a2 2 0 0 1 2.83 0l3.17 3.17a2 2 0 0 1 0 2.83l-1.41 1.41-6-6 1.41-1.41Z" />
-                          </svg>
-
-                          Editar
-                        </a>
-
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPublicacionAArchivar(
-                              publicacion,
-                            )
-                          }
-                          disabled={
-                            publicacionArchivando ===
-                            publicacion.id
-                          }
-                          className="inline-flex min-h-10 min-w-10 items-center justify-center rounded-xl border border-outline-variant text-on-surface-variant transition-colors hover:border-error hover:bg-error-container hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
-                          aria-label={`Archivar ${publicacion.titulo}`}
-                          title="Archivar publicación"
-                        >
-                          <svg
-                            viewBox="0 0 24 24"
-                            className="h-5 w-5 fill-current"
-                            aria-hidden="true"
-                          >
-                            <path d="M4 3h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 7v9h12v-9H6ZM4 5v3h16V5H4Zm5 8h6a1 1 0 1 1 0 2H9a1 1 0 1 1 0-2Z" />
-                          </svg>
-                        </button>
-                      </div>
+                      <span className="shrink-0 rounded-full bg-secondary-container px-2.5 py-1 text-xs font-bold uppercase text-on-secondary-container">
+                        {publicacion.idioma ===
+                        "ca"
+                          ? "CA"
+                          : "ES"}
+                      </span>
                     </div>
-                  </article>
-                );
-              },
+
+                    <dl className="mt-5 grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-surface-container-low p-3">
+                        <dt className="text-xs font-semibold text-on-surface-variant">
+                          Periodo
+                        </dt>
+
+                        <dd className="mt-1 text-sm font-bold text-on-surface">
+                          {formatearFecha(
+                            publicacion.fechaInicio,
+                          )}
+                        </dd>
+
+                        <dd className="text-xs text-on-surface-variant">
+                          hasta{" "}
+                          {formatearFecha(
+                            publicacion.fechaFin,
+                          )}
+                        </dd>
+                      </div>
+
+                      <div className="rounded-xl bg-surface-container-low p-3">
+                        <dt className="text-xs font-semibold text-on-surface-variant">
+                          Contenido
+                        </dt>
+
+                        <dd className="mt-1 text-2xl font-bold text-primary">
+                          {
+                            publicacion.totalPartidos
+                          }
+                        </dd>
+
+                        <dd className="text-xs text-on-surface-variant">
+                          {
+                            publicacion.totalPaginas
+                          }{" "}
+                          {publicacion.totalPaginas ===
+                          1
+                            ? "imagen"
+                            : "imágenes"}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-auto flex gap-2 pt-5">
+                      <a
+                        href={`/panel/publicaciones/partidos/${encodeURIComponent(
+                          publicacion.id,
+                        )}`}
+                        className="inline-flex min-h-10 flex-1 items-center justify-center rounded-xl bg-primary px-4 py-2 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container"
+                      >
+                        Editar
+                      </a>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPublicacionAArchivar(
+                            publicacion,
+                          )
+                        }
+                        disabled={
+                          publicacionArchivando ===
+                          publicacion.id
+                        }
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-outline-variant px-3 text-sm font-bold text-on-surface-variant transition-colors hover:border-error hover:bg-error-container hover:text-error disabled:opacity-50"
+                        aria-label={`Archivar ${publicacion.nombre}`}
+                      >
+                        Archivar
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              ),
             )}
           </section>
         </>
@@ -751,19 +716,9 @@ export default function HistorialPublicacionesPartidos({
             aria-modal="true"
             aria-labelledby="titulo-archivar-publicacion"
           >
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-error-container text-error">
-              <svg
-                viewBox="0 0 24 24"
-                className="h-6 w-6 fill-current"
-                aria-hidden="true"
-              >
-                <path d="M4 3h16a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm2 7v9h12v-9H6ZM4 5v3h16V5H4Z" />
-              </svg>
-            </span>
-
             <h2
               id="titulo-archivar-publicacion"
-              className="mt-4 text-xl font-bold text-on-surface"
+              className="text-xl font-bold text-on-surface"
             >
               Archivar publicación
             </h2>
@@ -771,12 +726,14 @@ export default function HistorialPublicacionesPartidos({
             <p className="mt-2 text-sm leading-6 text-on-surface-variant">
               Se archivará{" "}
               <strong className="text-on-surface">
-                {publicacionAArchivar.titulo}
+                {
+                  publicacionAArchivar.nombre
+                }
               </strong>
-              . Dejará de aparecer en este
-              historial, pero su configuración
-              permanecerá guardada en la base de
-              datos.
+              . Dejará de aparecer en el
+              historial, pero su
+              configuración seguirá guardada
+              en la base de datos.
             </p>
 
             <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
@@ -797,11 +754,13 @@ export default function HistorialPublicacionesPartidos({
 
               <button
                 type="button"
-                onClick={archivarPublicacion}
+                onClick={
+                  archivarPublicacion
+                }
                 disabled={Boolean(
                   publicacionArchivando,
                 )}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error disabled:opacity-50"
               >
                 {publicacionArchivando && (
                   <span

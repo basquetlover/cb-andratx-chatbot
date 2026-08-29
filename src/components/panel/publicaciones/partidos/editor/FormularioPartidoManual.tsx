@@ -4,6 +4,9 @@ import {
 } from "react";
 
 import BuscadorRivalFbib from "./BuscadorRivalFbib";
+import SelectorEquipoClubPublicacion, {
+  type EquipoClubPublicacion,
+} from "./SelectorEquipoClubPublicacion";
 import SelectorLogoRival from "./SelectorLogoRival";
 
 import type {
@@ -16,8 +19,7 @@ interface Propiedades {
   orden: number;
 
   alAnadir: (
-    partido:
-      PartidoPublicacion,
+    partido: PartidoPublicacion,
   ) => void;
 
   alCancelar: () => void;
@@ -29,17 +31,23 @@ interface EstadoFormulario {
   estado:
     EstadoPartidoPublicacion;
 
+  equipoId: string | null;
+  equipoFbibId: string | null;
+  imagenEquipo: string | null;
+  nombreEquipo: string;
+
   fecha: string;
   hora: string;
 
-  nombreEquipo: string;
+  local: boolean | null;
 
   rivalFbibId: string | null;
   nombreRival: string;
   logoRival: string | null;
 
+  municipio: string;
+  pabellon: string;
   campo: string;
-  local: boolean | null;
 }
 
 function crearEstadoInicial():
@@ -47,17 +55,23 @@ function crearEstadoInicial():
   return {
     estado: "partido",
 
+    equipoId: null,
+    equipoFbibId: null,
+    imagenEquipo: null,
+    nombreEquipo: "",
+
     fecha: "",
     hora: "",
 
-    nombreEquipo: "",
+    local: true,
 
     rivalFbibId: null,
     nombreRival: "",
     logoRival: null,
 
+    municipio: "",
+    pabellon: "",
     campo: "",
-    local: true,
   };
 }
 
@@ -121,54 +135,152 @@ export default function FormularioPartidoManual({
     );
   };
 
+  const limpiarErrores = (
+    ...campos: string[]
+  ) => {
+    setErrores(
+      (erroresActuales) => {
+        const siguientesErrores = {
+          ...erroresActuales,
+        };
+
+        campos.forEach((campo) => {
+          delete siguientesErrores[
+            campo
+          ];
+        });
+
+        return siguientesErrores;
+      },
+    );
+  };
+
   const cambiarEstado = (
     estado:
       EstadoPartidoPublicacion,
   ) => {
     setFormulario(
-      (formularioActual) => ({
-        ...formularioActual,
-        estado,
+      (formularioActual) => {
+        if (
+          estado !== "descansa"
+        ) {
+          return {
+            ...formularioActual,
+            estado,
+            local:
+              formularioActual.local ??
+              true,
+          };
+        }
 
-        fecha:
-          estado === "descansa"
-            ? ""
-            : formularioActual.fecha,
+        return {
+          ...formularioActual,
 
-        hora:
-          estado === "descansa"
-            ? ""
-            : formularioActual.hora,
+          estado,
 
-        rivalFbibId:
-          estado === "descansa"
-            ? null
-            : formularioActual.rivalFbibId,
+          fecha: "",
+          hora: "",
 
-        nombreRival:
-          estado === "descansa"
-            ? ""
-            : formularioActual.nombreRival,
+          local: null,
 
-        logoRival:
-          estado === "descansa"
-            ? null
-            : formularioActual.logoRival,
+          rivalFbibId: null,
+          nombreRival: "",
+          logoRival: null,
 
-        campo:
-          estado === "descansa"
-            ? ""
-            : formularioActual.campo,
-
-        local:
-          estado === "descansa"
-            ? null
-            : formularioActual.local,
-      }),
+          municipio: "",
+          pabellon: "",
+          campo: "",
+        };
+      },
     );
 
     setErrores({});
     setBuscadorAbierto(false);
+  };
+
+  const seleccionarEquipoClub = (
+    equipo:
+      EquipoClubPublicacion | null,
+  ) => {
+    if (!equipo) {
+      setFormulario(
+        (formularioActual) => ({
+          ...formularioActual,
+
+          equipoId: null,
+          equipoFbibId: null,
+          imagenEquipo: null,
+          nombreEquipo: "",
+        }),
+      );
+
+      return;
+    }
+
+    setFormulario(
+      (formularioActual) => ({
+        ...formularioActual,
+
+        equipoId: equipo.id,
+
+        equipoFbibId:
+          equipo.idEquipoFbib,
+
+        imagenEquipo:
+          equipo.imagen,
+
+        nombreEquipo:
+          equipo.nombre,
+      }),
+    );
+
+    limpiarErrores(
+      "equipoId",
+      "nombreEquipo",
+    );
+  };
+
+  const cambiarCondicion = (
+    local: boolean | null,
+  ) => {
+    setFormulario(
+      (formularioActual) => {
+        if (local === true) {
+          return {
+            ...formularioActual,
+
+            local: true,
+
+            municipio: "",
+            campo:
+              formularioActual.pabellon,
+          };
+        }
+
+        if (local === false) {
+          return {
+            ...formularioActual,
+
+            local: false,
+
+            pabellon: "",
+            campo:
+              formularioActual.municipio,
+          };
+        }
+
+        return {
+          ...formularioActual,
+          local: null,
+        };
+      },
+    );
+
+    limpiarErrores(
+      "campo",
+      "municipio",
+      "pabellon",
+    );
   };
 
   const seleccionarRival = (
@@ -190,31 +302,97 @@ export default function FormularioPartidoManual({
       }),
     );
 
-    setErrores(
-      (erroresActuales) => {
-        const siguientesErrores = {
-          ...erroresActuales,
-        };
-
-        delete siguientesErrores
-          .nombreRival;
-
-        return siguientesErrores;
-      },
+    limpiarErrores(
+      "nombreRival",
     );
 
     setBuscadorAbierto(false);
+  };
+
+  const cambiarNombreRival = (
+    nombreRival: string,
+  ) => {
+    setFormulario(
+      (formularioActual) => ({
+        ...formularioActual,
+
+        nombreRival,
+        rivalFbibId: null,
+      }),
+    );
+
+    limpiarErrores(
+      "nombreRival",
+    );
+  };
+
+  const cambiarMunicipio = (
+    municipio: string,
+  ) => {
+    setFormulario(
+      (formularioActual) => ({
+        ...formularioActual,
+
+        municipio,
+        pabellon: "",
+
+        campo:
+          municipio,
+      }),
+    );
+
+    limpiarErrores(
+      "municipio",
+      "campo",
+    );
+  };
+
+  const cambiarPabellon = (
+    pabellon: string,
+  ) => {
+    setFormulario(
+      (formularioActual) => ({
+        ...formularioActual,
+
+        pabellon,
+        municipio: "",
+
+        campo:
+          pabellon,
+      }),
+    );
+
+    limpiarErrores(
+      "pabellon",
+      "campo",
+    );
+  };
+
+  const cambiarLugarGeneral = (
+    campo: string,
+  ) => {
+    setFormulario(
+      (formularioActual) => ({
+        ...formularioActual,
+
+        campo,
+        municipio: "",
+        pabellon: "",
+      }),
+    );
+
+    limpiarErrores(
+      "campo",
+    );
   };
 
   const validar = (): boolean => {
     const nuevosErrores:
       Record<string, string> = {};
 
-    if (
-      !formulario.nombreEquipo.trim()
-    ) {
-      nuevosErrores.nombreEquipo =
-        "Debes indicar el nombre del equipo.";
+    if (!formulario.equipoId) {
+      nuevosErrores.equipoId =
+        "Debes seleccionar un equipo del club.";
     }
 
     if (
@@ -232,15 +410,7 @@ export default function FormularioPartidoManual({
       !formulario.nombreRival.trim()
     ) {
       nuevosErrores.nombreRival =
-        "Debes indicar el nombre del rival.";
-    }
-
-    if (
-      formulario.nombreEquipo
-        .trim().length > 200
-    ) {
-      nuevosErrores.nombreEquipo =
-        "El nombre del equipo no puede superar los 200 caracteres.";
+        "Debes indicar el rival.";
     }
 
     if (
@@ -252,11 +422,27 @@ export default function FormularioPartidoManual({
     }
 
     if (
+      formulario.municipio
+        .trim().length > 100
+    ) {
+      nuevosErrores.municipio =
+        "El municipio no puede superar los 100 caracteres.";
+    }
+
+    if (
+      formulario.pabellon
+        .trim().length > 200
+    ) {
+      nuevosErrores.pabellon =
+        "El pabellón no puede superar los 200 caracteres.";
+    }
+
+    if (
       formulario.campo
         .trim().length > 200
     ) {
       nuevosErrores.campo =
-        "El campo no puede superar los 200 caracteres.";
+        "El lugar no puede superar los 200 caracteres.";
     }
 
     setErrores(nuevosErrores);
@@ -281,6 +467,33 @@ export default function FormularioPartidoManual({
       return;
     }
 
+    const esDescanso =
+      formulario.estado ===
+      "descansa";
+
+    const municipio =
+      !esDescanso &&
+      formulario.local === false
+        ? formulario.municipio.trim() ||
+          null
+        : null;
+
+    const pabellon =
+      !esDescanso &&
+      formulario.local === true
+        ? formulario.pabellon.trim() ||
+          null
+        : null;
+
+    const campo =
+      esDescanso
+        ? ""
+        : formulario.local === true
+          ? pabellon ?? ""
+          : formulario.local === false
+            ? municipio ?? ""
+            : formulario.campo.trim();
+
     const partido:
       PartidoPublicacion = {
         id:
@@ -292,34 +505,53 @@ export default function FormularioPartidoManual({
         orden,
         visible: true,
 
-        equipoId: null,
-        equipoFbibId: null,
+        equipoId:
+          formulario.equipoId,
 
-        fecha:
-          formulario.fecha ||
-          null,
+        equipoFbibId:
+          formulario.equipoFbibId,
 
-        hora:
-          formulario.hora ||
-          null,
+        imagenEquipo:
+          formulario.imagenEquipo,
 
         nombreEquipo:
           formulario.nombreEquipo.trim(),
 
+        fecha:
+          esDescanso
+            ? null
+            : formulario.fecha ||
+              null,
+
+        hora:
+          esDescanso
+            ? null
+            : formulario.hora ||
+              null,
+
         rivalFbibId:
-          formulario.rivalFbibId,
+          esDescanso
+            ? null
+            : formulario.rivalFbibId,
 
         nombreRival:
-          formulario.nombreRival.trim(),
+          esDescanso
+            ? ""
+            : formulario.nombreRival.trim(),
 
         logoRival:
-          formulario.logoRival,
+          esDescanso
+            ? null
+            : formulario.logoRival,
 
-        campo:
-          formulario.campo.trim(),
+        campo,
+        municipio,
+        pabellon,
 
         local:
-          formulario.local,
+          esDescanso
+            ? null
+            : formulario.local,
 
         estado:
           formulario.estado,
@@ -352,7 +584,9 @@ export default function FormularioPartidoManual({
       </div>
 
       <div className="grid gap-5 p-4 sm:p-5">
-        <fieldset>
+        <fieldset
+          disabled={deshabilitado}
+        >
           <legend className="text-sm font-semibold text-on-surface">
             Tipo de fila
           </legend>
@@ -362,18 +596,15 @@ export default function FormularioPartidoManual({
               [
                 {
                   id: "partido",
-                  nombre:
-                    "Partido",
+                  nombre: "Partido",
                 },
                 {
                   id: "descansa",
-                  nombre:
-                    "Descansa",
+                  nombre: "Descansa",
                 },
                 {
                   id: "aplazado",
-                  nombre:
-                    "Aplazado",
+                  nombre: "Aplazado",
                 },
               ] as const
             ).map((opcion) => {
@@ -415,40 +646,20 @@ export default function FormularioPartidoManual({
           </div>
         </fieldset>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-semibold text-on-surface">
-            Nombre del equipo
-          </span>
-
-          <textarea
-            value={
-              formulario.nombreEquipo
-            }
-            onChange={(evento) =>
-              actualizarCampo(
-                "nombreEquipo",
-                evento.target.value,
-              )
-            }
-            disabled={deshabilitado}
-            maxLength={200}
-            rows={2}
-            placeholder="Ej. INSTALADORA 2001&#10;INFANTIL FEM"
-            className={`min-h-20 resize-y rounded-xl border bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none transition-colors placeholder:text-outline disabled:cursor-not-allowed disabled:opacity-60 ${
-              errores.nombreEquipo
-                ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
-                : "border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20"
-            }`}
-          />
-
-          {errores.nombreEquipo && (
-            <span className="text-xs font-medium text-error">
-              {
-                errores.nombreEquipo
-              }
-            </span>
-          )}
-        </label>
+        <SelectorEquipoClubPublicacion
+          equipoId={
+            formulario.equipoId
+          }
+          alCambiar={
+            seleccionarEquipoClub
+          }
+          deshabilitado={
+            deshabilitado
+          }
+          error={
+            errores.equipoId
+          }
+        />
 
         {!esDescanso && (
           <>
@@ -481,9 +692,7 @@ export default function FormularioPartidoManual({
 
                 {errores.fecha && (
                   <span className="text-xs font-medium text-error">
-                    {
-                      errores.fecha
-                    }
+                    {errores.fecha}
                   </span>
                 )}
               </label>
@@ -512,7 +721,9 @@ export default function FormularioPartidoManual({
               </label>
             </div>
 
-            <fieldset>
+            <fieldset
+              disabled={deshabilitado}
+            >
               <legend className="text-sm font-semibold text-on-surface">
                 Condición
               </legend>
@@ -522,13 +733,11 @@ export default function FormularioPartidoManual({
                   [
                     {
                       valor: true,
-                      nombre:
-                        "En casa",
+                      nombre: "En casa",
                     },
                     {
                       valor: false,
-                      nombre:
-                        "Fuera",
+                      nombre: "Fuera",
                     },
                     {
                       valor: null,
@@ -561,8 +770,7 @@ export default function FormularioPartidoManual({
                             seleccionado
                           }
                           onChange={() =>
-                            actualizarCampo(
-                              "local",
+                            cambiarCondicion(
                               opcion.valor,
                             )
                           }
@@ -572,9 +780,7 @@ export default function FormularioPartidoManual({
                           className="sr-only"
                         />
 
-                        {
-                          opcion.nombre
-                        }
+                        {opcion.nombre}
                       </label>
                     );
                   },
@@ -593,17 +799,11 @@ export default function FormularioPartidoManual({
                   value={
                     formulario.nombreRival
                   }
-                  onChange={(evento) => {
-                    actualizarCampo(
-                      "nombreRival",
+                  onChange={(evento) =>
+                    cambiarNombreRival(
                       evento.target.value,
-                    );
-
-                    actualizarCampo(
-                      "rivalFbibId",
-                      null,
-                    );
-                  }}
+                    )
+                  }
                   disabled={
                     deshabilitado
                   }
@@ -639,6 +839,13 @@ export default function FormularioPartidoManual({
                   }
                 </span>
               )}
+
+              <span className="text-xs leading-5 text-on-surface-variant">
+                El nombre se utiliza para
+                identificar y buscar al
+                rival. En la imagen solo
+                aparecerá su escudo.
+              </span>
             </label>
 
             {buscadorAbierto && (
@@ -675,40 +882,132 @@ export default function FormularioPartidoManual({
               }
             />
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">
-                Campo
-              </span>
-
-              <input
-                type="text"
-                value={
-                  formulario.campo
-                }
-                onChange={(evento) =>
-                  actualizarCampo(
-                    "campo",
-                    evento.target.value,
-                  )
-                }
-                disabled={
-                  deshabilitado
-                }
-                maxLength={200}
-                placeholder="Ej. Palau d'Esports d'Andratx"
-                className={`h-11 rounded-xl border bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline disabled:cursor-not-allowed disabled:opacity-60 ${
-                  errores.campo
-                    ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
-                    : "border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20"
-                }`}
-              />
-
-              {errores.campo && (
-                <span className="text-xs font-medium text-error">
-                  {errores.campo}
+            {formulario.local ===
+              true && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">
+                  Pabellón en Andratx
                 </span>
-              )}
-            </label>
+
+                <input
+                  type="text"
+                  value={
+                    formulario.pabellon
+                  }
+                  onChange={(evento) =>
+                    cambiarPabellon(
+                      evento.target.value,
+                    )
+                  }
+                  disabled={
+                    deshabilitado
+                  }
+                  maxLength={200}
+                  placeholder="Ej. Palau d'Esports d'Andratx"
+                  className={`h-11 rounded-xl border bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline disabled:cursor-not-allowed disabled:opacity-60 ${
+                    errores.pabellon
+                      ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
+                      : "border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  }`}
+                />
+
+                {errores.pabellon && (
+                  <span className="text-xs font-medium text-error">
+                    {
+                      errores.pabellon
+                    }
+                  </span>
+                )}
+
+                <span className="text-xs text-on-surface-variant">
+                  En los partidos de casa
+                  se mostrará el nombre del
+                  pabellón.
+                </span>
+              </label>
+            )}
+
+            {formulario.local ===
+              false && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">
+                  Municipio
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    formulario.municipio
+                  }
+                  onChange={(evento) =>
+                    cambiarMunicipio(
+                      evento.target.value,
+                    )
+                  }
+                  disabled={
+                    deshabilitado
+                  }
+                  maxLength={100}
+                  placeholder="Ej. Alcúdia"
+                  className={`h-11 rounded-xl border bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline disabled:cursor-not-allowed disabled:opacity-60 ${
+                    errores.municipio
+                      ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
+                      : "border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  }`}
+                />
+
+                {errores.municipio && (
+                  <span className="text-xs font-medium text-error">
+                    {
+                      errores.municipio
+                    }
+                  </span>
+                )}
+
+                <span className="text-xs text-on-surface-variant">
+                  En los partidos fuera
+                  solamente se mostrará el
+                  municipio.
+                </span>
+              </label>
+            )}
+
+            {formulario.local ===
+              null && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-semibold text-on-surface">
+                  Lugar
+                </span>
+
+                <input
+                  type="text"
+                  value={
+                    formulario.campo
+                  }
+                  onChange={(evento) =>
+                    cambiarLugarGeneral(
+                      evento.target.value,
+                    )
+                  }
+                  disabled={
+                    deshabilitado
+                  }
+                  maxLength={200}
+                  placeholder="Lugar del partido"
+                  className={`h-11 rounded-xl border bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline disabled:cursor-not-allowed disabled:opacity-60 ${
+                    errores.campo
+                      ? "border-error focus:border-error focus:ring-2 focus:ring-error/20"
+                      : "border-outline-variant focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  }`}
+                />
+
+                {errores.campo && (
+                  <span className="text-xs font-medium text-error">
+                    {errores.campo}
+                  </span>
+                )}
+              </label>
+            )}
           </>
         )}
       </div>

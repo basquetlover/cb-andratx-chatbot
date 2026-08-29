@@ -1,4 +1,6 @@
-import { supabaseServidor } from "@servicios/supabase/servidor";
+import {
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
 
 import {
   obtenerDatosEsbFbib,
@@ -21,14 +23,26 @@ interface FilaEquipo {
 
 interface PartidoFbibCrudo {
   idMatch?: unknown;
+
   idLocalTeam?: unknown;
   idVisitorTeam?: unknown;
 
   nameLocalTeam?: unknown;
   nameVisitorTeam?: unknown;
 
+  localClubLogo?: unknown;
+  visitorClubLogo?: unknown;
+
   matchDay?: unknown;
+
   nameField?: unknown;
+  nameTown?: unknown;
+}
+
+interface UbicacionPartido {
+  campo: string;
+  municipio: string | null;
+  pabellon: string | null;
 }
 
 interface PartidoConEquipo {
@@ -44,8 +58,12 @@ interface PartidoConEquipo {
 
   rivalFbibId: string | null;
   nombreRival: string;
+  logoRival: string | null;
 
   campo: string;
+  municipio: string | null;
+  pabellon: string | null;
+
   local: boolean;
 }
 
@@ -89,11 +107,81 @@ function convertirTexto(
   return "";
 }
 
+function convertirTextoNullable(
+  valor: unknown,
+): string | null {
+  const texto =
+    convertirTexto(valor);
+
+  return texto || null;
+}
+
+function normalizarTexto(
+  valor: string,
+): string {
+  return valor
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
+    .toLowerCase()
+    .trim();
+}
+
+function normalizarImagen(
+  valor: unknown,
+): string | null {
+  const imagen =
+    convertirTexto(valor);
+
+  if (!imagen) {
+    return null;
+  }
+
+  if (
+    imagen.startsWith(
+      "https://",
+    )
+  ) {
+    return imagen;
+  }
+
+  if (
+    imagen.startsWith(
+      "http://",
+    )
+  ) {
+    return imagen.replace(
+      "http://",
+      "https://",
+    );
+  }
+
+  if (
+    imagen.startsWith(
+      "data:image/",
+    )
+  ) {
+    return imagen;
+  }
+
+  if (
+    imagen.startsWith("/")
+  ) {
+    return `https://www.fbib.es${imagen}`;
+  }
+
+  return null;
+}
+
 function esFechaIsoValida(
   valor: string,
 ): boolean {
   if (
-    !/^\d{4}-\d{2}-\d{2}$/.test(valor)
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      valor,
+    )
   ) {
     return false;
   }
@@ -104,52 +192,72 @@ function esFechaIsoValida(
     diaTexto,
   ] = valor.split("-");
 
-  const anio = Number(anioTexto);
-  const mes = Number(mesTexto);
-  const dia = Number(diaTexto);
+  const anio =
+    Number(anioTexto);
 
-  const fecha = new Date(
-    Date.UTC(anio, mes - 1, dia),
-  );
+  const mes =
+    Number(mesTexto);
+
+  const dia =
+    Number(diaTexto);
+
+  const fecha =
+    new Date(
+      Date.UTC(
+        anio,
+        mes - 1,
+        dia,
+      ),
+    );
 
   return (
-    fecha.getUTCFullYear() === anio &&
-    fecha.getUTCMonth() === mes - 1 &&
-    fecha.getUTCDate() === dia
+    fecha.getUTCFullYear() ===
+      anio &&
+    fecha.getUTCMonth() ===
+      mes - 1 &&
+    fecha.getUTCDate() ===
+      dia
   );
 }
 
 function extraerFecha(
   valor: unknown,
 ): string | null {
-  const texto = convertirTexto(valor);
+  const texto =
+    convertirTexto(valor);
 
   if (!texto) {
     return null;
   }
 
-  const formatoIso = texto.match(
-    /^(\d{4})-(\d{2})-(\d{2})/,
-  );
+  const formatoIso =
+    texto.match(
+      /^(\d{4})-(\d{2})-(\d{2})/,
+    );
 
   if (formatoIso) {
     const fecha =
       `${formatoIso[1]}-${formatoIso[2]}-${formatoIso[3]}`;
 
-    return esFechaIsoValida(fecha)
+    return esFechaIsoValida(
+      fecha,
+    )
       ? fecha
       : null;
   }
 
-  const formatoEspanol = texto.match(
-    /^(\d{2})\/(\d{2})\/(\d{4})/,
-  );
+  const formatoEspanol =
+    texto.match(
+      /^(\d{2})\/(\d{2})\/(\d{4})/,
+    );
 
   if (formatoEspanol) {
     const fecha =
       `${formatoEspanol[3]}-${formatoEspanol[2]}-${formatoEspanol[1]}`;
 
-    return esFechaIsoValida(fecha)
+    return esFechaIsoValida(
+      fecha,
+    )
       ? fecha
       : null;
   }
@@ -160,41 +268,55 @@ function extraerFecha(
 function extraerHora(
   valor: unknown,
 ): string | null {
-  const texto = convertirTexto(valor);
+  const texto =
+    convertirTexto(valor);
 
-  const coincidencia = texto.match(
-    /(?:T|\s)([01]\d|2[0-3]):([0-5]\d)/,
-  );
+  const coincidencia =
+    texto.match(
+      /(?:T|\s)([01]\d|2[0-3]):([0-5]\d)/,
+    );
 
   if (!coincidencia) {
     return null;
   }
 
-  return `${coincidencia[1]}:${coincidencia[2]}`;
+  return (
+    `${coincidencia[1]}:` +
+    coincidencia[2]
+  );
 }
 
 function extraerPartidos(
   valor: unknown,
 ): PartidoFbibCrudo[] {
-  if (Array.isArray(valor)) {
+  if (
+    Array.isArray(valor)
+  ) {
     return valor.filter(
       esObjeto,
     ) as PartidoFbibCrudo[];
   }
 
-  if (!esObjeto(valor)) {
+  if (
+    !esObjeto(valor)
+  ) {
     return [];
   }
 
-  const partidos = valor.matches;
+  const partidos =
+    valor.matches;
 
-  if (Array.isArray(partidos)) {
+  if (
+    Array.isArray(partidos)
+  ) {
     return partidos.filter(
       esObjeto,
     ) as PartidoFbibCrudo[];
   }
 
-  if (esObjeto(partidos)) {
+  if (
+    esObjeto(partidos)
+  ) {
     return Object.values(
       partidos,
     ).filter(
@@ -209,33 +331,40 @@ function obtenerMesesPeriodo(
   fechaInicio: string,
   fechaFin: string,
 ): number[] {
-  const inicio = new Date(
-    `${fechaInicio}T12:00:00Z`,
-  );
+  const inicio =
+    new Date(
+      `${fechaInicio}T12:00:00Z`,
+    );
 
-  const fin = new Date(
-    `${fechaFin}T12:00:00Z`,
-  );
+  const fin =
+    new Date(
+      `${fechaFin}T12:00:00Z`,
+    );
 
-  const meses = new Set<number>();
+  const meses =
+    new Set<number>();
 
-  const cursor = new Date(
-    Date.UTC(
-      inicio.getUTCFullYear(),
-      inicio.getUTCMonth(),
-      1,
-    ),
-  );
+  const cursor =
+    new Date(
+      Date.UTC(
+        inicio.getUTCFullYear(),
+        inicio.getUTCMonth(),
+        1,
+      ),
+    );
 
-  const ultimoMes = new Date(
-    Date.UTC(
-      fin.getUTCFullYear(),
-      fin.getUTCMonth(),
-      1,
-    ),
-  );
+  const ultimoMes =
+    new Date(
+      Date.UTC(
+        fin.getUTCFullYear(),
+        fin.getUTCMonth(),
+        1,
+      ),
+    );
 
-  while (cursor <= ultimoMes) {
+  while (
+    cursor <= ultimoMes
+  ) {
     meses.add(
       cursor.getUTCMonth() + 1,
     );
@@ -248,19 +377,84 @@ function obtenerMesesPeriodo(
   return Array.from(meses);
 }
 
+function obtenerUbicacionPartido(
+  partido: PartidoFbibCrudo,
+): UbicacionPartido {
+  const municipio =
+    convertirTexto(
+      partido.nameTown,
+    );
+
+  const instalacion =
+    convertirTexto(
+      partido.nameField,
+    );
+
+  const municipioNormalizado =
+    normalizarTexto(
+      municipio,
+    );
+
+  const seJuegaEnAndratx =
+    municipioNormalizado.includes(
+      "andratx",
+    );
+
+  if (
+    seJuegaEnAndratx
+  ) {
+    return {
+      campo:
+        instalacion ||
+        municipio ||
+        "Andratx",
+
+      municipio:
+        municipio ||
+        "Andratx",
+
+      pabellon:
+        instalacion ||
+        null,
+    };
+  }
+
+  return {
+    campo:
+      municipio ||
+      instalacion ||
+      "",
+
+    municipio:
+      municipio ||
+      null,
+
+    pabellon: null,
+  };
+}
+
 async function obtenerEquiposPublicacion():
   Promise<FilaEquipo[]> {
   const {
-    data: temporadaEncontrada,
-    error: errorTemporada,
-  } = await supabaseServidor
-    .from("temporadas")
-    .select("id")
-    .eq("activa", true)
-    .limit(1)
-    .maybeSingle();
+    data:
+      temporadaEncontrada,
 
-  if (errorTemporada) {
+    error:
+      errorTemporada,
+  } =
+    await supabaseServidor
+      .from("temporadas")
+      .select("id")
+      .eq(
+        "activa",
+        true,
+      )
+      .limit(1)
+      .maybeSingle();
+
+  if (
+    errorTemporada
+  ) {
     throw new ErrorObtenerPartidosPeriodoPublicacion(
       `No se ha podido obtener la temporada activa: ${errorTemporada.message}`,
       500,
@@ -272,39 +466,56 @@ async function obtenerEquiposPublicacion():
       | FilaTemporada
       | null;
 
-  if (!temporada?.id) {
+  if (
+    !temporada?.id
+  ) {
     return [];
   }
 
   const {
-    data: equiposEncontrados,
-    error: errorEquipos,
-  } = await supabaseServidor
-    .from("equipos")
-    .select(`
-      id,
-      nombre,
-      nombre_corto,
-      id_equipo_fbib
-    `)
-    .eq(
-      "temporada_id",
-      temporada.id,
-    )
-    .eq("activo", true)
-    .not(
-      "id_equipo_fbib",
-      "is",
-      null,
-    )
-    .order("categoria", {
-      ascending: true,
-    })
-    .order("nombre", {
-      ascending: true,
-    });
+    data:
+      equiposEncontrados,
 
-  if (errorEquipos) {
+    error:
+      errorEquipos,
+  } =
+    await supabaseServidor
+      .from("equipos")
+      .select(`
+        id,
+        nombre,
+        nombre_corto,
+        id_equipo_fbib
+      `)
+      .eq(
+        "temporada_id",
+        temporada.id,
+      )
+      .eq(
+        "activo",
+        true,
+      )
+      .not(
+        "id_equipo_fbib",
+        "is",
+        null,
+      )
+      .order(
+        "categoria",
+        {
+          ascending: true,
+        },
+      )
+      .order(
+        "nombre",
+        {
+          ascending: true,
+        },
+      );
+
+  if (
+    errorEquipos
+  ) {
     throw new ErrorObtenerPartidosPeriodoPublicacion(
       `No se han podido obtener los equipos del club: ${errorEquipos.message}`,
       500,
@@ -312,15 +523,23 @@ async function obtenerEquiposPublicacion():
   }
 
   return (
-    equiposEncontrados ?? []
+    equiposEncontrados ??
+    []
   ) as FilaEquipo[];
 }
 
 function convertirPartido(
-  partido: PartidoFbibCrudo,
-  equipo: FilaEquipo,
-  fechaInicio: string,
-  fechaFin: string,
+  partido:
+    PartidoFbibCrudo,
+
+  equipo:
+    FilaEquipo,
+
+  fechaInicio:
+    string,
+
+  fechaFin:
+    string,
 ): PartidoConEquipo | null {
   const equipoFbibId =
     convertirTexto(
@@ -358,10 +577,12 @@ function convertirPartido(
   }
 
   const esLocal =
-    idLocal === equipoFbibId;
+    idLocal ===
+    equipoFbibId;
 
   const esVisitante =
-    idVisitante === equipoFbibId;
+    idVisitante ===
+    equipoFbibId;
 
   if (
     !esLocal &&
@@ -389,6 +610,20 @@ function convertirPartido(
           partido.nameLocalTeam,
         );
 
+  const logoRival =
+    esLocal
+      ? normalizarImagen(
+          partido.visitorClubLogo,
+        )
+      : normalizarImagen(
+          partido.localClubLogo,
+        );
+
+  const ubicacion =
+    obtenerUbicacionPartido(
+      partido,
+    );
+
   return {
     partidoFbibId,
 
@@ -407,25 +642,36 @@ function convertirPartido(
     nombreEquipo,
 
     rivalFbibId:
-      rivalFbibId || null,
+      rivalFbibId ||
+      null,
 
     nombreRival:
       nombreRival ||
       "Rival pendiente",
 
-    campo:
-      convertirTexto(
-        partido.nameField,
-      ),
+    logoRival,
 
-    local: esLocal,
+    campo:
+      ubicacion.campo,
+
+    municipio:
+      ubicacion.municipio,
+
+    pabellon:
+      ubicacion.pabellon,
+
+    local:
+      esLocal,
   };
 }
 
 function crearUrlEscudoInterna(
-  equipoFbibId: string | null,
+  equipoFbibId:
+    string | null,
 ): string | null {
-  if (!equipoFbibId) {
+  if (
+    !equipoFbibId
+  ) {
     return null;
   }
 
@@ -442,8 +688,11 @@ function crearUrlEscudoInterna(
 }
 
 export async function obtenerPartidosPeriodoPublicacion(
-  fechaInicio: string,
-  fechaFin: string,
+  fechaInicio:
+    string,
+
+  fechaFin:
+    string,
 ): Promise<
   PartidoPeriodoFbibPublicacion[]
 > {
@@ -480,7 +729,35 @@ export async function obtenerPartidosPeriodoPublicacion(
   const equipos =
     await obtenerEquiposPublicacion();
 
-  if (equipos.length === 0) {
+  if (
+    equipos.length === 0
+  ) {
+    console.log(
+      "\n========== RESULTADO FINAL FILTRADO ==========",
+    );
+
+    console.log(
+      JSON.stringify(
+        {
+          fechaInicio:
+            fechaInicioLimpia,
+
+          fechaFin:
+            fechaFinLimpia,
+
+          total: 0,
+
+          partidos: [],
+        },
+        null,
+        2,
+      ),
+    );
+
+    console.log(
+      "========== FIN RESULTADO FINAL FILTRADO ==========\n",
+    );
+
     return [];
   }
 
@@ -491,52 +768,98 @@ export async function obtenerPartidosPeriodoPublicacion(
     );
 
   const consultas =
-    equipos.flatMap((equipo) => {
-      const equipoFbibId =
-        convertirTexto(
-          equipo.id_equipo_fbib,
-        );
+    equipos.flatMap(
+      (equipo) => {
+        const equipoFbibId =
+          convertirTexto(
+            equipo.id_equipo_fbib,
+          );
 
-      if (!equipoFbibId) {
-        return [];
-      }
+        if (
+          !equipoFbibId
+        ) {
+          return [];
+        }
 
-      return meses.map(
-        async (mes) => {
-          try {
-            const resultado =
-              await obtenerDatosEsbFbib(
-                `/Match/getByTeamAndMonth/${encodeURIComponent(
-                  equipoFbibId,
-                )}/${mes}`,
+        return meses.map(
+          async (mes) => {
+            const rutaFbib =
+              `/Match/getByTeamAndMonth/${encodeURIComponent(
+                equipoFbibId,
+              )}/${mes}`;
+
+            try {
+              const resultado =
+                await obtenerDatosEsbFbib(
+                  rutaFbib,
+                );
+
+              // console.log(
+              //   "\n========== RESPUESTA ORIGINAL FBIB ==========",
+              // );
+
+              // console.log(
+              //   "Equipo FBIB:",
+              //   equipoFbibId,
+              // );
+
+              // console.log(
+              //   "Mes:",
+              //   mes,
+              // );
+
+              // console.log(
+              //   "Ruta:",
+              //   rutaFbib,
+              // );
+
+              // console.log(
+              //   JSON.stringify(
+              //     resultado,
+              //     null,
+              //     2,
+              //   ),
+              // );
+
+              // console.log(
+              //   "========== FIN RESPUESTA FBIB ==========\n",
+              // );
+
+              return {
+                correcto:
+                  true as const,
+
+                equipo,
+
+                partidos:
+                  extraerPartidos(
+                    resultado,
+                  ),
+              };
+            } catch (error) {
+              console.error(
+                `Error consultando los partidos FBIB del equipo ${equipoFbibId} en el mes ${mes}:`,
+                error,
               );
 
-            return {
-              correcto: true as const,
-              equipo,
-              partidos:
-                extraerPartidos(
-                  resultado,
-                ),
-            };
-          } catch (error) {
-            console.error(
-              `Error consultando los partidos FBIB del equipo ${equipoFbibId} en el mes ${mes}:`,
-              error,
-            );
+              return {
+                correcto:
+                  false as const,
 
-            return {
-              correcto: false as const,
-              equipo,
-              partidos: [],
-            };
-          }
-        },
-      );
-    });
+                equipo,
+
+                partidos: [],
+              };
+            }
+          },
+        );
+      },
+    );
 
   const resultados =
-    await Promise.all(consultas);
+    await Promise.all(
+      consultas,
+    );
 
   const consultasCorrectas =
     resultados.filter(
@@ -572,17 +895,22 @@ export async function obtenerPartidosPeriodoPublicacion(
               fechaFinLimpia,
             );
 
-          if (!convertido) {
+          if (
+            !convertido
+          ) {
             return;
           }
 
           if (
             !partidosPorId.has(
-              convertido.partidoFbibId,
+              convertido
+                .partidoFbibId,
             )
           ) {
             partidosPorId.set(
-              convertido.partidoFbibId,
+              convertido
+                .partidoFbibId,
+
               convertido,
             );
           }
@@ -591,62 +919,106 @@ export async function obtenerPartidosPeriodoPublicacion(
     },
   );
 
-  return Array.from(
-    partidosPorId.values(),
-  )
-    .sort(
-      (partidoA, partidoB) => {
-        const fechaA =
-          `${partidoA.fecha} ${partidoA.hora ?? "23:59"}`;
-
-        const fechaB =
-          `${partidoB.fecha} ${partidoB.hora ?? "23:59"}`;
-
-        return (
-          fechaA.localeCompare(
-            fechaB,
-          ) ||
-          partidoA.nombreEquipo.localeCompare(
-            partidoB.nombreEquipo,
-            "es",
-          )
-        );
-      },
+  const partidosFinales:
+    PartidoPeriodoFbibPublicacion[] =
+    Array.from(
+      partidosPorId.values(),
     )
-    .map((partido) => ({
-      partidoFbibId:
-        partido.partidoFbibId,
+      .sort(
+        (
+          partidoA,
+          partidoB,
+        ) => {
+          const fechaA =
+            `${partidoA.fecha} ${partidoA.hora ?? "23:59"}`;
 
-      equipoId:
-        partido.equipoId,
+          const fechaB =
+            `${partidoB.fecha} ${partidoB.hora ?? "23:59"}`;
 
-      equipoFbibId:
-        partido.equipoFbibId,
+          return (
+            fechaA.localeCompare(
+              fechaB,
+            ) ||
+            partidoA.nombreEquipo.localeCompare(
+              partidoB.nombreEquipo,
+              "es",
+            )
+          );
+        },
+      )
+      .map(
+        (partido) => ({
+          partidoFbibId:
+            partido.partidoFbibId,
 
-      fecha:
-        partido.fecha,
+          equipoId:
+            partido.equipoId,
 
-      hora:
-        partido.hora,
+          equipoFbibId:
+            partido.equipoFbibId,
 
-      nombreEquipo:
-        partido.nombreEquipo,
+          fecha:
+            partido.fecha,
 
-      rivalFbibId:
-        partido.rivalFbibId,
+          hora:
+            partido.hora,
 
-      nombreRival:
-        partido.nombreRival,
+          nombreEquipo:
+            partido.nombreEquipo,
 
-      logoRival:
-        crearUrlEscudoInterna(
-          partido.rivalFbibId,
-        ),
+          rivalFbibId:
+            partido.rivalFbibId,
 
-      campo:
-        partido.campo,
+          nombreRival:
+            partido.nombreRival,
 
-      local:
-        partido.local,
-    }));
+          logoRival:
+            crearUrlEscudoInterna(
+              partido.rivalFbibId,
+            ) ??
+            partido.logoRival,
+
+          campo:
+            partido.campo,
+
+          municipio:
+            partido.municipio,
+
+          pabellon:
+            partido.pabellon,
+
+          local:
+            partido.local,
+        }),
+      );
+
+  // console.log(
+  //   "\n========== RESULTADO FINAL FILTRADO ==========",
+  // );
+
+  // console.log(
+  //   JSON.stringify(
+  //     {
+  //       fechaInicio:
+  //         fechaInicioLimpia,
+
+  //       fechaFin:
+  //         fechaFinLimpia,
+
+  //       total:
+  //         partidosFinales.length,
+
+  //       partidos:
+  //         partidosFinales,
+  //     },
+  //     null,
+  //     2,
+  //   ),
+  // );
+
+  // console.log(
+  //   "========== FIN RESULTADO FINAL FILTRADO ==========\n",
+  // );
+
+  return partidosFinales;
 }

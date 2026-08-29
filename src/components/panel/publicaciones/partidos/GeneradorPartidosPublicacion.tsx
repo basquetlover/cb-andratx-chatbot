@@ -177,7 +177,7 @@ function crearDatosIniciales():
 
     partidos: [],
 
-    partidosPorImagen: 9,
+    partidosPorImagen: 7,
 
     estado: "borrador",
   };
@@ -213,7 +213,45 @@ function extraerDatosPublicacion(
       publicacion.fondo,
 
     partidos:
-      publicacion.partidos,
+      publicacion.partidos.map(
+        (partido) => ({
+          ...partido,
+
+          partidoFbibId:
+            partido.partidoFbibId ??
+            null,
+
+          equipoId:
+            partido.equipoId ??
+            null,
+
+          equipoFbibId:
+            partido.equipoFbibId ??
+            null,
+
+          imagenEquipo:
+            partido.imagenEquipo ??
+            null,
+
+          municipio:
+            partido.municipio ??
+            (
+              partido.local === false
+                ? partido.campo ||
+                  null
+                : null
+            ),
+
+          pabellon:
+            partido.pabellon ??
+            (
+              partido.local === true
+                ? partido.campo ||
+                  null
+                : null
+            ),
+        }),
+      ),
 
     partidosPorImagen:
       publicacion.partidosPorImagen,
@@ -250,6 +288,22 @@ function normalizarParaComparar(
           (partido) => ({
             ...partido,
 
+            partidoFbibId:
+              partido.partidoFbibId ??
+              null,
+
+            equipoId:
+              partido.equipoId ??
+              null,
+
+            equipoFbibId:
+              partido.equipoFbibId ??
+              null,
+
+            imagenEquipo:
+              partido.imagenEquipo ??
+              null,
+
             nombreEquipo:
               partido.nombreEquipo.trim(),
 
@@ -258,6 +312,14 @@ function normalizarParaComparar(
 
             campo:
               partido.campo.trim(),
+
+            municipio:
+              partido.municipio?.trim() ||
+              null,
+
+            pabellon:
+              partido.pabellon?.trim() ||
+              null,
           }),
         ),
   });
@@ -491,13 +553,20 @@ export default function GeneradorPartidosPublicacion({
 
     formulario.partidos.forEach(
       (partido, indice) => {
+        if (!partido.equipoId) {
+        nuevosErrores[
+            `partidos.${indice}.equipoId`
+        ] =
+            "Debes seleccionar un equipo del club en todas las filas.";
+        }
+
         if (
-          !partido.nombreEquipo.trim()
+        !partido.nombreEquipo.trim()
         ) {
-          nuevosErrores[
+        nuevosErrores[
             `partidos.${indice}.nombreEquipo`
-          ] =
-            "Todos los partidos necesitan un equipo.";
+        ] =
+            "El equipo seleccionado no tiene un nombre válido.";
         }
 
         if (
@@ -571,22 +640,46 @@ export default function GeneradorPartidosPublicacion({
           estadoDestino,
 
         partidos:
-          formulario.partidos.map(
-            (partido, indice) => ({
-              ...partido,
+  formulario.partidos.map(
+    (partido, indice) => ({
+      ...partido,
 
-              orden: indice + 1,
+      orden: indice + 1,
 
-              nombreEquipo:
-                partido.nombreEquipo.trim(),
+      partidoFbibId:
+        partido.partidoFbibId ??
+        null,
 
-              nombreRival:
-                partido.nombreRival.trim(),
+      equipoId:
+        partido.equipoId ??
+        null,
 
-              campo:
-                partido.campo.trim(),
-            }),
-          ),
+      equipoFbibId:
+        partido.equipoFbibId ??
+        null,
+
+      imagenEquipo:
+        partido.imagenEquipo ??
+        null,
+
+      nombreEquipo:
+        partido.nombreEquipo.trim(),
+
+      nombreRival:
+        partido.nombreRival.trim(),
+
+      campo:
+        partido.campo.trim(),
+
+      municipio:
+        partido.municipio?.trim() ||
+        null,
+
+      pabellon:
+        partido.pabellon?.trim() ||
+        null,
+    }),
+  ),
       };
 
     try {
@@ -930,22 +1023,37 @@ export default function GeneradorPartidosPublicacion({
               cambiarIdioma
             }
             alCambiarPeriodo={(
-              fechaInicio,
-              fechaFin,
+            fechaInicio,
+            fechaFin,
             ) => {
-              setFormulario(
+            setFormulario(
                 (
-                  formularioActual,
+                formularioActual,
                 ) => ({
-                  ...formularioActual,
-                  fechaInicio,
-                  fechaFin,
+                ...formularioActual,
+                fechaInicio,
+                fechaFin,
                 }),
-              );
+            );
 
-              setGuardadoCorrectamente(
-                false,
-              );
+            setErrorGeneral(null);
+            setGuardadoCorrectamente(false);
+
+            setErroresCampos(
+                (erroresActuales) => {
+                const siguientesErrores = {
+                    ...erroresActuales,
+                };
+
+                delete siguientesErrores
+                    .fechaInicio;
+
+                delete siguientesErrores
+                    .fechaFin;
+
+                return siguientesErrores;
+                },
+            );
             }}
             alCambiarPartidosPorImagen={(
               cantidad,

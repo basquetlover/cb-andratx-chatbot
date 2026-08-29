@@ -1,8 +1,9 @@
-import {
-  useState,
-} from "react";
+import { useState } from "react";
 
 import BuscadorRivalFbib from "./BuscadorRivalFbib";
+import SelectorEquipoClubPublicacion, {
+  type EquipoClubPublicacion,
+} from "./SelectorEquipoClubPublicacion";
 import SelectorLogoRival from "./SelectorLogoRival";
 
 import type {
@@ -113,6 +114,9 @@ export default function FilaPartidoPublicacion({
         logoRival: null,
 
         campo: "",
+        municipio: null,
+        pabellon: null,
+
         local: null,
       });
 
@@ -123,11 +127,140 @@ export default function FilaPartidoPublicacion({
 
     alActualizar({
       ...partido,
+
       estado,
 
       local:
-        partido.local ??
-        true,
+        partido.local ?? true,
+    });
+  };
+
+  const seleccionarEquipoClub = (
+    equipo:
+      EquipoClubPublicacion | null,
+  ) => {
+    if (!equipo) {
+      alActualizar({
+        ...partido,
+
+        equipoId: null,
+        equipoFbibId: null,
+        imagenEquipo: null,
+        nombreEquipo: "",
+      });
+
+      return;
+    }
+
+    alActualizar({
+      ...partido,
+
+      equipoId: equipo.id,
+
+      equipoFbibId:
+        equipo.idEquipoFbib,
+
+      imagenEquipo:
+        equipo.imagen,
+
+      nombreEquipo:
+        equipo.nombre,
+    });
+  };
+
+  const cambiarCondicion = (
+    local: boolean | null,
+  ) => {
+    if (local === true) {
+      alActualizar({
+        ...partido,
+
+        local: true,
+
+        municipio: null,
+
+        pabellon:
+          partido.pabellon ??
+          null,
+
+        campo:
+          partido.pabellon ??
+          "",
+      });
+
+      return;
+    }
+
+    if (local === false) {
+      alActualizar({
+        ...partido,
+
+        local: false,
+
+        pabellon: null,
+
+        municipio:
+          partido.municipio ??
+          null,
+
+        campo:
+          partido.municipio ??
+          "",
+      });
+
+      return;
+    }
+
+    alActualizar({
+      ...partido,
+
+      local: null,
+
+      municipio: null,
+      pabellon: null,
+    });
+  };
+
+  const cambiarPabellon = (
+    pabellon: string,
+  ) => {
+    alActualizar({
+      ...partido,
+
+      pabellon:
+        pabellon || null,
+
+      municipio: null,
+
+      campo: pabellon,
+    });
+  };
+
+  const cambiarMunicipio = (
+    municipio: string,
+  ) => {
+    alActualizar({
+      ...partido,
+
+      municipio:
+        municipio || null,
+
+      pabellon: null,
+
+      campo: municipio,
+    });
+  };
+
+  const cambiarLugarGeneral = (
+    campo: string,
+  ) => {
+    alActualizar({
+      ...partido,
+
+      campo,
+
+      municipio: null,
+      pabellon: null,
     });
   };
 
@@ -252,7 +385,7 @@ export default function FilaPartidoPublicacion({
 
           <span className="mt-2 block truncate text-sm font-bold text-on-surface">
             {partido.nombreEquipo ||
-              "Equipo sin nombre"}
+              "Equipo sin seleccionar"}
           </span>
 
           <span className="mt-1 block truncate text-xs text-on-surface-variant">
@@ -300,21 +433,21 @@ export default function FilaPartidoPublicacion({
           <button
             type="button"
             onClick={() =>
-              setExpandido(
+                setExpandido(
                 (valor) => !valor,
-              )
+                )
             }
             className="flex h-9 w-9 items-center justify-center rounded-lg text-lg font-bold text-on-surface-variant transition-colors hover:bg-surface-container hover:text-primary"
             aria-label={
-              expandido
+                expandido
                 ? "Cerrar edición"
                 : "Editar partido"
             }
-          >
+            >
             {expandido
-              ? "−"
-              : "+"}
-          </button>
+                ? "−"
+                : "+"}
+            </button>
         </div>
       </div>
 
@@ -387,35 +520,18 @@ export default function FilaPartidoPublicacion({
               </div>
             </fieldset>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-semibold text-on-surface">
-                Nombre del equipo
-              </span>
-
-              <textarea
-                value={
-                  partido.nombreEquipo
-                }
-                onChange={(evento) =>
-                  actualizarCampo(
-                    "nombreEquipo",
-                    evento.target.value,
-                  )
-                }
-                disabled={
-                  deshabilitado
-                }
-                maxLength={200}
-                rows={2}
-                className="min-h-20 resize-y rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-              />
-
-              <span className="text-xs text-on-surface-variant">
-                Puedes utilizar dos líneas
-                para separar patrocinador y
-                categoría.
-              </span>
-            </label>
+            <SelectorEquipoClubPublicacion
+              equipoId={
+                partido.equipoId ??
+                null
+              }
+              alCambiar={
+                seleccionarEquipoClub
+              }
+              deshabilitado={
+                deshabilitado
+              }
+            />
 
             {partido.estado !==
               "descansa" && (
@@ -432,13 +548,10 @@ export default function FilaPartidoPublicacion({
                         partido.fecha ??
                         ""
                       }
-                      onChange={(
-                        evento,
-                      ) =>
+                      onChange={(evento) =>
                         actualizarCampo(
                           "fecha",
-                          evento
-                            .target
+                          evento.target
                             .value ||
                             null,
                         )
@@ -461,13 +574,10 @@ export default function FilaPartidoPublicacion({
                         partido.hora ??
                         ""
                       }
-                      onChange={(
-                        evento,
-                      ) =>
+                      onChange={(evento) =>
                         actualizarCampo(
                           "hora",
-                          evento
-                            .target
+                          evento.target
                             .value ||
                             null,
                         )
@@ -535,8 +645,7 @@ export default function FilaPartidoPublicacion({
                                 seleccionado
                               }
                               onChange={() =>
-                                actualizarCampo(
-                                  "local",
+                                cambiarCondicion(
                                   opcion.valor,
                                 )
                               }
@@ -567,19 +676,18 @@ export default function FilaPartidoPublicacion({
                       value={
                         partido.nombreRival
                       }
-                      onChange={(
-                        evento,
-                      ) => {
+                      onChange={(evento) =>
                         alActualizar({
                           ...partido,
+
                           nombreRival:
-                            evento
-                              .target
+                            evento.target
                               .value,
+
                           rivalFbibId:
                             null,
-                        });
-                      }}
+                        })
+                      }
                       disabled={
                         deshabilitado
                       }
@@ -603,6 +711,13 @@ export default function FilaPartidoPublicacion({
                       Buscar en FBIB
                     </button>
                   </div>
+
+                  <span className="text-xs leading-5 text-on-surface-variant">
+                    El nombre se conserva
+                    para identificar al
+                    rival. En la imagen solo
+                    aparecerá su escudo.
+                  </span>
                 </label>
 
                 {buscadorAbierto && (
@@ -639,30 +754,103 @@ export default function FilaPartidoPublicacion({
                   }
                 />
 
-                <label className="flex flex-col gap-1.5">
-                  <span className="text-sm font-semibold text-on-surface">
-                    Campo
-                  </span>
+                {partido.local ===
+                  true && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-on-surface">
+                      Pabellón en Andratx
+                    </span>
 
-                  <input
-                    type="text"
-                    value={
-                      partido.campo
-                    }
-                    onChange={(evento) =>
-                      actualizarCampo(
-                        "campo",
-                        evento.target.value,
-                      )
-                    }
-                    disabled={
-                      deshabilitado
-                    }
-                    maxLength={200}
-                    placeholder="Campo o pabellón"
-                    className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
-                  />
-                </label>
+                    <input
+                      type="text"
+                      value={
+                        partido.pabellon ??
+                        partido.campo
+                      }
+                      onChange={(evento) =>
+                        cambiarPabellon(
+                          evento.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        deshabilitado
+                      }
+                      maxLength={200}
+                      placeholder="Ej. Palau d'Esports d'Andratx"
+                      className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+
+                    <span className="text-xs text-on-surface-variant">
+                      En los partidos de
+                      casa aparecerá el
+                      pabellón.
+                    </span>
+                  </label>
+                )}
+
+                {partido.local ===
+                  false && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-on-surface">
+                      Municipio
+                    </span>
+
+                    <input
+                      type="text"
+                      value={
+                        partido.municipio ??
+                        partido.campo
+                      }
+                      onChange={(evento) =>
+                        cambiarMunicipio(
+                          evento.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        deshabilitado
+                      }
+                      maxLength={100}
+                      placeholder="Ej. Alcúdia"
+                      className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+
+                    <span className="text-xs text-on-surface-variant">
+                      En los partidos fuera
+                      solamente aparecerá
+                      el municipio.
+                    </span>
+                  </label>
+                )}
+
+                {partido.local ===
+                  null && (
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-sm font-semibold text-on-surface">
+                      Lugar
+                    </span>
+
+                    <input
+                      type="text"
+                      value={
+                        partido.campo
+                      }
+                      onChange={(evento) =>
+                        cambiarLugarGeneral(
+                          evento.target
+                            .value,
+                        )
+                      }
+                      disabled={
+                        deshabilitado
+                      }
+                      maxLength={200}
+                      placeholder="Lugar del partido"
+                      className="h-11 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    />
+                  </label>
+                )}
               </>
             )}
 

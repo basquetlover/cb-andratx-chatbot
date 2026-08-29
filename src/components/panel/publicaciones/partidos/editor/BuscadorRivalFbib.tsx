@@ -1,8 +1,7 @@
 import {
   useEffect,
-  useRef,
+  useMemo,
   useState,
-  type FormEvent,
 } from "react";
 
 import type {
@@ -12,13 +11,25 @@ import type {
 
 interface Propiedades {
   alSeleccionar: (
-    rival:
-      RivalFbibPublicacion,
+    rival: RivalFbibPublicacion,
   ) => void;
 
   alCerrar: () => void;
 
   deshabilitado?: boolean;
+}
+
+function normalizarTexto(
+  valor: string | null | undefined,
+): string {
+  return (valor ?? "")
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
+    .toLowerCase()
+    .trim();
 }
 
 export default function BuscadorRivalFbib({
@@ -32,21 +43,16 @@ export default function BuscadorRivalFbib({
   ] = useState("");
 
   const [
-    resultados,
-    setResultados,
+    todosLosRivales,
+    setTodosLosRivales,
   ] = useState<
     RivalFbibPublicacion[]
   >([]);
 
   const [
-    buscando,
-    setBuscando,
-  ] = useState(false);
-
-  const [
-    busquedaRealizada,
-    setBusquedaRealizada,
-  ] = useState(false);
+    cargando,
+    setCargando,
+  ] = useState(true);
 
   const [
     error,
@@ -56,137 +62,153 @@ export default function BuscadorRivalFbib({
   >(null);
 
   const [
+    intento,
+    setIntento,
+  ] = useState(0);
+
+  const [
     escudosConError,
     setEscudosConError,
   ] = useState<
     Set<string>
   >(() => new Set());
 
-  const controladorRef =
-    useRef<
-      AbortController | null
-    >(null);
-
   useEffect(() => {
-    return () => {
-      controladorRef.current?.abort();
-    };
-  }, []);
-
-  const buscar = async (
-    evento:
-      FormEvent<HTMLFormElement>,
-  ) => {
-    evento.preventDefault();
-
-    const consultaLimpia =
-      consulta.trim();
-
-    if (
-      consultaLimpia.length < 2 ||
-      buscando ||
-      deshabilitado
-    ) {
-      if (
-        consultaLimpia.length < 2
-      ) {
-        setError(
-          "Escribe al menos dos caracteres.",
-        );
-      }
-
-      return;
-    }
-
-    controladorRef.current?.abort();
-
     const controlador =
       new AbortController();
 
-    controladorRef.current =
-      controlador;
+    const cargarEquipos =
+      async () => {
+        try {
+          setCargando(true);
+          setError(null);
+          setEscudosConError(
+            new Set(),
+          );
 
-    try {
-      setBuscando(true);
-      setBusquedaRealizada(false);
-      setResultados([]);
-      setError(null);
-      setEscudosConError(
-        new Set(),
-      );
+          const respuesta =
+            await fetch(
+              "/api/panel/publicaciones/partidos/buscar-rivales",
+              {
+                method: "GET",
+                credentials:
+                  "same-origin",
+                headers: {
+                  Accept:
+                    "application/json",
+                },
+                signal:
+                  controlador.signal,
+              },
+            );
 
-      const parametros =
-        new URLSearchParams({
-          consulta:
-            consultaLimpia,
-        });
+          const contenido =
+            (await respuesta.json()) as
+              RespuestaBusquedaRivalesFbib;
 
-      const respuesta =
-        await fetch(
-          `/api/panel/publicaciones/partidos/buscar-rivales?${parametros.toString()}`,
-          {
-            method: "GET",
-            credentials:
-              "same-origin",
-            headers: {
-              Accept:
-                "application/json",
-            },
-            signal:
-              controlador.signal,
-          },
+          if (
+            !respuesta.ok ||
+            !contenido.ok ||
+            !contenido.data
+          ) {
+            throw new Error(
+              contenido.error ??
+                "No se ha podido obtener la lista de equipos de la FBIB.",
+            );
+          }
+
+          const rivalesOrdenados =
+            [
+              ...contenido.data
+                .resultados,
+            ].sort(
+              (
+                rivalA,
+                rivalB,
+              ) =>
+                rivalA.nombre.localeCompare(
+                  rivalB.nombre,
+                  "es",
+                  {
+                    sensitivity:
+                      "base",
+                  },
+                ),
+            );
+
+          setTodosLosRivales(
+            rivalesOrdenados,
+          );
+        } catch (error) {
+          if (
+            error instanceof
+              DOMException &&
+            error.name ===
+              "AbortError"
+          ) {
+            return;
+          }
+
+          console.error(
+            "Error cargando los equipos de la FBIB:",
+            error,
+          );
+
+          setTodosLosRivales([]);
+
+          setError(
+            error instanceof Error
+              ? error.message
+              : "No se ha podido obtener la lista de equipos de la FBIB.",
+          );
+        } finally {
+          if (
+            !controlador.signal
+              .aborted
+          ) {
+            setCargando(false);
+          }
+        }
+      };
+
+    cargarEquipos();
+
+    return () => {
+      controlador.abort();
+    };
+  }, [intento]);
+
+  const resultados =
+    useMemo(() => {
+      const consultaNormalizada =
+        normalizarTexto(
+          consulta,
         );
 
-      const contenido =
-        (await respuesta.json()) as
-          RespuestaBusquedaRivalesFbib;
-
-      if (
-        !respuesta.ok ||
-        !contenido.ok ||
-        !contenido.data
-      ) {
-        throw new Error(
-          contenido.error ??
-            "No se han podido buscar los rivales.",
-        );
+      if (!consultaNormalizada) {
+        return todosLosRivales;
       }
 
-      setResultados(
-        contenido.data.resultados,
+      return todosLosRivales.filter(
+        (rival) => {
+          const contenido =
+            [
+              rival.nombre,
+              rival.nombreCorto,
+              rival.clubNombre,
+            ]
+              .map(normalizarTexto)
+              .join(" ");
+
+          return contenido.includes(
+            consultaNormalizada,
+          );
+        },
       );
-
-      setBusquedaRealizada(true);
-    } catch (error) {
-      if (
-        error instanceof
-          DOMException &&
-        error.name ===
-          "AbortError"
-      ) {
-        return;
-      }
-
-      console.error(
-        "Error buscando rivales en la FBIB:",
-        error,
-      );
-
-      setError(
-        error instanceof Error
-          ? error.message
-          : "No se han podido buscar los rivales.",
-      );
-
-      setBusquedaRealizada(true);
-    } finally {
-      if (
-        !controlador.signal.aborted
-      ) {
-        setBuscando(false);
-      }
-    }
-  };
+    }, [
+      consulta,
+      todosLosRivales,
+    ]);
 
   const registrarErrorEscudo = (
     rivalId: string,
@@ -216,12 +238,13 @@ export default function BuscadorRivalFbib({
             id="titulo-buscador-rival"
             className="font-bold text-on-surface"
           >
-            Buscar rival en la FBIB
+            Seleccionar rival de la FBIB
           </h3>
 
           <p className="mt-1 text-xs leading-5 text-on-surface-variant">
-            Busca el club y selecciona
-            después el equipo concreto.
+            Se muestran todos los equipos.
+            Escribe para ir filtrando la
+            lista.
           </p>
         </div>
 
@@ -230,7 +253,7 @@ export default function BuscadorRivalFbib({
           onClick={alCerrar}
           disabled={
             deshabilitado ||
-            buscando
+            cargando
           }
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:cursor-not-allowed disabled:opacity-50"
           aria-label="Cerrar el buscador"
@@ -248,75 +271,161 @@ export default function BuscadorRivalFbib({
         </button>
       </div>
 
-      <form
-        onSubmit={buscar}
-        className="border-b border-outline-variant/60 bg-surface-container-low p-4 sm:p-5"
-      >
+      <div className="border-b border-outline-variant/60 bg-surface-container-low p-4 sm:p-5">
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-semibold text-on-surface">
-            Nombre del club
+            Filtrar equipos
           </span>
 
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative">
+            <span
+              className="pointer-events-none absolute left-3 top-1/2 inline-block h-5 w-5 -translate-y-1/2 bg-outline mask-center mask-contain mask-no-repeat"
+              style={{
+                maskImage:
+                  "url('/iconos/panel/buscar.svg')",
+                WebkitMaskImage:
+                  "url('/iconos/panel/buscar.svg')",
+              }}
+              aria-hidden="true"
+            />
+
             <input
               type="search"
               value={consulta}
-              onChange={(evento) => {
+              onChange={(evento) =>
                 setConsulta(
                   evento.target.value,
-                );
-
-                setError(null);
-              }}
+                )
+              }
               disabled={
                 deshabilitado ||
-                buscando
+                cargando ||
+                Boolean(error)
               }
-              minLength={2}
               maxLength={100}
               autoComplete="off"
-              placeholder="Ej. Alcúdia, Sa Pobla, Pollença..."
-              className="h-11 min-w-0 flex-1 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
+              placeholder="Escribe el nombre del equipo o club..."
+              className="h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest pl-10 pr-10 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
             />
 
-            <button
-              type="submit"
-              disabled={
-                deshabilitado ||
-                buscando ||
-                consulta.trim()
-                  .length < 2
-              }
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              {buscando && (
+            {consulta && (
+              <button
+                type="button"
+                onClick={() =>
+                  setConsulta("")
+                }
+                disabled={
+                  deshabilitado
+                }
+                className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface disabled:opacity-50"
+                aria-label="Limpiar filtro"
+              >
                 <span
-                  className="h-4 w-4 animate-spin rounded-full border-2 border-on-primary/40 border-t-on-primary"
+                  className="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+                  style={{
+                    maskImage:
+                      "url('/iconos/panel/cerrar.svg')",
+                    WebkitMaskImage:
+                      "url('/iconos/panel/cerrar.svg')",
+                  }}
                   aria-hidden="true"
                 />
-              )}
-
-              {buscando
-                ? "Buscando..."
-                : "Buscar"}
-            </button>
+              </button>
+            )}
           </div>
-        </label>
 
-        {error && (
-          <p
-            className="mt-3 rounded-xl border border-error/30 bg-error-container px-3 py-2 text-sm text-on-error-container"
-            role="alert"
-          >
-            {error}
-          </p>
-        )}
-      </form>
+          {!cargando &&
+            !error &&
+            todosLosRivales.length >
+              0 && (
+              <span
+                className="text-xs text-on-surface-variant"
+                aria-live="polite"
+              >
+                {consulta.trim()
+                  ? `${resultados.length} de ${todosLosRivales.length} equipos`
+                  : `${todosLosRivales.length} equipos disponibles`}
+              </span>
+            )}
+        </label>
+      </div>
 
       <div className="max-h-96 overflow-y-auto p-4 sm:p-5">
-        {!buscando &&
-          !busquedaRealizada &&
-          resultados.length === 0 && (
+        {cargando && (
+          <div
+            className="flex flex-col items-center justify-center py-8 text-center"
+            role="status"
+          >
+            <span
+              className="h-7 w-7 animate-spin rounded-full border-2 border-outline-variant border-t-primary"
+              aria-hidden="true"
+            />
+
+            <p className="mt-3 text-sm font-semibold text-on-surface">
+              Cargando equipos de la FBIB...
+            </p>
+
+            <p className="mt-1 text-xs text-on-surface-variant">
+              La primera carga puede tardar
+              unos segundos.
+            </p>
+          </div>
+        )}
+
+        {!cargando && error && (
+          <div
+            className="rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container"
+            role="alert"
+          >
+            <p className="text-sm font-bold">
+              No se han podido cargar los
+              equipos
+            </p>
+
+            <p className="mt-1 text-xs leading-5">
+              {error}
+            </p>
+
+            <button
+              type="button"
+              onClick={() =>
+                setIntento(
+                  (valor) =>
+                    valor + 1,
+                )
+              }
+              disabled={
+                deshabilitado
+              }
+              className="mt-4 min-h-10 rounded-xl border border-error px-4 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Volver a intentarlo
+            </button>
+          </div>
+        )}
+
+        {!cargando &&
+          !error &&
+          todosLosRivales.length ===
+            0 && (
+            <div className="py-6 text-center">
+              <p className="text-sm font-semibold text-on-surface">
+                No hay equipos disponibles
+              </p>
+
+              <p className="mt-1 text-xs text-on-surface-variant">
+                La FBIB no ha devuelto
+                ningún equipo.
+              </p>
+            </div>
+          )}
+
+        {!cargando &&
+          !error &&
+          todosLosRivales.length >
+            0 &&
+          resultados.length ===
+            0 && (
             <div className="py-6 text-center">
               <span
                 className="mx-auto inline-block h-10 w-10 bg-outline mask-center mask-contain mask-no-repeat"
@@ -330,126 +439,112 @@ export default function BuscadorRivalFbib({
               />
 
               <p className="mt-3 text-sm font-semibold text-on-surface">
-                Busca un club
+                No coincide ningún equipo
               </p>
 
               <p className="mt-1 text-xs text-on-surface-variant">
-                Los equipos encontrados
-                aparecerán aquí.
-              </p>
-            </div>
-          )}
-
-        {!buscando &&
-          busquedaRealizada &&
-          !error &&
-          resultados.length === 0 && (
-            <div className="py-6 text-center">
-              <p className="text-sm font-semibold text-on-surface">
-                No se han encontrado
-                resultados
-              </p>
-
-              <p className="mt-1 text-xs text-on-surface-variant">
-                Prueba a buscar solamente
-                una parte del nombre del
+                Prueba con otra parte del
+                nombre del equipo o del
                 club.
               </p>
             </div>
           )}
 
-        {resultados.length > 0 && (
-          <ul className="grid gap-2">
-            {resultados.map(
-              (rival) => {
-                const mostrarEscudo =
-                  Boolean(
-                    rival.escudo,
-                  ) &&
-                  !escudosConError.has(
-                    rival.id,
-                  );
+        {!cargando &&
+          !error &&
+          resultados.length >
+            0 && (
+            <ul className="grid gap-2">
+              {resultados.map(
+                (rival) => {
+                  const mostrarEscudo =
+                    Boolean(
+                      rival.escudo,
+                    ) &&
+                    !escudosConError.has(
+                      rival.id,
+                    );
 
-                return (
-                  <li
-                    key={rival.id}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        alSeleccionar(
-                          rival,
-                        )
-                      }
-                      disabled={
-                        deshabilitado
-                      }
-                      className="flex w-full items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low p-3 text-left transition-colors hover:border-primary hover:bg-primary-fixed/40 disabled:cursor-not-allowed disabled:opacity-50"
+                  return (
+                    <li
+                      key={rival.id}
                     >
-                      <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-container text-sm font-bold text-primary">
-                        {rival.nombre
-                          .charAt(0)
-                          .toUpperCase()}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          alSeleccionar(
+                            rival,
+                          )
+                        }
+                        disabled={
+                          deshabilitado
+                        }
+                        className="flex w-full items-center gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low p-3 text-left transition-colors hover:border-primary hover:bg-primary-fixed/40 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-surface-container text-sm font-bold text-primary">
+                          {rival.nombre
+                            .charAt(0)
+                            .toUpperCase()}
 
-                        {mostrarEscudo && (
-                          <img
-                            src={
-                              rival.escudo ??
-                              undefined
-                            }
-                            alt=""
-                            loading="lazy"
-                            onError={() =>
-                              registrarErrorEscudo(
-                                rival.id,
-                              )
-                            }
-                            className="absolute inset-0 h-full w-full bg-white object-contain p-1"
-                          />
-                        )}
-                      </span>
-
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-bold text-on-surface">
-                          {
-                            rival.nombre
-                          }
+                          {mostrarEscudo && (
+                            <img
+                              src={
+                                rival.escudo ??
+                                undefined
+                              }
+                              alt=""
+                              loading="lazy"
+                              onError={() =>
+                                registrarErrorEscudo(
+                                  rival.id,
+                                )
+                              }
+                              className="absolute inset-0 h-full w-full bg-white object-contain p-1"
+                            />
+                          )}
                         </span>
 
-                        {rival.nombreCorto && (
-                          <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-bold text-on-surface">
                             {
-                              rival.nombreCorto
+                              rival.nombre
                             }
                           </span>
-                        )}
 
-                        {rival.clubNombre && (
-                          <span className="mt-1 block truncate text-xs font-semibold text-secondary">
-                            {
-                              rival.clubNombre
-                            }
-                          </span>
-                        )}
-                      </span>
+                          {rival.nombreCorto && (
+                            <span className="mt-0.5 block truncate text-xs text-on-surface-variant">
+                              {
+                                rival.nombreCorto
+                              }
+                            </span>
+                          )}
 
-                      <span
-                        className="inline-block h-5 w-5 shrink-0 bg-primary mask-center mask-contain mask-no-repeat"
-                        style={{
-                          maskImage:
-                            "url('/iconos/panel/continuar.svg')",
-                          WebkitMaskImage:
-                            "url('/iconos/panel/continuar.svg')",
-                        }}
-                        aria-hidden="true"
-                      />
-                    </button>
-                  </li>
-                );
-              },
-            )}
-          </ul>
-        )}
+                          {rival.clubNombre && (
+                            <span className="mt-1 block truncate text-xs font-semibold text-secondary">
+                              {
+                                rival.clubNombre
+                              }
+                            </span>
+                          )}
+                        </span>
+
+                        <span
+                          className="inline-block h-5 w-5 shrink-0 bg-primary mask-center mask-contain mask-no-repeat"
+                          style={{
+                            maskImage:
+                              "url('/iconos/panel/continuar.svg')",
+                            WebkitMaskImage:
+                              "url('/iconos/panel/continuar.svg')",
+                          }}
+                          aria-hidden="true"
+                        />
+                      </button>
+                    </li>
+                  );
+                },
+              )}
+            </ul>
+          )}
       </div>
     </section>
   );

@@ -141,8 +141,16 @@ export default function ConfiguracionPublicacionPartidos({
         <SelectorPeriodoPublicacion
           fechaInicio={fechaInicio}
           fechaFin={fechaFin}
-          alCambiar={
-            alCambiarPeriodo
+          alCambiar={({
+            fechaInicio:
+              nuevaFechaInicio,
+            fechaFin:
+              nuevaFechaFin,
+          }) =>
+            alCambiarPeriodo(
+              nuevaFechaInicio,
+              nuevaFechaFin,
+            )
           }
           deshabilitado={
             deshabilitado
@@ -207,7 +215,7 @@ export default function ConfiguracionPublicacionPartidos({
             <span className="text-xs leading-5 text-on-surface-variant">
               Con menos filas, cada partido
               dispondrá de más espacio. La
-              opción recomendada es 9.
+              opción recomendada es 7.
             </span>
           </label>
         </fieldset>

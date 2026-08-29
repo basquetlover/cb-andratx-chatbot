@@ -24,8 +24,10 @@ export const prerender = false;
 const cabecerasRespuesta = {
   "Cache-Control":
     "no-store, max-age=0",
+
   "Content-Type":
     "application/json; charset=utf-8",
+
   "X-Content-Type-Options":
     "nosniff",
 };
@@ -70,7 +72,7 @@ export const GET: APIRoute =
 
     if (!tokenSesion) {
       return respuestaError(
-        "Debes iniciar sesión para buscar rivales.",
+        "Debes iniciar sesión para consultar los equipos de la FBIB.",
         401,
       );
     }
@@ -84,7 +86,7 @@ export const GET: APIRoute =
         );
     } catch (error) {
       console.error(
-        "Error comprobando la sesión para buscar rivales:",
+        "Error comprobando la sesión para consultar equipos de la FBIB:",
         error,
       );
 
@@ -130,7 +132,7 @@ export const GET: APIRoute =
 
     if (!autorizado) {
       return respuestaError(
-        "No tienes permiso para buscar rivales.",
+        "No tienes permiso para consultar los equipos de la FBIB.",
         403,
       );
     }
@@ -140,16 +142,9 @@ export const GET: APIRoute =
         .get("consulta")
         ?.trim() ?? "";
 
-    if (consulta.length < 2) {
-      return respuestaError(
-        "Debes escribir al menos dos caracteres.",
-        400,
-      );
-    }
-
     if (consulta.length > 100) {
       return respuestaError(
-        "La búsqueda no puede superar los 100 caracteres.",
+        "El filtro no puede superar los 100 caracteres.",
         400,
       );
     }
@@ -163,11 +158,14 @@ export const GET: APIRoute =
       return crearRespuesta(
         {
           ok: true,
+
           data: {
             resultados,
+
             total:
               resultados.length,
           },
+
           error: null,
         },
         200,
@@ -189,7 +187,7 @@ export const GET: APIRoute =
       }
 
       return respuestaError(
-        "No se han podido buscar los rivales.",
+        "No se han podido obtener los equipos de la FBIB.",
         500,
       );
     }
@@ -206,6 +204,7 @@ export const ALL: APIRoute =
       },
       {
         status: 405,
+
         headers: {
           ...cabecerasRespuesta,
           Allow: "GET",

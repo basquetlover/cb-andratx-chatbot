@@ -21,29 +21,84 @@ export type EstadoPartidoPublicacion =
 
 export interface PartidoPublicacion {
   id: string;
-
-  partidoFbibId: string | null;
-  origen: OrigenPartidoPublicacion;
-
   orden: number;
+
+  origen:
+    OrigenPartidoPublicacion;
+
+  estado:
+    EstadoPartidoPublicacion;
+
   visible: boolean;
 
-  equipoId: string | null;
-  equipoFbibId: string | null;
+  /*
+   * Identificador del partido de la FBIB.
+   * Es null en partidos creados manualmente.
+   */
+  partidoFbibId: string | null;
+
+  /*
+   * UUID del equipo guardado en nuestra
+   * tabla equipos.
+   *
+   * Se mantiene opcional para soportar
+   * configuraciones antiguas.
+   */
+  equipoId?: string | null;
+
+  /*
+   * Identificador utilizado para consultar
+   * el equipo en la FBIB.
+   */
+  equipoFbibId?: string | null;
+
+  /*
+   * Imagen del equipo guardada en nuestra
+   * base de datos.
+   */
+  imagenEquipo?: string | null;
+
+  /*
+   * Texto editable que aparecerá en la
+   * publicación.
+   */
+  nombreEquipo: string;
 
   fecha: string | null;
   hora: string | null;
 
-  nombreEquipo: string;
-
   rivalFbibId: string | null;
+
+  /*
+   * Se guarda para identificar y buscar
+   * al rival, aunque en la publicación
+   * solamente se muestre su escudo.
+   */
   nombreRival: string;
+
   logoRival: string | null;
 
+  /*
+   * Campo original recibido de la FBIB o
+   * introducido manualmente.
+   */
   campo: string;
-  local: boolean | null;
 
-  estado: EstadoPartidoPublicacion;
+  /*
+   * Datos separados para decidir qué
+   * ubicación mostrar:
+   *
+   * - Fuera de Andratx: municipio.
+   * - En Andratx: pabellón.
+   *
+   * Son opcionales para mantener la
+   * compatibilidad con publicaciones
+   * guardadas anteriormente.
+   */
+  municipio?: string | null;
+  pabellon?: string | null;
+
+  local: boolean | null;
 }
 
 export interface DatosPublicacionPartidos {
@@ -52,18 +107,24 @@ export interface DatosPublicacionPartidos {
   nombre: string;
   titulo: string;
 
-  idioma: IdiomaPublicacionPartidos;
+  idioma:
+    IdiomaPublicacionPartidos;
 
   fechaInicio: string;
   fechaFin: string;
 
-  plantilla: PlantillaPublicacionPartidos;
+  plantilla:
+    PlantillaPublicacionPartidos;
+
   fondo: string | null;
 
-  partidos: PartidoPublicacion[];
+  partidos:
+    PartidoPublicacion[];
+
   partidosPorImagen: number;
 
-  estado: EstadoPublicacionPartidos;
+  estado:
+    EstadoPublicacionPartidos;
 }
 
 export interface PublicacionPartidosPanel
@@ -83,12 +144,14 @@ export interface ResumenPublicacionPartidos {
   nombre: string;
   titulo: string;
 
-  idioma: IdiomaPublicacionPartidos;
+  idioma:
+    IdiomaPublicacionPartidos;
 
   fechaInicio: string;
   fechaFin: string;
 
-  estado: EstadoPublicacionPartidos;
+  estado:
+    EstadoPublicacionPartidos;
 
   totalPartidos: number;
   totalPaginas: number;
@@ -101,46 +164,72 @@ export interface ResumenPublicacionPartidos {
 }
 
 export interface CrearPublicacionPartidos {
+  temporadaId?: string | null;
+
   nombre: string;
   titulo: string;
 
-  idioma: IdiomaPublicacionPartidos;
+  idioma:
+    IdiomaPublicacionPartidos;
 
   fechaInicio: string;
   fechaFin: string;
 
-  plantilla?: PlantillaPublicacionPartidos;
+  plantilla?:
+    PlantillaPublicacionPartidos;
+
   fondo?: string | null;
 
-  partidos?: PartidoPublicacion[];
+  partidos?:
+    PartidoPublicacion[];
+
   partidosPorImagen?: number;
 
-  estado?: EstadoPublicacionPartidos;
+  estado?:
+    EstadoPublicacionPartidos;
 }
 
 export interface ActualizarPublicacionPartidos {
+  temporadaId?: string | null;
+
   nombre: string;
   titulo: string;
 
-  idioma: IdiomaPublicacionPartidos;
+  idioma:
+    IdiomaPublicacionPartidos;
 
   fechaInicio: string;
   fechaFin: string;
 
-  plantilla: PlantillaPublicacionPartidos;
+  plantilla:
+    PlantillaPublicacionPartidos;
+
   fondo: string | null;
 
-  partidos: PartidoPublicacion[];
+  partidos:
+    PartidoPublicacion[];
+
   partidosPorImagen: number;
 
-  estado: EstadoPublicacionPartidos;
+  estado:
+    EstadoPublicacionPartidos;
 }
 
 export interface PartidoPeriodoFbibPublicacion {
   partidoFbibId: string;
 
+  /*
+   * UUID del equipo en nuestra base de
+   * datos.
+   */
   equipoId: string;
+
+  /*
+   * Identificador del equipo en la FBIB.
+   */
   equipoFbibId: string;
+
+  imagenEquipo?: string | null;
 
   fecha: string;
   hora: string | null;
@@ -152,6 +241,10 @@ export interface PartidoPeriodoFbibPublicacion {
   logoRival: string | null;
 
   campo: string;
+
+  municipio?: string | null;
+  pabellon?: string | null;
+
   local: boolean;
 }
 
@@ -195,7 +288,8 @@ export interface RespuestaPublicacionPartidos {
 
   error: string | null;
 
-  errores?: ErrorCampoPublicacion[];
+  errores?:
+    ErrorCampoPublicacion[];
 }
 
 export interface RespuestaPartidosPeriodoFbib {

@@ -5,6 +5,11 @@ import {
 import FilaPartidoPublicacion from "./FilaPartidoPublicacion";
 import FormularioPartidoManual from "./FormularioPartidoManual";
 
+import {
+  solicitarEquipos,
+  type EquipoClubPublicacion,
+} from "./SelectorEquipoClubPublicacion";
+
 import type {
   PartidoPeriodoFbibPublicacion,
   PartidoPublicacion,
@@ -40,9 +45,88 @@ function normalizarOrden(
   );
 }
 
+function coincideEquipo(
+  partido:
+    PartidoPeriodoFbibPublicacion,
+  equipo:
+    EquipoClubPublicacion,
+): boolean {
+  if (
+    partido.equipoId ===
+    equipo.id
+  ) {
+    return true;
+  }
+
+  if (
+    equipo.idEquipoFbib &&
+    partido.equipoFbibId ===
+      equipo.idEquipoFbib
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function completarPartidoExistente(
+  partidoExistente:
+    PartidoPublicacion,
+  partidoFbib:
+    PartidoPeriodoFbibPublicacion,
+  equipo:
+    EquipoClubPublicacion | null,
+): PartidoPublicacion {
+  return {
+    ...partidoExistente,
+
+    partidoFbibId:
+      partidoExistente
+        .partidoFbibId ??
+      partidoFbib.partidoFbibId,
+
+    equipoId:
+      partidoExistente.equipoId ??
+      equipo?.id ??
+      partidoFbib.equipoId,
+
+    equipoFbibId:
+      partidoExistente
+        .equipoFbibId ??
+      equipo?.idEquipoFbib ??
+      partidoFbib.equipoFbibId,
+
+    imagenEquipo:
+      partidoExistente
+        .imagenEquipo ??
+      equipo?.imagen ??
+      partidoFbib.imagenEquipo ??
+      null,
+
+    nombreEquipo:
+      partidoExistente
+        .nombreEquipo
+        .trim() ||
+      equipo?.nombre ||
+      partidoFbib.nombreEquipo,
+
+    municipio:
+      partidoExistente.municipio ??
+      partidoFbib.municipio ??
+      null,
+
+    pabellon:
+      partidoExistente.pabellon ??
+      partidoFbib.pabellon ??
+      null,
+  };
+}
+
 function convertirPartidoFbib(
   partido:
     PartidoPeriodoFbibPublicacion,
+  equipo:
+    EquipoClubPublicacion | null,
   orden: number,
 ): PartidoPublicacion {
   return {
@@ -58,10 +142,17 @@ function convertirPartidoFbib(
     visible: true,
 
     equipoId:
+      equipo?.id ??
       partido.equipoId,
 
     equipoFbibId:
+      equipo?.idEquipoFbib ??
       partido.equipoFbibId,
+
+    imagenEquipo:
+      equipo?.imagen ??
+      partido.imagenEquipo ??
+      null,
 
     fecha:
       partido.fecha,
@@ -70,6 +161,7 @@ function convertirPartidoFbib(
       partido.hora,
 
     nombreEquipo:
+      equipo?.nombre ??
       partido.nombreEquipo,
 
     rivalFbibId:
@@ -84,11 +176,387 @@ function convertirPartidoFbib(
     campo:
       partido.campo,
 
+    municipio:
+      partido.municipio ??
+      null,
+
+    pabellon:
+      partido.pabellon ??
+      null,
+
     local:
       partido.local,
 
     estado: "partido",
   };
+}
+
+function crearFilaDescanso(
+  equipo:
+    EquipoClubPublicacion,
+  fechaInicio: string,
+  fechaFin: string,
+  orden: number,
+): PartidoPublicacion {
+  return {
+    id:
+      `descansa-${equipo.id}-${fechaInicio}-${fechaFin}`,
+
+    partidoFbibId: null,
+
+    origen: "manual",
+
+    estado: "descansa",
+
+    orden,
+    visible: true,
+
+    equipoId:
+      equipo.id,
+
+    equipoFbibId:
+      equipo.idEquipoFbib,
+
+    imagenEquipo:
+      equipo.imagen,
+
+    nombreEquipo:
+      equipo.nombre,
+
+    fecha: null,
+    hora: null,
+
+    rivalFbibId: null,
+    nombreRival: "",
+    logoRival: null,
+
+    campo: "",
+    municipio: null,
+    pabellon: null,
+
+    local: null,
+  };
+}
+
+function completarFilaDescanso(
+  partido:
+    PartidoPublicacion,
+  equipo:
+    EquipoClubPublicacion,
+): PartidoPublicacion {
+  return {
+    ...partido,
+
+    partidoFbibId: null,
+
+    equipoId:
+      equipo.id,
+
+    equipoFbibId:
+      equipo.idEquipoFbib,
+
+    imagenEquipo:
+      equipo.imagen,
+
+    nombreEquipo:
+      partido.nombreEquipo
+        .trim() ||
+      equipo.nombre,
+
+    estado: "descansa",
+
+    fecha: null,
+    hora: null,
+
+    rivalFbibId: null,
+    nombreRival: "",
+    logoRival: null,
+
+    campo: "",
+    municipio: null,
+    pabellon: null,
+
+    local: null,
+  };
+}
+
+function generarListadoCompleto(
+  equipos:
+    EquipoClubPublicacion[],
+
+  partidosFbib:
+    PartidoPeriodoFbibPublicacion[],
+
+  partidosExistentes:
+    PartidoPublicacion[],
+
+  fechaInicio: string,
+  fechaFin: string,
+): PartidoPublicacion[] {
+  const resultado:
+    PartidoPublicacion[] = [];
+
+  const idsUtilizados =
+    new Set<string>();
+
+  const partidosFbibUtilizados =
+    new Set<string>();
+
+  const idsEquipos =
+    new Set(
+      equipos.map(
+        (equipo) =>
+          equipo.id,
+      ),
+    );
+
+  const existentesPorFbib =
+    new Map<
+      string,
+      PartidoPublicacion
+    >();
+
+  partidosExistentes.forEach(
+    (partido) => {
+      if (
+        partido.partidoFbibId
+      ) {
+        existentesPorFbib.set(
+          partido.partidoFbibId,
+          partido,
+        );
+      }
+    },
+  );
+
+  equipos.forEach(
+    (equipo) => {
+      const partidosEquipo =
+        partidosFbib.filter(
+          (partido) =>
+            coincideEquipo(
+              partido,
+              equipo,
+            ),
+        );
+
+      const partidosManuales =
+        partidosExistentes.filter(
+          (partido) =>
+            partido.equipoId ===
+              equipo.id &&
+            !partido.partidoFbibId &&
+            partido.estado !==
+              "descansa",
+        );
+
+      partidosEquipo.forEach(
+        (partidoFbib) => {
+          const existente =
+            existentesPorFbib.get(
+              partidoFbib
+                .partidoFbibId,
+            );
+
+          if (existente) {
+            resultado.push(
+              completarPartidoExistente(
+                existente,
+                partidoFbib,
+                equipo,
+              ),
+            );
+
+            idsUtilizados.add(
+              existente.id,
+            );
+          } else {
+            resultado.push(
+              convertirPartidoFbib(
+                partidoFbib,
+                equipo,
+                resultado.length + 1,
+              ),
+            );
+          }
+
+          partidosFbibUtilizados.add(
+            partidoFbib
+              .partidoFbibId,
+          );
+        },
+      );
+
+      partidosManuales.forEach(
+        (partidoManual) => {
+          if (
+            idsUtilizados.has(
+              partidoManual.id,
+            )
+          ) {
+            return;
+          }
+
+          resultado.push({
+            ...partidoManual,
+
+            equipoId:
+              equipo.id,
+
+            equipoFbibId:
+              partidoManual
+                .equipoFbibId ??
+              equipo.idEquipoFbib,
+
+            imagenEquipo:
+              partidoManual
+                .imagenEquipo ??
+              equipo.imagen,
+
+            nombreEquipo:
+              partidoManual
+                .nombreEquipo
+                .trim() ||
+              equipo.nombre,
+          });
+
+          idsUtilizados.add(
+            partidoManual.id,
+          );
+        },
+      );
+
+      const tienePartido =
+        partidosEquipo.length >
+          0 ||
+        partidosManuales.length >
+          0;
+
+      if (tienePartido) {
+        return;
+      }
+
+      const descansoExistente =
+        partidosExistentes.find(
+          (partido) =>
+            partido.equipoId ===
+              equipo.id &&
+            !partido.partidoFbibId &&
+            partido.estado ===
+              "descansa",
+        );
+
+      if (descansoExistente) {
+        resultado.push(
+          completarFilaDescanso(
+            descansoExistente,
+            equipo,
+          ),
+        );
+
+        idsUtilizados.add(
+          descansoExistente.id,
+        );
+
+        return;
+      }
+
+      resultado.push(
+        crearFilaDescanso(
+          equipo,
+          fechaInicio,
+          fechaFin,
+          resultado.length + 1,
+        ),
+      );
+    },
+  );
+
+  partidosFbib.forEach(
+    (partidoFbib) => {
+      if (
+        partidosFbibUtilizados.has(
+          partidoFbib
+            .partidoFbibId,
+        )
+      ) {
+        return;
+      }
+
+      const existente =
+        existentesPorFbib.get(
+          partidoFbib
+            .partidoFbibId,
+        );
+
+      if (existente) {
+        resultado.push(
+          completarPartidoExistente(
+            existente,
+            partidoFbib,
+            null,
+          ),
+        );
+
+        idsUtilizados.add(
+          existente.id,
+        );
+      } else {
+        resultado.push(
+          convertirPartidoFbib(
+            partidoFbib,
+            null,
+            resultado.length + 1,
+          ),
+        );
+      }
+    },
+  );
+
+  partidosExistentes.forEach(
+    (partido) => {
+      if (
+        idsUtilizados.has(
+          partido.id,
+        )
+      ) {
+        return;
+      }
+
+      const perteneceAEquipoActual =
+        Boolean(
+          partido.equipoId &&
+          idsEquipos.has(
+            partido.equipoId,
+          ),
+        );
+
+      if (
+        perteneceAEquipoActual
+      ) {
+        return;
+      }
+
+      if (
+        partido.origen !==
+        "manual"
+      ) {
+        return;
+      }
+
+      resultado.push(
+        partido,
+      );
+
+      idsUtilizados.add(
+        partido.id,
+      );
+    },
+  );
+
+  return normalizarOrden(
+    resultado,
+  );
 }
 
 export default function EditorPartidosPublicacion({
@@ -125,7 +593,10 @@ export default function EditorPartidosPublicacion({
 
   const partidosOrdenados =
     [...partidos].sort(
-      (partidoA, partidoB) =>
+      (
+        partidoA,
+        partidoB,
+      ) =>
         partidoA.orden -
         partidoB.orden,
     );
@@ -166,19 +637,26 @@ export default function EditorPartidosPublicacion({
             fechaFin,
           });
 
-        const respuesta =
-          await fetch(
-            `/api/panel/publicaciones/partidos/cargar-fbib?${parametros.toString()}`,
-            {
-              method: "GET",
-              credentials:
-                "same-origin",
-              headers: {
-                Accept:
-                  "application/json",
+        const [
+          respuesta,
+          equiposClub,
+        ] =
+          await Promise.all([
+            fetch(
+              `/api/panel/publicaciones/partidos/cargar-fbib?${parametros.toString()}`,
+              {
+                method: "GET",
+                credentials:
+                  "same-origin",
+                headers: {
+                  Accept:
+                    "application/json",
+                },
               },
-            },
-          );
+            ),
+
+            solicitarEquipos(),
+          ]);
 
         const contenido =
           (await respuesta.json()) as
@@ -195,99 +673,53 @@ export default function EditorPartidosPublicacion({
           );
         }
 
-        const partidosFbib =
-          contenido.data.partidos;
-
-        const partidosExistentesPorFbib =
-          new Map<
-            string,
-            PartidoPublicacion
-          >();
-
-        partidosOrdenados.forEach(
-          (partido) => {
-            if (
-              partido.partidoFbibId
-            ) {
-              partidosExistentesPorFbib.set(
-                partido.partidoFbibId,
-                partido,
-              );
-            }
-          },
-        );
-
-        let nuevosAnadidos = 0;
-
-        const nuevosPartidos =
-          partidosFbib.flatMap(
-            (partidoFbib) => {
-              const existente =
-                partidosExistentesPorFbib.get(
-                  partidoFbib.partidoFbibId,
-                );
-
-              if (existente) {
-                return [];
-              }
-
-              nuevosAnadidos += 1;
-
-              return [
-                convertirPartidoFbib(
-                  partidoFbib,
-                  partidosOrdenados.length +
-                    nuevosAnadidos,
-                ),
-              ];
-            },
+        if (
+          equiposClub.length ===
+          0
+        ) {
+          throw new Error(
+            "No hay equipos registrados en la temporada activa.",
           );
+        }
 
         const siguientesPartidos =
-          normalizarOrden([
-            ...partidosOrdenados,
-            ...nuevosPartidos,
-          ]);
+          generarListadoCompleto(
+            equiposClub,
+            contenido.data
+              .partidos,
+            partidosOrdenados,
+            fechaInicio,
+            fechaFin,
+          );
 
         alCambiar(
           siguientesPartidos,
         );
 
-        if (
-          partidosFbib.length === 0
-        ) {
-          setMensaje(
-            "La FBIB no ha devuelto partidos para el periodo seleccionado.",
-          );
+        const totalDescansos =
+          siguientesPartidos.filter(
+            (partido) =>
+              partido.estado ===
+              "descansa",
+          ).length;
 
-          return;
-        }
-
-        if (
-          nuevosAnadidos === 0
-        ) {
-          setMensaje(
-            "Todos los partidos encontrados ya estaban incluidos. Se han conservado tus modificaciones.",
-          );
-
-          return;
-        }
+        const totalConPartido =
+          equiposClub.length -
+          totalDescansos;
 
         setMensaje(
-          nuevosAnadidos === 1
-            ? "Se ha añadido un partido desde la FBIB."
-            : `Se han añadido ${nuevosAnadidos} partidos desde la FBIB.`,
+          `Se han cargado ${equiposClub.length} equipos: ${totalConPartido} con partido y ${totalDescansos} que descansan.`,
         );
       } catch (error) {
         console.error(
-          "Error cargando los partidos para la publicación:",
+          "Error cargando los equipos y partidos para la publicación:",
           error,
         );
 
         setError(
           error instanceof Error
             ? error.message
-            : "No se han podido cargar los partidos.",
+            : "No se han podido cargar los equipos y partidos.",
         );
       } finally {
         setCargandoFbib(false);
@@ -375,7 +807,7 @@ export default function EditorPartidosPublicacion({
 
     const nombre =
       partido.nombreEquipo ||
-      "este partido";
+      "esta fila";
 
     const confirmado =
       window.confirm(
@@ -404,9 +836,22 @@ export default function EditorPartidosPublicacion({
     partido:
       PartidoPublicacion,
   ) => {
+    const siguientesPartidos =
+      partidosOrdenados.filter(
+        (existente) =>
+          !(
+            existente.equipoId &&
+            existente.equipoId ===
+              partido.equipoId &&
+            existente.estado ===
+              "descansa" &&
+            !existente.partidoFbibId
+          ),
+      );
+
     alCambiar(
       normalizarOrden([
-        ...partidosOrdenados,
+        ...siguientesPartidos,
         partido,
       ]),
     );
@@ -416,6 +861,7 @@ export default function EditorPartidosPublicacion({
     );
 
     setError(null);
+
     setMensaje(
       "El partido se ha añadido a la publicación.",
     );
@@ -426,13 +872,14 @@ export default function EditorPartidosPublicacion({
       <div className="flex flex-col gap-4 border-b border-outline-variant/60 px-5 py-5 sm:flex-row sm:items-start sm:justify-between sm:px-6">
         <div>
           <h2 className="text-xl font-bold text-on-surface">
-            Partidos
+            Equipos y partidos
           </h2>
 
           <p className="mt-1 text-sm text-on-surface-variant">
-            Carga los partidos de la FBIB y
-            modifica la información antes de
-            generar las imágenes.
+            Carga todos los equipos del
+            club. Los que no tengan partido
+            durante el periodo aparecerán
+            como descanso.
           </p>
         </div>
 
@@ -475,10 +922,10 @@ export default function EditorPartidosPublicacion({
             )}
 
             {cargandoFbib
-              ? "Consultando FBIB..."
+              ? "Cargando equipos..."
               : partidos.length > 0
-                ? "Actualizar desde FBIB"
-                : "Cargar desde FBIB"}
+                ? "Actualizar equipos y partidos"
+                : "Cargar equipos y partidos"}
           </button>
         </div>
       </div>
@@ -498,6 +945,17 @@ export default function EditorPartidosPublicacion({
           </span>
 
           <span>
+            {
+              partidosOrdenados.filter(
+                (partido) =>
+                  partido.estado ===
+                  "descansa",
+              ).length
+            }{" "}
+            descansan
+          </span>
+
+          <span>
             {totalPaginas}{" "}
             {totalPaginas === 1
               ? "imagen"
@@ -514,7 +972,7 @@ export default function EditorPartidosPublicacion({
           >
             <p className="font-bold">
               No se han podido cargar los
-              partidos
+              equipos y partidos
             </p>
 
             <p className="mt-1">
@@ -609,13 +1067,16 @@ export default function EditorPartidosPublicacion({
         ) : (
           <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low px-5 py-10 text-center">
             <p className="text-sm font-bold text-on-surface">
-              Todavía no hay partidos
+              Todavía no se han cargado los
+              equipos
             </p>
 
             <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-on-surface-variant">
-              Selecciona un periodo y carga
-              los partidos desde la FBIB o
-              añade una fila manualmente.
+              Selecciona un periodo y pulsa
+              “Cargar equipos y partidos”.
+              Los equipos sin partido
+              aparecerán automáticamente
+              como descanso.
             </p>
           </div>
         )}
