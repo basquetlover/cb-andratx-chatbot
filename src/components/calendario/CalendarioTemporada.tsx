@@ -137,7 +137,7 @@ const esquemasEventos: Record<
   "partido-casa": {
     etiqueta: "Partido en casa",
     colorIcono: "text-secondary",
-    fondo: "bg-secondary-fixed/70",
+    fondo: "bg-primary-container/70",
     texto: "text-on-secondary-fixed",
     borde: "border-secondary/30",
   },
@@ -145,7 +145,7 @@ const esquemasEventos: Record<
   "partido-fuera": {
     etiqueta: "Partido fuera",
     colorIcono: "text-outline",
-    fondo: "bg-surface-container-high",
+    fondo: "bg-tertiary-container/60",
     texto: "text-on-surface",
     borde: "border-outline/40",
   },
@@ -183,7 +183,7 @@ function IconoEventoCalendario({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full bg-surface-container-lowest/90 shadow-sm ${
+      className={`inline-flex shrink-0 items-center justify-center rounded-full md:bg-surface-container max-md:${esquema.fondo} shadow-sm ${
         pequeno
           ? "h-4 w-4"
           : "h-5 w-5"
