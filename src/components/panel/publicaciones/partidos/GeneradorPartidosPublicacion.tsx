@@ -1122,7 +1122,7 @@ export default function GeneradorPartidosPublicacion({
         </div>
       </div>
 
-      <section className="sticky bottom-3 z-20 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest/95 p-4 shadow-xl backdrop-blur sm:p-5">
+      <section className=" bottom-3 z-20 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest/95 p-4 shadow-xl backdrop-blur sm:p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
           {publicacionId && (
             <button
