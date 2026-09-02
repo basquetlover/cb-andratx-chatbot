@@ -1,0 +1,102 @@
+---
+import EditorEvento from "@components/panel/eventos/editor/EditorEvento";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const rutaActual =
+  "/panel/eventos/nuevo";
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en /panel/eventos/nuevo:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let puedeCrear = false;
+
+try {
+  puedeCrear =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "eventos.crear",
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando el permiso eventos.crear:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeCrear) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Crear evento"
+  description="Crea un evento general o una actividad dirigida a equipos concretos."
+  volverA="/panel/eventos"
+  textoVolver="Volver a eventos"
+  anchoCompleto
+>
+  <EditorEvento client:load />
+</LayoutPanel>

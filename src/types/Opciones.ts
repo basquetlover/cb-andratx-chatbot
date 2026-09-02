@@ -55,10 +55,10 @@ export const opcionesPrincipales = [
     estado: "proximamente",
     siguientePaso: "consultar-reglamento",
   },
-  {
-    id: "otra-consulta",
-    nombre: "Otra consulta",
-    estado: "proximamente",
-    siguientePaso: "escribir-consulta",
-  },
+  // {
+  //   id: "otra-consulta",
+  //   nombre: "Otra consulta",
+  //   estado: "proximamente",
+  //   siguientePaso: "escribir-consulta",
+  // },
 ] satisfies OpcionPrincipal[];

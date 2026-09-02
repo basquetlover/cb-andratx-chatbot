@@ -1,0 +1,418 @@
+---
+import EditorEvento from "@components/panel/eventos/editor/EditorEvento";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  ErrorObtenerEventoPanel,
+  obtenerEventoPanel,
+} from "@servicios/backend/eventos/obtenerEventoPanel";
+
+import {
+  obtenerAlcanceEventosUsuario,
+  puedeGestionarEvento,
+} from "@servicios/backend/eventos/comprobarAccesoEventoUsuario";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+import type {
+  EventoPanel,
+} from "@tipos/EventoPanel";
+
+export const prerender = false;
+
+const eventoId =
+  Astro.params.id?.trim() ?? "";
+
+const rutaActual =
+  `/panel/eventos/${eventoId}`;
+
+let evento:
+  EventoPanel | null = null;
+
+let errorCarga:
+  string | null = null;
+
+let accesoDenegado = false;
+let puedeEliminar = false;
+
+function obtenerUsuarioId(
+  sesion: unknown,
+): string | null {
+  if (
+    typeof sesion !== "object" ||
+    sesion === null
+  ) {
+    return null;
+  }
+
+  const datos =
+    sesion as Record<
+      string,
+      unknown
+    >;
+
+  if (
+    typeof datos.usuarioId ===
+    "string"
+  ) {
+    return datos.usuarioId;
+  }
+
+  if (
+    typeof datos.usuario_id ===
+    "string"
+  ) {
+    return datos.usuario_id;
+  }
+
+  if (
+    typeof datos.id === "string"
+  ) {
+    return datos.id;
+  }
+
+  if (
+    typeof datos.usuario ===
+      "object" &&
+    datos.usuario !== null
+  ) {
+    const usuario =
+      datos.usuario as Record<
+        string,
+        unknown
+      >;
+
+    if (
+      typeof usuario.id ===
+      "string"
+    ) {
+      return usuario.id;
+    }
+  }
+
+  return null;
+}
+
+if (!eventoId) {
+  Astro.response.status = 404;
+} else {
+  const tokenSesion =
+    Astro.cookies.get(
+      NOMBRE_COOKIE_SESION,
+    )?.value;
+
+  if (!tokenSesion) {
+    return Astro.redirect(
+      `/iniciar-sesion?redirect=${encodeURIComponent(
+        rutaActual,
+      )}`,
+    );
+  }
+
+  let sesion;
+
+  try {
+    sesion =
+      await obtenerUsuarioSesion(
+        tokenSesion,
+      );
+  } catch (error) {
+    console.error(
+      `Error comprobando la sesión en ${rutaActual}:`,
+      error,
+    );
+
+    return Astro.redirect(
+      "/panel/acceso-denegado?motivo=sesion",
+    );
+  }
+
+  if (!sesion) {
+    Astro.cookies.delete(
+      NOMBRE_COOKIE_SESION,
+      {
+        path: "/",
+      },
+    );
+
+    return Astro.redirect(
+      `/iniciar-sesion?redirect=${encodeURIComponent(
+        rutaActual,
+      )}`,
+    );
+  }
+
+  const usuarioId =
+    obtenerUsuarioId(sesion);
+
+  if (!usuarioId) {
+    console.error(
+      "La sesión no contiene un identificador de usuario válido.",
+    );
+
+    errorCarga =
+      "No se ha podido identificar al usuario de la sesión.";
+
+    Astro.response.status = 500;
+  } else {
+    let puedeEditar = false;
+
+    let puedeGestionarGenerales =
+      false;
+
+    try {
+      [
+        puedeEditar,
+        puedeEliminar,
+        puedeGestionarGenerales,
+      ] = await Promise.all([
+        comprobarPermisoUsuario(
+          sesion.acceso,
+          "eventos.editar",
+        ),
+
+        comprobarPermisoUsuario(
+          sesion.acceso,
+          "eventos.eliminar",
+        ),
+
+        comprobarPermisoUsuario(
+          sesion.acceso,
+          "eventos.generales.gestionar",
+        ),
+      ]);
+    } catch (error) {
+      console.error(
+        `Error comprobando los permisos en ${rutaActual}:`,
+        error,
+      );
+
+      errorCarga =
+        "No se han podido comprobar los permisos del usuario.";
+
+      Astro.response.status = 500;
+    }
+
+    if (
+      !errorCarga &&
+      !puedeEditar
+    ) {
+      accesoDenegado = true;
+
+      Astro.response.status = 403;
+    }
+
+    if (
+      !errorCarga &&
+      !accesoDenegado
+    ) {
+      try {
+        const eventoEncontrado =
+          await obtenerEventoPanel(
+            eventoId,
+          );
+
+        if (
+          eventoEncontrado.alcance ===
+            "todo-club" &&
+          !puedeGestionarGenerales
+        ) {
+          accesoDenegado = true;
+
+          Astro.response.status =
+            403;
+        } else {
+          const alcanceUsuario =
+            await obtenerAlcanceEventosUsuario(
+              usuarioId,
+            );
+
+          const autorizado =
+            puedeGestionarEvento(
+              eventoEncontrado,
+              alcanceUsuario,
+            );
+
+          if (!autorizado) {
+            accesoDenegado = true;
+
+            Astro.response.status =
+              403;
+          } else {
+            evento =
+              eventoEncontrado;
+          }
+        }
+      } catch (error) {
+        if (
+          error instanceof
+            ErrorObtenerEventoPanel &&
+          (
+            error.status === 400 ||
+            error.status === 404
+          )
+        ) {
+          Astro.response.status =
+            404;
+        } else {
+          console.error(
+            `Error cargando el evento ${eventoId}:`,
+            error,
+          );
+
+          errorCarga =
+            error instanceof Error
+              ? error.message
+              : "No se ha podido cargar la información del evento.";
+
+          Astro.response.status =
+            error instanceof
+            ErrorObtenerEventoPanel
+              ? error.status
+              : 500;
+        }
+      }
+    }
+  }
+}
+---
+
+<LayoutPanel
+  title={
+    evento?.titulo ??
+    (
+      accesoDenegado
+        ? "Acceso denegado"
+        : errorCarga
+          ? "Error al cargar el evento"
+          : "Evento no encontrado"
+    )
+  }
+  description={
+    evento
+      ? "Consulta y modifica la información, las fechas, los equipos y las imágenes del evento."
+      : undefined
+  }
+  volverA="/panel/eventos"
+  textoVolver="Volver a eventos"
+  anchoCompleto
+>
+  {
+    accesoDenegado ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-7 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-12 w-12 bg-current mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide">
+            Error 403
+          </p>
+
+          <h1 class="mt-1 text-2xl font-bold">
+            Acceso denegado
+          </h1>
+
+          <p class="mt-2 text-sm leading-6">
+            No estás autorizado para editar este evento.
+          </p>
+
+          <p class="mt-1 text-sm leading-6">
+            El evento pertenece a todo el club o a equipos que no tienes asignados.
+          </p>
+
+          <a
+            href="/panel/eventos"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+          >
+            <span
+              class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');"
+              aria-hidden="true"
+            />
+
+            Volver a eventos
+          </a>
+        </div>
+      </section>
+    ) : errorCarga ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-7 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-12 w-12 bg-current mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <h1 class="mt-4 text-2xl font-bold">
+            No se ha podido cargar el evento
+          </h1>
+
+          <p class="mt-2 text-sm leading-6">
+            {errorCarga}
+          </p>
+
+          <a
+            href={rutaActual}
+            class="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold"
+          >
+            Volver a intentarlo
+          </a>
+        </div>
+      </section>
+    ) : evento ? (
+      <EditorEvento
+        client:load
+        eventoInicial={evento}
+        puedeEliminar={puedeEliminar}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-7 text-center shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-outline mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/eventos.svg'); -webkit-mask-image: url('/iconos/panel/eventos.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide text-primary">
+            Error 404
+          </p>
+
+          <h1 class="mt-1 text-2xl font-bold text-on-surface">
+            Evento no encontrado
+          </h1>
+
+          <p class="mt-2 text-sm leading-6 text-on-surface-variant">
+            El evento solicitado no existe o ha sido eliminado.
+          </p>
+
+          <a
+            href="/panel/eventos"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary"
+          >
+            <span
+              class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');"
+              aria-hidden="true"
+            />
+
+            Volver a eventos
+          </a>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

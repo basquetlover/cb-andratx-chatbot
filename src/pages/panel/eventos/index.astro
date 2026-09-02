@@ -1,0 +1,108 @@
+---
+import ListadoEventosPanel from "@components/panel/eventos/listado/ListadoEventosPanel";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/eventos",
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en /panel/eventos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/eventos",
+  );
+}
+
+let puedeVer = false;
+let puedeCrear = false;
+
+try {
+  [
+    puedeVer,
+    puedeCrear,
+  ] = await Promise.all([
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "eventos.ver",
+    ),
+
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "eventos.crear",
+    ),
+  ]);
+} catch (error) {
+  console.error(
+    "Error comprobando los permisos de eventos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Eventos"
+  description="Gestiona los eventos, actividades y comunicaciones generales del club."
+  volverA="/panel"
+  textoVolver="Volver al panel"
+  anchoCompleto
+>
+  <ListadoEventosPanel
+    client:load
+    puedeCrear={puedeCrear}
+  />
+</LayoutPanel>

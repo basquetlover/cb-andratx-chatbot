@@ -78,7 +78,7 @@ export const navegacionPanel: EnlacePanel[] = [
     enlace: "/panel/eventos",
     icono: "eventos",
     permiso: "eventos.ver",
-    estado: "proximamente",
+    estado: "activo",
     seccion: "principal",
     orden: 6,
   },
