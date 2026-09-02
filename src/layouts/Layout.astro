@@ -3,6 +3,7 @@ import Footer from "@components/Footer.astro";
 import Header from "@components/Header.astro";
 import HeaderMobile from "@components/HeaderMobile.astro";
 import SistemaNotificaciones from "@components/notificaciones/SistemaNotificaciones";
+import DatosEstructurados from "@components/seo/DatosEstructurados.astro";
 
 import "../global.css";
 
@@ -11,19 +12,52 @@ interface Props {
   menu?: boolean;
   menuMobile?: boolean;
   description?: string;
+  image?: string;
+  imageAlt?: string;
+  noIndex?: boolean;
 }
 
 const {
   title,
   menu = false,
   menuMobile = false,
-  description = "Consulta equipos, entrenamientos, partidos, eventos y otra información del C.B. Andratx.",
+  description = "Consulta los equipos, entrenamientos, partidos, calendario, eventos y actividades del C.B. Andratx.",
+  image = "/og-cb-andratx.png",
+  imageAlt = "Información, equipos y calendario del C.B. Andratx",
+  noIndex = false,
 } = Astro.props;
 
-const dominio = "https://cbandratx.es";
-const titulo = title ? `${title} | C.B. Andratx` : "C.B. Andratx";
-const urlCanonical = new URL(Astro.url.pathname, dominio);
-const imagenSocial = new URL("/og-cb-andratx.png", dominio);
+const dominio =
+  Astro.site ??
+  new URL("https://cbandratx.es");
+
+const tituloPorDefecto =
+  "C.B. Andratx | Club de baloncesto en Andratx";
+
+const titulo = title
+  ? title.includes("C.B. Andratx")
+    ? title
+    : `${title} | C.B. Andratx`
+  : tituloPorDefecto;
+
+const urlCanonical =
+  new URL(
+    Astro.url.pathname,
+    dominio,
+  ).toString();
+
+const imagenSocial =
+  new URL(
+    image,
+    dominio,
+  ).toString();
+
+const robots = noIndex
+  ? "noindex, nofollow"
+  : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
+
+const esInicio =
+  Astro.url.pathname === "/";
 
 export const prerender = false;
 
@@ -34,6 +68,7 @@ Astro.response.headers.set(
 ---
 
 <!doctype html>
+
 <html lang="es" class="min-h-full">
   <head>
     <meta charset="utf-8" />
@@ -44,17 +79,20 @@ Astro.response.headers.set(
     <meta name="description" content={description} />
     <meta name="application-name" content="C.B. Andratx" />
     <meta name="author" content="C.B. Andratx" />
-    <meta name="robots" content="index, follow" />
-    <meta name="googlebot" content="index, follow" />
+    <meta name="robots" content={robots} />
     <meta name="referrer" content="strict-origin-when-cross-origin" />
     <meta name="theme-color" content="#032a55" />
     <meta name="color-scheme" content="light" />
 
     <link rel="canonical" href={urlCanonical} />
 
+    <!-- Favicons -->
+
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/favicon.png" />
+
+    <!-- Open Graph -->
 
     <meta property="og:type" content="website" />
     <meta property="og:locale" content="es_ES" />
@@ -64,22 +102,33 @@ Astro.response.headers.set(
     <meta property="og:url" content={urlCanonical} />
     <meta property="og:image" content={imagenSocial} />
     <meta property="og:image:secure_url" content={imagenSocial} />
-    <meta property="og:image:type" content="image/jpeg" />
+    <meta property="og:image:type" content="image/png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:image:alt" content="Información del C.B. Andratx" />
+    <meta property="og:image:alt" content={imageAlt} />
+
+    <!-- Twitter / X -->
 
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={titulo} />
     <meta name="twitter:description" content={description} />
     <meta name="twitter:image" content={imagenSocial} />
-    <meta name="twitter:image:alt" content="Información del C.B. Andratx" />
+    <meta name="twitter:image:alt" content={imageAlt} />
+
+    <!-- Datos estructurados -->
+
+    {!noIndex && esInicio && <DatosEstructurados />}
 
     <meta name="generator" content={Astro.generator} />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+    <!-- Tipografía -->
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" />
+
+    <!-- Analítica propia -->
+
     <script src="/scripts/analytics.js" defer></script>
   </head>
 
@@ -90,7 +139,7 @@ Astro.response.headers.set(
       </div>
     )}
 
-    <main class:list={["relative min-w-0 flex-1", menuMobile && "pb-24 md:pb-0"]}>
+    <main id="contenido-principal" class:list={["relative min-w-0 flex-1", menuMobile && "pb-24 md:pb-0"]}>
       <slot />
     </main>
 

@@ -1,0 +1,39 @@
+---
+const datosEstructurados = {
+  "@context": "https://schema.org",
+
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "@id": "https://cbandratx.es/#website",
+      url: "https://cbandratx.es/",
+      name: "C.B. Andratx",
+      alternateName: "Club Bàsquet Andratx",
+      inLanguage: "es",
+    },
+
+    {
+      "@type": "SportsOrganization",
+      "@id": "https://cbandratx.es/#club",
+      name: "C.B. Andratx",
+      alternateName: "Club Bàsquet Andratx",
+      url: "https://cbandratx.es/",
+
+      logo: {
+        "@type": "ImageObject",
+        url: "https://cbandratx.es/favicon.png",
+      },
+    },
+  ],
+};
+
+const datosEstructuradosJSON =
+  JSON.stringify(
+    datosEstructurados,
+  ).replace(
+    /</g,
+    "\\u003c",
+  );
+---
+
+<script is:inline type="application/ld+json" set:html={datosEstructuradosJSON}></script>
