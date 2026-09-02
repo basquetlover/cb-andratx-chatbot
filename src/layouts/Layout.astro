@@ -20,7 +20,7 @@ const {
   description = "Consulta equipos, entrenamientos, partidos, eventos y otra información del C.B. Andratx.",
 } = Astro.props;
 
-const dominio = "https://cb-andratx-chatbot.vercel.app";
+const dominio = "https://cbandratx.es";
 const titulo = title ? `${title} | C.B. Andratx` : "C.B. Andratx";
 const urlCanonical = new URL(Astro.url.pathname, dominio);
 const imagenSocial = new URL("/og-cb-andratx.png", dominio);
