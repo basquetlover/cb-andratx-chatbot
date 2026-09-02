@@ -183,7 +183,7 @@ function IconoEventoCalendario({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center rounded-full md:bg-surface-container max-md:${esquema.fondo} shadow-sm ${
+      className={`inline-flex shrink-0 items-center justify-center rounded-full shadow-sm ${esquema.fondo} md:bg-surface-container ${
         pequeno
           ? "h-4 w-4"
           : "h-5 w-5"
@@ -206,14 +206,27 @@ function IconoEventoCalendario({
         style={{
           maskImage:
             `url("${rutaIcono}")`,
+
           WebkitMaskImage:
             `url("${rutaIcono}")`,
-          maskRepeat: "no-repeat",
-          WebkitMaskRepeat: "no-repeat",
-          maskPosition: "center",
-          WebkitMaskPosition: "center",
-          maskSize: "contain",
-          WebkitMaskSize: "contain",
+
+          maskRepeat:
+            "no-repeat",
+
+          WebkitMaskRepeat:
+            "no-repeat",
+
+          maskPosition:
+            "center",
+
+          WebkitMaskPosition:
+            "center",
+
+          maskSize:
+            "contain",
+
+          WebkitMaskSize:
+            "contain",
         }}
       />
     </span>
