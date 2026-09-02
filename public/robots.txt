@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /api/
 
-Sitemap: https://cbandratx.es/sitemap-index.xml
+Sitemap: https://cbandratx.es/sitemap.xml
