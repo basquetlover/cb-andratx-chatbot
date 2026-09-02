@@ -1,39 +1,104 @@
 ---
+const dominio = "https://cbandratx.es";
+const urlInicio = `${dominio}/`;
+const urlClub = `${dominio}/#club`;
+const urlWeb = `${dominio}/#website`;
+const urlLogo = `${dominio}/#logo`;
+const imagenLogo = `${dominio}/favicon.png`;
+
+const redesSociales = [
+  "https://www.youtube.com/@cbAndratx1985",
+  "https://www.instagram.com/cbandratx1985",
+  "https://www.facebook.com/cbandratx1985",
+  "https://x.com/cbAndratx1985",
+  "https://www.tiktok.com/@cbandratx1985",
+];
+
 const datosEstructurados = {
   "@context": "https://schema.org",
 
   "@graph": [
     {
       "@type": "WebSite",
-      "@id": "https://cbandratx.es/#website",
-      url: "https://cbandratx.es/",
+      "@id": urlWeb,
+
+      url: urlInicio,
       name: "C.B. Andratx",
-      alternateName: "Club Bàsquet Andratx",
+      alternateName: [
+        "Club Bàsquet Andratx",
+        "CB Andratx",
+      ],
+
+      description:
+        "Web oficial del C.B. Andratx con información sobre equipos, entrenamientos, partidos, calendario, eventos y actividades del club.",
+
       inLanguage: "es",
+
+      publisher: {
+        "@id": urlClub,
+      },
     },
 
     {
       "@type": "SportsOrganization",
-      "@id": "https://cbandratx.es/#club",
+      "@id": urlClub,
+
       name: "C.B. Andratx",
-      alternateName: "Club Bàsquet Andratx",
-      url: "https://cbandratx.es/",
+      alternateName: [
+        "Club Bàsquet Andratx",
+        "CB Andratx",
+      ],
+
+      url: urlInicio,
+
+      description:
+        "Club de baloncesto de Andratx con equipos de diferentes categorías y niveles.",
+
+      foundingDate: "1985",
+      sport: "Baloncesto",
 
       logo: {
-        "@type": "ImageObject",
-        url: "https://cbandratx.es/favicon.png",
+        "@id": urlLogo,
       },
+
+      image: {
+        "@id": urlLogo,
+      },
+
+      sameAs: redesSociales,
+
+      areaServed: {
+        "@type": "AdministrativeArea",
+        name: "Andratx, Mallorca",
+      },
+    },
+
+    {
+      "@type": "ImageObject",
+      "@id": urlLogo,
+
+      url: imagenLogo,
+      contentUrl: imagenLogo,
+
+      width: 500,
+      height: 500,
+
+      caption: "Escudo del C.B. Andratx",
+      representativeOfPage: true,
     },
   ],
 };
 
-const datosEstructuradosJSON =
-  JSON.stringify(
-    datosEstructurados,
-  ).replace(
-    /</g,
-    "\\u003c",
-  );
+const datosEstructuradosJSON = JSON.stringify(
+  datosEstructurados,
+).replace(
+  /</g,
+  "\\u003c",
+);
 ---
 
-<script is:inline type="application/ld+json" set:html={datosEstructuradosJSON}></script>
+<script
+  is:inline
+  type="application/ld+json"
+  set:html={datosEstructuradosJSON}
+></script>
