@@ -17,6 +17,6 @@ export async function enviarBienvenidaUsuario({ email, nombre, cargo }: DatosBie
     to: email,
     subject: contenido.asunto,
     html: contenido.html,
-    origen: "cb-andratx",
+    origen: "info",
   });
 }

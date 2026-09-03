@@ -23,6 +23,6 @@ export async function enviarInvitacionUsuario({ email, nombre, cargo, enlaceActi
     to: email,
     subject: contenido.asunto,
     html: contenido.html,
-    origen: "cb-andratx",
+    origen: "info",
   });
 }
