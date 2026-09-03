@@ -7,11 +7,6 @@
        <priority>1.0000</priority>
   </url>
   <url>
-       <loc>https://cbandratx.es/sitemap.xml</loc>
-       <lastmod>2026-09-03T09:00:47+00:00</lastmod>
-       <priority>0.8000</priority>
-  </url>
-  <url>
        <loc>https://cbandratx.es/chatbot</loc>
        <lastmod>2026-09-03T09:00:47+00:00</lastmod>
        <priority>0.8000</priority>
@@ -29,7 +24,7 @@
   <url>
        <loc>https://cbandratx.es/cookies</loc>
        <lastmod>2026-09-03T09:00:47+00:00</lastmod>
-       <priority>0.8000</priority>
+       <priority>0.6400</priority>
   </url>
   <url>
        <loc>https://cbandratx.es/aviso-legal/</loc>
