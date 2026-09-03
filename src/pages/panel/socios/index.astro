@@ -1,0 +1,116 @@
+---
+import ListadoSociosPanel from "@components/panel/socios/listado/ListadoSociosPanel";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios",
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en /panel/socios:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios",
+  );
+}
+
+let puedeVer = false;
+let puedeCrear = false;
+let puedeEditar = false;
+
+try {
+  [
+    puedeVer,
+    puedeCrear,
+    puedeEditar,
+  ] = await Promise.all([
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.ver",
+    ),
+
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.crear",
+    ),
+
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.editar",
+    ),
+  ]);
+} catch (error) {
+  console.error(
+    "Error comprobando los permisos de socios:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Socios"
+  description="Gestiona los socios, sus carnets por temporada y el acceso al carnet digital."
+  anchoCompleto
+>
+  <main class="mx-auto w-full max-w-7xl">
+    <ListadoSociosPanel
+      client:load
+      puedeCrear={puedeCrear}
+      puedeEditar={puedeEditar}
+    />
+  </main>
+</LayoutPanel>

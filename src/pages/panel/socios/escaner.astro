@@ -1,0 +1,161 @@
+---
+import LectorQrSociosPanel from "@components/panel/socios/lector/LectorQrSociosPanel";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios/escaner",
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en el escáner de socios:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios/escaner",
+  );
+}
+
+let puedeVerSocios = false;
+
+try {
+  puedeVerSocios =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.ver",
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando el permiso socios.ver en el escáner:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVerSocios) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Escáner de carnets"
+  description="Escanea el código QR de un carnet para comprobar el estado actual del socio."
+  volverA="/panel/socios"
+  textoVolver="Volver a socios"
+  anchoCompleto
+>
+  <main class="mx-auto w-full max-w-6xl">
+    <div class="mb-5 flex flex-col gap-3 rounded-2xl border border-outline-variant/60 bg-surface-container-low px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-sm font-bold text-on-surface">
+          Comprobación en tiempo real
+        </p>
+
+        <p class="mt-1 text-xs leading-5 text-on-surface-variant">
+          Cada lectura consulta directamente el estado del
+          socio y de su carnet en la base de datos.
+        </p>
+      </div>
+
+      <div class="inline-flex w-fit items-center gap-2 rounded-full bg-success/10 px-3 py-2 text-xs font-bold text-success">
+        <span
+          class="h-2.5 w-2.5 rounded-full bg-success"
+          aria-hidden="true"
+        ></span>
+
+        Lector disponible
+      </div>
+    </div>
+
+    <LectorQrSociosPanel client:load />
+
+    <aside class="mt-5 rounded-2xl border border-outline-variant/60 bg-surface-container-low px-5 py-4">
+      <div class="flex items-start gap-3">
+        <span
+          class="mt-0.5 inline-block h-5 w-5 shrink-0 bg-primary mask-center mask-contain mask-no-repeat"
+          style="mask-image: url('/iconos/panel/informacion.svg'); -webkit-mask-image: url('/iconos/panel/informacion.svg');"
+          aria-hidden="true"
+        ></span>
+
+        <div>
+          <h2 class="text-sm font-bold text-on-surface">
+            Información del lector
+          </h2>
+
+          <ul class="mt-2 grid gap-1.5 text-xs leading-5 text-on-surface-variant">
+            <li>
+              El código QR solamente contiene el número de
+              carnet, por ejemplo
+              <strong class="font-mono text-on-surface">
+                CBA-2627001
+              </strong>.
+            </li>
+
+            <li>
+              El estado se comprueba en cada lectura. Un
+              carnet bloqueado o un socio desactivado será
+              rechazado inmediatamente.
+            </li>
+
+            <li>
+              La cámara permanece apagada hasta que pulses
+              el botón «Abrir cámara».
+            </li>
+
+            <li>
+              Si no puedes utilizar la cámara, puedes
+              introducir el número de carnet manualmente.
+            </li>
+          </ul>
+        </div>
+      </div>
+    </aside>
+  </main>
+</LayoutPanel>

@@ -49,6 +49,17 @@ export const navegacionPanel: EnlacePanel[] = [
   //   orden: 3,
   // },
   {
+    id: "socios",
+    nombre: "Socios",
+    descripcion: "Gestionar socios y asignaciones",
+    enlace: "/panel/socios",
+    icono: "socios",
+    permiso: "socios.ver",
+    estado: "activo",
+    seccion: "principal",
+    orden: 7,
+  },
+  {
     id: "equipos",
     nombre: "Equipos",
     descripcion: "Gestionar equipos del club",
