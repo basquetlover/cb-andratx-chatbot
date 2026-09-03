@@ -1,7 +1,14 @@
-import type { APIRoute } from "astro";
+import type {
+  APIRoute,
+} from "astro";
 
-import { obtenerDatosEsbFbib } from "@servicios/fbib/cliente/obtenerDatosEsbFbib";
-import { supabaseServidor } from "@servicios/supabase/servidor";
+import {
+  obtenerDatosEsbFbib,
+} from "@servicios/fbib/cliente/obtenerDatosEsbFbib";
+
+import {
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
 
 export const prerender = false;
 
@@ -13,6 +20,12 @@ type TipoEventoCalendario =
   | "partido-casa"
   | "partido-fuera";
 
+type AlcanceEventoCalendario =
+  | "club"
+  | "equipo"
+  | "todo-club"
+  | "equipos";
+
 interface EventoCalendarioClub {
   id: string;
   titulo: string;
@@ -23,11 +36,13 @@ interface EventoCalendarioClub {
   horaFin?: string | null;
   ubicacion?: string | null;
   descripcion?: string | null;
+  categoria?: string | null;
   color?: string | null;
   url?: string | null;
   equipoId?: string | null;
   equipoNombre?: string | null;
-  alcance?: "club" | "equipo";
+  alcance?: AlcanceEventoCalendario;
+  equiposIds?: string[];
 }
 
 interface FilaTemporada {
@@ -41,6 +56,7 @@ interface FilaEquipo {
   nombre_corto: string | null;
   temporada_id: string;
   id_equipo_fbib: string | null;
+  categoria: string | null;
 }
 
 interface FilaEntrenamiento {
@@ -77,16 +93,55 @@ interface FilaInstalacion {
   localidad: string | null;
 }
 
+interface FilaRelacionEventoEquipo {
+  equipo_id: string | null;
+}
+
+interface FilaEvento {
+  id: string;
+  temporada_id: string | null;
+  titulo: string | null;
+  descripcion_corta: string | null;
+  descripcion: string | null;
+  tipo: string | null;
+  alcance:
+    | "todo-club"
+    | "equipos"
+    | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  todo_el_dia: boolean | null;
+  instalacion_id: string | null;
+  ubicacion: string | null;
+  direccion: string | null;
+  imagen: string | null;
+  banner_notificacion: string | null;
+  url_informacion: string | null;
+  url_inscripcion: string | null;
+  requiere_inscripcion: boolean | null;
+  destacado: boolean | null;
+  mostrar_calendario: boolean | null;
+  estado: string | null;
+  eventos_equipos:
+    FilaRelacionEventoEquipo[] | null;
+}
+
 interface OcurrenciaEntrenamiento {
   id: string;
   equipoId: string;
-  entrenamientoId: string | null;
-  instalacionId: string | null;
+  entrenamientoId:
+    string | null;
+  instalacionId:
+    string | null;
   fecha: string;
   horaInicio: string | null;
   horaFin: string | null;
-  observaciones: string | null;
+  observaciones:
+    string | null;
   motivo: string | null;
+
   estado:
     | "normal"
     | "modificado"
@@ -101,8 +156,10 @@ interface FechaHoraPartido {
 const cabecerasJson = {
   "Cache-Control":
     "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
+
   "Content-Type":
     "application/json; charset=utf-8",
+
   "X-Content-Type-Options":
     "nosniff",
 };
@@ -119,7 +176,8 @@ function respuestaError(
     },
     {
       status: estado,
-      headers: cabecerasJson,
+      headers:
+        cabecerasJson,
     },
   );
 }
@@ -146,10 +204,13 @@ function crearFechaIso(
 function convertirFechaUtc(
   fecha: string,
 ): Date {
-  const [anio, mes, dia] =
-    fecha.split("-").map(
-      Number,
-    );
+  const [
+    anio,
+    mes,
+    dia,
+  ] = fecha
+    .split("-")
+    .map(Number);
 
   return new Date(
     Date.UTC(
@@ -231,6 +292,22 @@ function obtenerDiaSemanaIso(
     : dia;
 }
 
+function convertirTexto(
+  valor: unknown,
+): string | null {
+  if (
+    typeof valor !== "string" &&
+    typeof valor !== "number"
+  ) {
+    return null;
+  }
+
+  const texto =
+    String(valor).trim();
+
+  return texto || null;
+}
+
 function normalizarHora(
   hora:
     | string
@@ -243,13 +320,12 @@ function normalizarHora(
     return null;
   }
 
-  const valor =
-    hora.trim();
-
   const coincidencia =
-    valor.match(
-      /^(\d{1,2}):(\d{2})/,
-    );
+    hora
+      .trim()
+      .match(
+        /^(\d{1,2}):(\d{2})/,
+      );
 
   if (!coincidencia) {
     return null;
@@ -277,6 +353,54 @@ function normalizarTexto(
     )
     .trim()
     .toLowerCase();
+}
+
+function esRegistro(
+  valor: unknown,
+): valor is Record<
+  string,
+  unknown
+> {
+  return (
+    typeof valor === "object" &&
+    valor !== null &&
+    !Array.isArray(valor)
+  );
+}
+
+function obtenerValor(
+  registro: Record<
+    string,
+    unknown
+  >,
+  claves: string[],
+): unknown {
+  for (const clave of claves) {
+    if (
+      registro[clave] !==
+        undefined &&
+      registro[clave] !== null
+    ) {
+      return registro[clave];
+    }
+  }
+
+  return null;
+}
+
+function obtenerTexto(
+  registro: Record<
+    string,
+    unknown
+  >,
+  claves: string[],
+): string | null {
+  return convertirTexto(
+    obtenerValor(
+      registro,
+      claves,
+    ),
+  );
 }
 
 function obtenerNombreEquipo(
@@ -464,8 +588,10 @@ function aplicarExcepciones(
     string,
     OcurrenciaEntrenamiento
   >,
+
   entrenamientos:
     FilaEntrenamiento[],
+
   excepciones:
     FilaExcepcion[],
 ): OcurrenciaEntrenamiento[] {
@@ -523,7 +649,8 @@ function aplicarExcepciones(
 
         instalacionId:
           excepcion.instalacion_id ??
-          entrenamientoBase?.instalacion_id ??
+          entrenamientoBase
+            ?.instalacion_id ??
           null,
 
         fecha:
@@ -534,7 +661,8 @@ function aplicarExcepciones(
             excepcion.hora_inicio,
           ) ??
           normalizarHora(
-            entrenamientoBase?.hora_inicio,
+            entrenamientoBase
+              ?.hora_inicio,
           ),
 
         horaFin:
@@ -542,11 +670,13 @@ function aplicarExcepciones(
             excepcion.hora_fin,
           ) ??
           normalizarHora(
-            entrenamientoBase?.hora_fin,
+            entrenamientoBase
+              ?.hora_fin,
           ),
 
         observaciones:
-          entrenamientoBase?.observaciones ??
+          entrenamientoBase
+            ?.observaciones ??
           null,
 
         motivo:
@@ -577,10 +707,11 @@ function aplicarExcepciones(
         );
 
       /*
-       * Sustituimos el entrenamiento
-       * habitual. De esta manera los
-       * cancelados siguen apareciendo
-       * en el calendario.
+       * La excepción sustituye la
+       * ocurrencia habitual. Los
+       * entrenamientos cancelados se
+       * conservan para mostrarlos en
+       * el calendario.
        */
       ocurrencias.set(
         clave,
@@ -628,10 +759,12 @@ function obtenerUbicacion(
 function convertirEntrenamientosAEventos(
   ocurrencias:
     OcurrenciaEntrenamiento[],
+
   equiposPorId: Map<
     string,
     FilaEquipo
   >,
+
   instalacionesPorId: Map<
     string,
     FilaInstalacion
@@ -726,6 +859,9 @@ function convertirEntrenamientosAEventos(
           descripcion:
             descripcion || null,
 
+          categoria:
+            equipo.categoria,
+
           url:
             `/equipos/${equipo.id}`,
 
@@ -737,73 +873,14 @@ function convertirEntrenamientosAEventos(
 
           alcance:
             "equipo" as const,
+
+          equiposIds: [
+            equipo.id,
+          ],
         },
       ];
     },
   );
-}
-
-function esRegistro(
-  valor: unknown,
-): valor is Record<
-  string,
-  unknown
-> {
-  return (
-    typeof valor === "object" &&
-    valor !== null &&
-    !Array.isArray(valor)
-  );
-}
-
-function obtenerValor(
-  registro: Record<
-    string,
-    unknown
-  >,
-  claves: string[],
-): unknown {
-  for (
-    const clave of claves
-  ) {
-    if (
-      registro[clave] !==
-        undefined &&
-      registro[clave] !== null
-    ) {
-      return registro[clave];
-    }
-  }
-
-  return null;
-}
-
-function obtenerTexto(
-  registro: Record<
-    string,
-    unknown
-  >,
-  claves: string[],
-): string | null {
-  const valor =
-    obtenerValor(
-      registro,
-      claves,
-    );
-
-  if (
-    typeof valor ===
-      "string" ||
-    typeof valor ===
-      "number"
-  ) {
-    const texto =
-      String(valor).trim();
-
-    return texto || null;
-  }
-
-  return null;
 }
 
 function extraerRegistrosPartidos(
@@ -814,7 +891,7 @@ function extraerRegistrosPartidos(
   unknown
 >[] {
   if (
-    profundidad > 5 ||
+    profundidad > 6 ||
     valor === null ||
     valor === undefined
   ) {
@@ -882,11 +959,12 @@ function extraerRegistrosPartidos(
 
   return Object.values(
     valor,
-  ).flatMap((elemento) =>
-    extraerRegistrosPartidos(
-      elemento,
-      profundidad + 1,
-    ),
+  ).flatMap(
+    (elemento) =>
+      extraerRegistrosPartidos(
+        elemento,
+        profundidad + 1,
+      ),
   );
 }
 
@@ -915,27 +993,29 @@ function extraerFechaHoraPartido(
       new Date(valorFecha);
 
     if (
-      !Number.isNaN(
+      Number.isNaN(
         fecha.getTime(),
       )
     ) {
-      return {
-        fecha:
-          crearFechaIso(
-            fecha.getUTCFullYear(),
-            fecha.getUTCMonth() +
-              1,
-            fecha.getUTCDate(),
-          ),
-
-        hora:
-          `${rellenarNumero(
-            fecha.getUTCHours(),
-          )}:${rellenarNumero(
-            fecha.getUTCMinutes(),
-          )}`,
-      };
+      return null;
     }
+
+    return {
+      fecha:
+        crearFechaIso(
+          fecha.getUTCFullYear(),
+          fecha.getUTCMonth() +
+            1,
+          fecha.getUTCDate(),
+        ),
+
+      hora:
+        `${rellenarNumero(
+          fecha.getUTCHours(),
+        )}:${rellenarNumero(
+          fecha.getUTCMinutes(),
+        )}`,
+    };
   }
 
   if (
@@ -984,34 +1064,34 @@ function extraerFechaHoraPartido(
       /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/,
     );
 
-  if (fechaEspanola) {
-    return {
-      fecha:
-        crearFechaIso(
-          Number(
-            fechaEspanola[3],
-          ),
-          Number(
-            fechaEspanola[2],
-          ),
-          Number(
-            fechaEspanola[1],
-          ),
-        ),
-
-      hora:
-        fechaEspanola[4] &&
-        fechaEspanola[5]
-          ? `${rellenarNumero(
-              Number(
-                fechaEspanola[4],
-              ),
-            )}:${fechaEspanola[5]}`
-          : null,
-    };
+  if (!fechaEspanola) {
+    return null;
   }
 
-  return null;
+  return {
+    fecha:
+      crearFechaIso(
+        Number(
+          fechaEspanola[3],
+        ),
+        Number(
+          fechaEspanola[2],
+        ),
+        Number(
+          fechaEspanola[1],
+        ),
+      ),
+
+    hora:
+      fechaEspanola[4] &&
+      fechaEspanola[5]
+        ? `${rellenarNumero(
+            Number(
+              fechaEspanola[4],
+            ),
+          )}:${fechaEspanola[5]}`
+        : null,
+  };
 }
 
 function obtenerResultadoPartido(
@@ -1020,32 +1100,144 @@ function obtenerResultadoPartido(
     unknown
   >,
 ): string | null {
-  const local =
+  const puntosLocal =
     obtenerTexto(
       partido,
       [
         "localScore",
         "scoreLocal",
+        "pointsLocal",
+        "localPoints",
       ],
     );
 
-  const visitante =
+  const puntosVisitante =
     obtenerTexto(
       partido,
       [
         "visitorScore",
         "scoreVisitor",
+        "pointsVisitor",
+        "visitorPoints",
       ],
     );
 
   if (
-    local === null ||
-    visitante === null
+    puntosLocal === null ||
+    puntosVisitante === null
   ) {
     return null;
   }
 
-  return `Resultado: ${local} – ${visitante}`;
+  return `Resultado: ${puntosLocal} – ${puntosVisitante}`;
+}
+
+function obtenerCategoriaPartido(
+  partido: Record<
+    string,
+    unknown
+  >,
+  equipo: FilaEquipo,
+): string | null {
+  return (
+    obtenerTexto(
+      partido,
+      [
+        "nameCategory",
+        "categoryName",
+        "category",
+        "categoria",
+        "nameCompetition",
+        "competitionName",
+        "competition",
+      ],
+    ) ??
+    equipo.categoria?.trim() ??
+    null
+  );
+}
+
+function obtenerUbicacionPartido(
+  partido: Record<
+    string,
+    unknown
+  >,
+): string | null {
+  const localidad =
+    obtenerTexto(
+      partido,
+      [
+        "nameTown",
+        "town",
+        "locality",
+        "municipality",
+      ],
+    );
+
+  const instalacion =
+    obtenerTexto(
+      partido,
+      [
+        "nameField",
+        "fieldName",
+        "facilityName",
+        "nameFacility",
+        "courtName",
+        "installationName",
+        "pavilion",
+      ],
+    );
+
+  if (
+    localidad &&
+    normalizarTexto(
+      localidad,
+    ).includes("andratx")
+  ) {
+    const instalacionNormalizada =
+      normalizarTexto(
+        instalacion,
+      );
+
+    if (
+      instalacionNormalizada.includes(
+        "palau",
+      ) ||
+      instalacionNormalizada.includes(
+        "municipal",
+      )
+    ) {
+      return (
+        instalacion ??
+        "Palau Municipal d'Esports d'Andratx"
+      );
+    }
+
+    if (
+      instalacionNormalizada.includes(
+        "vinyet",
+      ) ||
+      instalacionNormalizada.includes(
+        "polideportivo",
+      )
+    ) {
+      return (
+        instalacion ??
+        "Poliesportiu Es Vinyet"
+      );
+    }
+
+    return (
+      instalacion ??
+      localidad
+    );
+  }
+
+  return (
+    localidad ??
+    instalacion ??
+    null
+  );
 }
 
 function convertirPartidoAEvento(
@@ -1093,6 +1285,8 @@ function convertirPartidoAEvento(
       [
         "idLocalTeam",
         "localTeamId",
+        "codeLocalTeam",
+        "codeLocalTeamClub",
       ],
     );
 
@@ -1102,6 +1296,8 @@ function convertirPartidoAEvento(
       [
         "idVisitorTeam",
         "visitorTeamId",
+        "codeVisitorTeam",
+        "codeVisitorTeamClub",
       ],
     );
 
@@ -1126,8 +1322,13 @@ function convertirPartidoAEvento(
     "Equipo visitante";
 
   const idFbib =
-    equipo.id_equipo_fbib?.trim() ??
-    "";
+    equipo.id_equipo_fbib
+      ?.trim() ?? "";
+
+  const nombreEquipo =
+    obtenerNombreEquipo(
+      equipo,
+    );
 
   const juegaEnCasa =
     idLocal === idFbib ||
@@ -1137,46 +1338,10 @@ function convertirPartidoAEvento(
         nombreLocal,
       ).includes(
         normalizarTexto(
-          obtenerNombreEquipo(
-            equipo,
-          ),
+          nombreEquipo,
         ),
       )
     );
-
-  const nombreInstalacion =
-    obtenerTexto(
-      partido,
-      [
-        "facilityName",
-        "nameFacility",
-        "courtName",
-        "installationName",
-        "pavilion",
-      ],
-    );
-
-  const localidad =
-    obtenerTexto(
-      partido,
-      [
-        "town",
-        "locality",
-        "municipality",
-      ],
-    );
-
-  const ubicacion = [
-    nombreInstalacion,
-    localidad,
-  ]
-    .filter(
-      (
-        valor,
-      ): valor is string =>
-        Boolean(valor),
-    )
-    .join(", ");
 
   return {
     id:
@@ -1199,11 +1364,19 @@ function convertirPartidoAEvento(
     horaFin: null,
 
     ubicacion:
-      ubicacion || null,
+      obtenerUbicacionPartido(
+        partido,
+      ),
 
     descripcion:
       obtenerResultadoPartido(
         partido,
+      ),
+
+    categoria:
+      obtenerCategoriaPartido(
+        partido,
+        equipo,
       ),
 
     url:
@@ -1215,11 +1388,13 @@ function convertirPartidoAEvento(
       equipo.id,
 
     equipoNombre:
-      obtenerNombreEquipo(
-        equipo,
-      ),
+      nombreEquipo,
 
     alcance: "equipo",
+
+    equiposIds: [
+      equipo.id,
+    ],
   };
 }
 
@@ -1231,14 +1406,9 @@ async function obtenerPartidosEquipo(
 ): Promise<
   EventoCalendarioClub[]
 > {
-  if (
-    !equipo.id_equipo_fbib
-  ) {
-    return [];
-  }
-
   const idFbib =
-    equipo.id_equipo_fbib.trim();
+    equipo.id_equipo_fbib
+      ?.trim();
 
   if (!idFbib) {
     return [];
@@ -1270,11 +1440,6 @@ async function obtenerPartidosEquipo(
       },
     );
   } catch (error) {
-    /*
-     * Un error puntual de la FBIB
-     * no debe impedir mostrar los
-     * entrenamientos del club.
-     */
     console.error(
       `Error obteniendo los partidos FBIB de ${obtenerNombreEquipo(
         equipo,
@@ -1284,6 +1449,142 @@ async function obtenerPartidosEquipo(
 
     return [];
   }
+}
+
+function convertirEventosTabla(
+  filas: FilaEvento[],
+): EventoCalendarioClub[] {
+  return filas.flatMap(
+    (fila) => {
+      const titulo =
+        fila.titulo?.trim();
+
+      const fechaInicio =
+        fila.fecha_inicio?.trim();
+
+      if (
+        !fila.id ||
+        !titulo ||
+        !fechaInicio
+      ) {
+        return [];
+      }
+
+      const fechaFin =
+        fila.fecha_fin?.trim() ||
+        fechaInicio;
+
+      const alcance =
+        fila.alcance ===
+        "equipos"
+          ? "equipos"
+          : "todo-club";
+
+      const equiposIds =
+        alcance === "equipos"
+          ? Array.from(
+              new Set(
+                (
+                  fila.eventos_equipos ??
+                  []
+                ).flatMap(
+                  (relacion) =>
+                    relacion.equipo_id
+                      ? [
+                          relacion
+                            .equipo_id,
+                        ]
+                      : [],
+                ),
+              ),
+            )
+          : [];
+
+      const descripcion =
+        fila.descripcion_corta
+          ?.trim() ||
+        fila.descripcion?.trim() ||
+        null;
+
+      const ubicacion =
+        fila.ubicacion?.trim() ||
+        fila.direccion?.trim() ||
+        null;
+
+      return [
+        {
+          id:
+            `evento-${fila.id}`,
+
+          titulo,
+
+          fecha:
+            fechaInicio,
+
+          fechaFin,
+
+          tipo:
+            "evento" as const,
+
+          horaInicio:
+            fila.todo_el_dia
+              ? null
+              : normalizarHora(
+                  fila.hora_inicio,
+                ),
+
+          horaFin:
+            fila.todo_el_dia
+              ? null
+              : normalizarHora(
+                  fila.hora_fin,
+                ),
+
+          ubicacion,
+          descripcion,
+          categoria: null,
+
+          url:
+            fila.url_informacion
+              ?.trim() ||
+            null,
+
+          equipoId: null,
+          equipoNombre: null,
+
+          alcance,
+
+          equiposIds,
+        },
+      ];
+    },
+  );
+}
+
+function obtenerPrioridadTipo(
+  tipo: TipoEventoCalendario,
+): number {
+  if (tipo === "evento") {
+    return 0;
+  }
+
+  if (
+    tipo === "partido-casa" ||
+    tipo === "partido-fuera"
+  ) {
+    return 1;
+  }
+
+  if (
+    tipo ===
+      "entreno-modificado" ||
+    tipo ===
+      "entreno-cancelado"
+  ) {
+    return 2;
+  }
+
+  return 3;
 }
 
 function eliminarEventosDuplicados(
@@ -1301,6 +1602,7 @@ function eliminarEventosDuplicados(
       const clave = [
         evento.id,
         evento.fecha,
+        evento.fechaFin ?? "",
         evento.tipo,
       ].join(":");
 
@@ -1332,12 +1634,38 @@ function eliminarEventosDuplicados(
         return comparacionFecha;
       }
 
-      return (
-        primero.horaInicio ??
-        "99:99"
-      ).localeCompare(
-        segundo.horaInicio ??
-          "99:99",
+      const comparacionTipo =
+        obtenerPrioridadTipo(
+          primero.tipo,
+        ) -
+        obtenerPrioridadTipo(
+          segundo.tipo,
+        );
+
+      if (
+        comparacionTipo !== 0
+      ) {
+        return comparacionTipo;
+      }
+
+      const comparacionHora =
+        (
+          primero.horaInicio ??
+          "99:99"
+        ).localeCompare(
+          segundo.horaInicio ??
+            "99:99",
+        );
+
+      if (
+        comparacionHora !== 0
+      ) {
+        return comparacionHora;
+      }
+
+      return primero.titulo.localeCompare(
+        segundo.titulo,
+        "es",
       );
     },
   );
@@ -1382,16 +1710,26 @@ export const GET: APIRoute =
     }
 
     try {
+      const rangoMes =
+        obtenerRangoMes(
+          anio,
+          mes,
+        );
+
       const {
-        data: temporadaEncontrada,
-        error: errorTemporada,
-      } =
-        await supabaseServidor
-          .from("temporadas")
-          .select("id, nombre")
-          .eq("activa", true)
-          .limit(1)
-          .maybeSingle();
+        data:
+          temporadaEncontrada,
+
+        error:
+          errorTemporada,
+      } = await supabaseServidor
+        .from("temporadas")
+        .select(
+          "id, nombre",
+        )
+        .eq("activa", true)
+        .limit(1)
+        .maybeSingle();
 
       if (errorTemporada) {
         throw new Error(
@@ -1410,6 +1748,9 @@ export const GET: APIRoute =
               temporadaId:
                 null,
 
+              temporadaNombre:
+                null,
+
               eventos: [],
             },
 
@@ -1426,63 +1767,112 @@ export const GET: APIRoute =
       const temporada =
         temporadaEncontrada as FilaTemporada;
 
-      const {
-        data: equiposEncontrados,
-        error: errorEquipos,
-      } =
-        await supabaseServidor
+      const [
+        resultadoEquipos,
+        resultadoEventos,
+      ] = await Promise.all([
+        supabaseServidor
           .from("equipos")
           .select(`
             id,
             nombre,
             nombre_corto,
             temporada_id,
-            id_equipo_fbib
+            id_equipo_fbib,
+            categoria
           `)
           .eq(
             "temporada_id",
             temporada.id,
           )
           .eq("activo", true)
-          .order("nombre", {
-            ascending: true,
-          });
+          .order(
+            "nombre",
+            {
+              ascending: true,
+            },
+          ),
 
-      if (errorEquipos) {
+        supabaseServidor
+          .from("eventos")
+          .select(`
+            id,
+            temporada_id,
+            titulo,
+            descripcion_corta,
+            descripcion,
+            tipo,
+            alcance,
+            fecha_inicio,
+            fecha_fin,
+            hora_inicio,
+            hora_fin,
+            todo_el_dia,
+            instalacion_id,
+            ubicacion,
+            direccion,
+            imagen,
+            banner_notificacion,
+            url_informacion,
+            url_inscripcion,
+            requiere_inscripcion,
+            destacado,
+            mostrar_calendario,
+            estado,
+            eventos_equipos (
+              equipo_id
+            )
+          `)
+          .eq(
+            "estado",
+            "publicado",
+          )
+          .eq(
+            "mostrar_calendario",
+            true,
+          )
+          .lte(
+            "fecha_inicio",
+            rangoMes.fin,
+          )
+          .gte(
+            "fecha_fin",
+            rangoMes.inicio,
+          )
+          .or(
+            `temporada_id.eq.${temporada.id},temporada_id.is.null`,
+          ),
+      ]);
+
+      if (
+        resultadoEquipos.error
+      ) {
         throw new Error(
-          `No se han podido obtener los equipos: ${errorEquipos.message}`,
+          `No se han podido obtener los equipos: ${resultadoEquipos.error.message}`,
+        );
+      }
+
+      if (
+        resultadoEventos.error
+      ) {
+        throw new Error(
+          `No se han podido obtener los eventos: ${resultadoEventos.error.message}`,
         );
       }
 
       const equipos =
         (
-          equiposEncontrados ??
+          resultadoEquipos.data ??
           []
         ) as FilaEquipo[];
 
-      if (
-        equipos.length === 0
-      ) {
-        return Response.json(
-          {
-            ok: true,
-
-            data: {
-              temporadaId:
-                temporada.id,
-
-              eventos: [],
-            },
-
-            error: null,
-          },
-          {
-            status: 200,
-            headers:
-              cabecerasJson,
-          },
+      const eventosTabla =
+        convertirEventosTabla(
+          (
+            resultadoEventos.data ??
+            []
+          ) as FilaEvento[],
         );
-      }
 
       const idsEquipos =
         equipos.map(
@@ -1490,97 +1880,107 @@ export const GET: APIRoute =
             equipo.id,
         );
 
-      const rangoMes =
-        obtenerRangoMes(
-          anio,
-          mes,
-        );
+      let entrenamientos:
+        FilaEntrenamiento[] =
+        [];
 
-      const [
-        resultadoEntrenamientos,
-        resultadoExcepciones,
-      ] = await Promise.all([
-        supabaseServidor
-          .from("entrenamientos")
-          .select(`
-            id,
-            equipo_id,
-            temporada_id,
-            instalacion_id,
-            dia_semana,
-            hora_inicio,
-            hora_fin,
-            fecha_inicio,
-            fecha_fin,
-            observaciones,
-            activo
-          `)
-          .eq(
-            "temporada_id",
-            temporada.id,
-          )
-          .eq("activo", true)
-          .in(
-            "equipo_id",
-            idsEquipos,
-          ),
-
-        supabaseServidor
-          .from(
-            "excepciones_entrenamientos",
-          )
-          .select(`
-            id,
-            equipo_id,
-            entrenamiento_id,
-            instalacion_id,
-            tipo,
-            fecha,
-            hora_inicio,
-            hora_fin,
-            motivo
-          `)
-          .in(
-            "equipo_id",
-            idsEquipos,
-          )
-          .gte(
-            "fecha",
-            rangoMes.inicio,
-          )
-          .lte(
-            "fecha",
-            rangoMes.fin,
-          ),
-      ]);
+      let excepciones:
+        FilaExcepcion[] = [];
 
       if (
-        resultadoEntrenamientos.error
+        idsEquipos.length > 0
       ) {
-        throw new Error(
-          `No se han podido obtener los entrenamientos: ${resultadoEntrenamientos.error.message}`,
-        );
+        const [
+          resultadoEntrenamientos,
+          resultadoExcepciones,
+        ] = await Promise.all([
+          supabaseServidor
+            .from(
+              "entrenamientos",
+            )
+            .select(`
+              id,
+              equipo_id,
+              temporada_id,
+              instalacion_id,
+              dia_semana,
+              hora_inicio,
+              hora_fin,
+              fecha_inicio,
+              fecha_fin,
+              observaciones,
+              activo
+            `)
+            .eq(
+              "temporada_id",
+              temporada.id,
+            )
+            .eq(
+              "activo",
+              true,
+            )
+            .in(
+              "equipo_id",
+              idsEquipos,
+            ),
+
+          supabaseServidor
+            .from(
+              "excepciones_entrenamientos",
+            )
+            .select(`
+              id,
+              equipo_id,
+              entrenamiento_id,
+              instalacion_id,
+              tipo,
+              fecha,
+              hora_inicio,
+              hora_fin,
+              motivo
+            `)
+            .in(
+              "equipo_id",
+              idsEquipos,
+            )
+            .gte(
+              "fecha",
+              rangoMes.inicio,
+            )
+            .lte(
+              "fecha",
+              rangoMes.fin,
+            ),
+        ]);
+
+        if (
+          resultadoEntrenamientos.error
+        ) {
+          throw new Error(
+            `No se han podido obtener los entrenamientos: ${resultadoEntrenamientos.error.message}`,
+          );
+        }
+
+        if (
+          resultadoExcepciones.error
+        ) {
+          throw new Error(
+            `No se han podido obtener las excepciones: ${resultadoExcepciones.error.message}`,
+          );
+        }
+
+        entrenamientos =
+          (
+            resultadoEntrenamientos.data ??
+            []
+          ) as FilaEntrenamiento[];
+
+        excepciones =
+          (
+            resultadoExcepciones.data ??
+            []
+          ) as FilaExcepcion[];
       }
-
-      if (
-        resultadoExcepciones.error
-      ) {
-        throw new Error(
-          `No se han podido obtener las excepciones: ${resultadoExcepciones.error.message}`,
-        );
-      }
-
-      const entrenamientos =
-        (
-          resultadoEntrenamientos.data ??
-          []
-        ) as FilaEntrenamiento[];
-
-      const excepciones =
-        (
-          resultadoExcepciones.data ??
-          []
-        ) as FilaExcepcion[];
 
       const idsInstalaciones =
         Array.from(
@@ -1617,22 +2017,21 @@ export const GET: APIRoute =
         const {
           data,
           error,
-        } =
-          await supabaseServidor
-            .from(
-              "instalaciones",
-            )
-            .select(`
-              id,
-              nombre,
-              nombre_corto,
-              direccion,
-              localidad
-            `)
-            .in(
-              "id",
-              idsInstalaciones,
-            );
+        } = await supabaseServidor
+          .from(
+            "instalaciones",
+          )
+          .select(`
+            id,
+            nombre,
+            nombre_corto,
+            direccion,
+            localidad
+          `)
+          .in(
+            "id",
+            idsInstalaciones,
+          );
 
         if (error) {
           throw new Error(
@@ -1712,8 +2111,9 @@ export const GET: APIRoute =
       const eventos =
         eliminarEventosDuplicados(
           [
-            ...eventosEntrenamientos,
+            ...eventosTabla,
             ...eventosPartidos,
+            ...eventosEntrenamientos,
           ],
         );
 

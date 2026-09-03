@@ -22,6 +22,7 @@ export interface EventoCalendario {
   horaFin?: string | null;
   ubicacion?: string | null;
   descripcion?: string | null;
+  categoria?: string | null;
   color?: string | null;
   url?: string | null;
 }
@@ -157,16 +158,6 @@ function obtenerEsquemaEvento(
   return esquemasEventos[tipo];
 }
 
-/**
- * Carga automáticamente el SVG correspondiente:
- *
- * /public/iconos/calendario/evento.svg
- * /public/iconos/calendario/entreno.svg
- * /public/iconos/calendario/entreno-modificado.svg
- * /public/iconos/calendario/entreno-cancelado.svg
- * /public/iconos/calendario/partido-casa.svg
- * /public/iconos/calendario/partido-fuera.svg
- */
 function IconoEventoCalendario({
   tipo,
   color,
@@ -320,12 +311,16 @@ function obtenerTemporadaActual(
   return {
     anioInicio,
     anioFin,
+
     fechaInicio:
       `${anioInicio}-08-01`,
+
     fechaFin:
       `${anioFin}-07-31`,
+
     mesInicio:
       anioInicio * 12 + 7,
+
     mesFin:
       anioFin * 12 + 6,
   };
@@ -574,18 +569,59 @@ function formatearHora(
   return hora.slice(0, 5);
 }
 
+function obtenerPrioridadEvento(
+  tipo: TipoEventoCalendario,
+): number {
+  switch (tipo) {
+    case "evento":
+      return 0;
+
+    case "partido-casa":
+    case "partido-fuera":
+      return 1;
+
+    case "entreno-modificado":
+    case "entreno-cancelado":
+      return 2;
+
+    case "entreno":
+      return 3;
+
+    default:
+      return 4;
+  }
+}
+
 function ordenarEventos(
   eventos: EventoCalendario[],
 ): EventoCalendario[] {
   return [...eventos].sort(
     (primero, segundo) => {
+      const comparacionPrioridad =
+        obtenerPrioridadEvento(
+          primero.tipo,
+        ) -
+        obtenerPrioridadEvento(
+          segundo.tipo,
+        );
+
+      if (
+        comparacionPrioridad !== 0
+      ) {
+        return comparacionPrioridad;
+      }
+
       const horaPrimero =
-        primero.horaInicio ??
-        "99:99";
+        primero.horaInicio?.slice(
+          0,
+          5,
+        ) ?? "99:99";
 
       const horaSegundo =
-        segundo.horaInicio ??
-        "99:99";
+        segundo.horaInicio?.slice(
+          0,
+          5,
+        ) ?? "99:99";
 
       const comparacionHora =
         horaPrimero.localeCompare(
@@ -601,6 +637,9 @@ function ordenarEventos(
       return primero.titulo.localeCompare(
         segundo.titulo,
         "es",
+        {
+          sensitivity: "base",
+        },
       );
     },
   );
@@ -706,6 +745,17 @@ function eventoEstaCancelado(
   return (
     evento.tipo ===
     "entreno-cancelado"
+  );
+}
+
+function esPartido(
+  evento: EventoCalendario,
+): boolean {
+  return (
+    evento.tipo ===
+      "partido-casa" ||
+    evento.tipo ===
+      "partido-fuera"
   );
 }
 
@@ -1209,6 +1259,10 @@ export default function CalendarioTemporada({
                     evento.horaFin,
                   );
 
+                const categoria =
+                  evento.categoria
+                    ?.trim() || null;
+
                 const cancelado =
                   eventoEstaCancelado(
                     evento,
@@ -1289,6 +1343,13 @@ export default function CalendarioTemporada({
                       >
                         {evento.titulo}
                       </span>
+
+                      {esPartido(evento) &&
+                        categoria && (
+                          <span className="mt-1 text-xs font-bold uppercase tracking-wide text-secondary">
+                            {categoria}
+                          </span>
+                        )}
 
                       {evento.ubicacion && (
                         <span
