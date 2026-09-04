@@ -36,7 +36,9 @@ interface RespuestaActualizacion {
 }
 
 function obtenerTexto(
-  valor: string | null,
+  valor:
+    | string
+    | null,
 ): string {
   return valor ?? "";
 }
@@ -100,18 +102,16 @@ export default function DatosSocioPanel({
   const [
     mensaje,
     setMensaje,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<
+    string | null
+  >(null);
 
   const [
     error,
     setError,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<
+    string | null
+  >(null);
 
   const [
     erroresCampo,
@@ -119,6 +119,13 @@ export default function DatosSocioPanel({
   ] = useState<
     ErrorCampo[]
   >([]);
+
+  const carnetActual =
+    socio.carnetActual;
+
+  const numeroSocioActual =
+    carnetActual?.numeroSocio ??
+    null;
 
   useEffect(() => {
     setNombre(
@@ -148,7 +155,19 @@ export default function DatosSocioPanel({
     setActivo(
       socio.activo,
     );
-  }, [socio]);
+
+    setMensaje(null);
+    setError(null);
+    setErroresCampo([]);
+  }, [
+    socio.id,
+    socio.nombre,
+    socio.apellidos,
+    socio.email,
+    socio.telefono,
+    socio.observaciones,
+    socio.activo,
+  ]);
 
   function obtenerErrorCampo(
     campo: string,
@@ -202,9 +221,16 @@ export default function DatosSocioPanel({
 
             body:
               JSON.stringify({
-                nombre,
-                apellidos,
-                email,
+                nombre:
+                  nombre.trim(),
+
+                apellidos:
+                  apellidos.trim(),
+
+                email:
+                  email
+                    .trim()
+                    .toLowerCase(),
 
                 telefono:
                   telefono.trim() ||
@@ -266,10 +292,12 @@ export default function DatosSocioPanel({
   }
 
   const formularioModificado =
-    nombre !== socio.nombre ||
+    nombre !==
+      socio.nombre ||
     apellidos !==
       socio.apellidos ||
-    email !== socio.email ||
+    email !==
+      socio.email ||
     telefono !==
       obtenerTexto(
         socio.telefono,
@@ -278,10 +306,8 @@ export default function DatosSocioPanel({
       obtenerTexto(
         socio.observaciones,
       ) ||
-    activo !== socio.activo;
-
-  const carnetActual =
-    socio.carnetActual;
+    activo !==
+      socio.activo;
 
   return (
     <form
@@ -298,28 +324,31 @@ export default function DatosSocioPanel({
             </h2>
 
             <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-              Información personal y estado general del acceso.
+              Información personal y
+              estado general del socio.
             </p>
           </div>
 
-          {carnetActual ? (
-            <div className="flex w-fit flex-col items-start gap-1 rounded-xl border border-outline-variant bg-surface-container px-3 py-2">
-              <span className="text-xs font-bold text-on-surface">
+          {numeroSocioActual !==
+          null ? (
+            <div className="flex flex-col items-start gap-1 sm:items-end">
+              <span className="w-fit rounded-full border border-outline-variant bg-surface-container px-3 py-1.5 text-xs font-bold text-on-surface-variant">
                 Socio nº{" "}
                 {
-                  carnetActual.numeroSocio
+                  numeroSocioActual
                 }
               </span>
 
-              <span className="font-mono text-[0.7rem] font-semibold text-on-surface-variant">
+              <span className="text-xs text-on-surface-variant">
                 {
-                  carnetActual.numeroCarnet
+                  carnetActual
+                    ?.temporada.nombre
                 }
               </span>
             </div>
           ) : (
             <span className="w-fit rounded-full border border-tertiary/30 bg-tertiary-container px-3 py-1.5 text-xs font-bold text-on-tertiary-container">
-              Sin carnet en la temporada activa
+              Sin carnet actual
             </span>
           )}
         </div>
@@ -369,7 +398,9 @@ export default function DatosSocioPanel({
 
           <input
             type="text"
-            value={apellidos}
+            value={
+              apellidos
+            }
             onChange={(evento) =>
               setApellidos(
                 evento.target.value,
@@ -429,7 +460,9 @@ export default function DatosSocioPanel({
 
           <input
             type="tel"
-            value={telefono}
+            value={
+              telefono
+            }
             onChange={(evento) =>
               setTelefono(
                 evento.target.value,
@@ -494,7 +527,10 @@ export default function DatosSocioPanel({
             </span>
 
             <span className="mt-1 block text-xs leading-5 text-on-surface-variant">
-              Al desactivarlo se bloqueará el acceso público de todos sus carnets, aunque alguno figure como activo.
+              Al desactivarlo se bloqueará
+              el acceso público de todos sus
+              carnets, aunque alguno figure
+              como activo.
             </span>
           </span>
 
@@ -536,11 +572,15 @@ export default function DatosSocioPanel({
       <footer className="flex flex-col gap-3 border-t border-outline-variant/60 bg-surface-container-low px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
         {!puedeEditar ? (
           <p className="text-xs text-on-surface-variant">
-            Puedes consultar los datos, pero no modificarlos.
+            Puedes consultar los datos,
+            pero no modificarlos.
           </p>
         ) : (
           <p className="text-xs text-on-surface-variant">
-            La numeración se gestiona por separado desde los carnets de cada temporada.
+            Estos cambios no modifican los
+            números, contraseñas ni estados
+            de los carnets de cada
+            temporada.
           </p>
         )}
 

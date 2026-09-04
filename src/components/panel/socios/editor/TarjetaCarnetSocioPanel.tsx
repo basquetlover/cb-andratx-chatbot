@@ -16,7 +16,9 @@ interface Propiedades {
   carnet:
     CarnetTemporadaSocio;
 
-  tiposSocio: string[];
+  tiposSocio:
+    string[];
+
   puedeEditar: boolean;
 
   alActualizar: (
@@ -35,7 +37,9 @@ interface RespuestaActualizarCarnet {
 }
 
 const estadosCarnet: Array<{
-  valor: EstadoCarnetSocio;
+  valor:
+    EstadoCarnetSocio;
+
   nombre: string;
   descripcion: string;
 }> = [
@@ -43,19 +47,19 @@ const estadosCarnet: Array<{
     valor: "pendiente",
     nombre: "Pendiente",
     descripcion:
-      "El carnet todavía no permite acceder.",
+      "El carnet todavía no permite iniciar sesión.",
   },
   {
     valor: "activo",
     nombre: "Activo",
     descripcion:
-      "El socio puede iniciar sesión y consultar su carnet.",
+      "El socio puede iniciar sesión y consultar este carnet.",
   },
   {
     valor: "bloqueado",
     nombre: "Bloqueado",
     descripcion:
-      "El acceso de este carnet queda bloqueado hasta que vuelva a activarse.",
+      "El carnet queda bloqueado administrativamente hasta que vuelva a activarse.",
   },
   {
     valor: "caducado",
@@ -70,14 +74,17 @@ function obtenerNombreTemporada(
     CarnetTemporadaSocio,
 ): string {
   return (
-    carnet.temporada.nombre
-      .trim() ||
+    carnet.temporada
+      ?.nombre
+      ?.trim() ||
     "Temporada"
   );
 }
 
 function formatearFecha(
-  fecha: string | null,
+  fecha:
+    | string
+    | null,
 ): string {
   if (!fecha) {
     return "No indicada";
@@ -102,6 +109,7 @@ function formatearFecha(
       day: "numeric",
       month: "long",
       year: "numeric",
+
       timeZone:
         "Europe/Madrid",
     },
@@ -111,7 +119,9 @@ function formatearFecha(
 }
 
 function formatearFechaHora(
-  fecha: string | null,
+  fecha:
+    | string
+    | null,
 ): string {
   if (!fecha) {
     return "No disponible";
@@ -136,6 +146,7 @@ function formatearFechaHora(
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+
       timeZone:
         "Europe/Madrid",
     },
@@ -173,7 +184,8 @@ function obtenerNombreEstado(
       (opcion) =>
         opcion.valor ===
         estado,
-    )?.nombre ?? estado
+    )?.nombre ??
+    estado
   );
 }
 
@@ -220,14 +232,15 @@ export default function TarjetaCarnetSocioPanel({
     fechaAlta,
     setFechaAlta,
   ] = useState(
-    carnet.fechaAlta,
+    carnet.fechaAlta ?? "",
   );
 
   const [
     fechaCaducidad,
     setFechaCaducidad,
   ] = useState(
-    carnet.fechaCaducidad,
+    carnet.fechaCaducidad ??
+      "",
   );
 
   const [
@@ -246,18 +259,16 @@ export default function TarjetaCarnetSocioPanel({
   const [
     error,
     setError,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<
+    string | null
+  >(null);
 
   const [
     mensaje,
     setMensaje,
-  ] =
-    useState<string | null>(
-      null,
-    );
+  ] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setTipoSocio(
@@ -271,11 +282,12 @@ export default function TarjetaCarnetSocioPanel({
     );
 
     setFechaAlta(
-      carnet.fechaAlta,
+      carnet.fechaAlta ?? "",
     );
 
     setFechaCaducidad(
-      carnet.fechaCaducidad,
+      carnet.fechaCaducidad ??
+        "",
     );
 
     setMotivoBloqueo(
@@ -286,56 +298,66 @@ export default function TarjetaCarnetSocioPanel({
     setError(null);
     setMensaje(null);
     setEditando(false);
-  }, [carnet]);
+  }, [
+    carnet.id,
+    carnet.tipoSocio,
+    carnet.estado,
+    carnet.fechaAlta,
+    carnet.fechaCaducidad,
+    carnet.motivoBloqueo,
+  ]);
 
   const opcionesTipoSocio =
-    useMemo(() => {
-      const opciones =
-        new Set<string>();
+    useMemo(
+      () => {
+        const opciones =
+          new Set<string>();
 
-      opciones.add(
-        "General",
-      );
-
-      tiposSocio.forEach(
-        (tipo) => {
-          const tipoLimpio =
-            tipo.trim();
-
-          if (tipoLimpio) {
-            opciones.add(
-              tipoLimpio,
-            );
-          }
-        },
-      );
-
-      const tipoActual =
-        carnet.tipoSocio
-          ?.trim();
-
-      if (tipoActual) {
         opciones.add(
-          tipoActual,
+          "General",
         );
-      }
 
-      return Array.from(
-        opciones,
-      ).sort(
-        (
-          tipoA,
-          tipoB,
-        ) =>
-          tipoA.localeCompare(
+        tiposSocio.forEach(
+          (tipo) => {
+            const tipoLimpio =
+              tipo.trim();
+
+            if (tipoLimpio) {
+              opciones.add(
+                tipoLimpio,
+              );
+            }
+          },
+        );
+
+        const tipoActual =
+          carnet.tipoSocio
+            ?.trim();
+
+        if (tipoActual) {
+          opciones.add(
+            tipoActual,
+          );
+        }
+
+        return Array.from(
+          opciones,
+        ).sort(
+          (
+            tipoA,
             tipoB,
-            "es",
-          ),
-      );
-    }, [
-      tiposSocio,
-      carnet.tipoSocio,
-    ]);
+          ) =>
+            tipoA.localeCompare(
+              tipoB,
+              "es",
+            ),
+        );
+      },
+      [
+        tiposSocio,
+        carnet.tipoSocio,
+      ],
+    );
 
   const estadoSeleccionado =
     estadosCarnet.find(
@@ -354,15 +376,28 @@ export default function TarjetaCarnetSocioPanel({
     estado !==
       carnet.estado ||
     fechaAlta !==
-      carnet.fechaAlta ||
+      (
+        carnet.fechaAlta ??
+        ""
+      ) ||
     fechaCaducidad !==
-      carnet.fechaCaducidad ||
+      (
+        carnet.fechaCaducidad ??
+        ""
+      ) ||
     motivoBloqueo.trim() !==
       (
         carnet.motivoBloqueo
           ?.trim() ??
         ""
       );
+
+  const bloqueoTemporal =
+    carnet.accesoBloqueado;
+
+  const tieneIntentosFallidos =
+    carnet.intentosFallidos >
+    0;
 
   function restablecerFormulario() {
     setTipoSocio(
@@ -376,11 +411,12 @@ export default function TarjetaCarnetSocioPanel({
     );
 
     setFechaAlta(
-      carnet.fechaAlta,
+      carnet.fechaAlta ?? "",
     );
 
     setFechaCaducidad(
-      carnet.fechaCaducidad,
+      carnet.fechaCaducidad ??
+        "",
     );
 
     setMotivoBloqueo(
@@ -397,6 +433,38 @@ export default function TarjetaCarnetSocioPanel({
     setEditando(false);
   }
 
+  function validarFormulario():
+    string | null {
+    if (!tipoSocio.trim()) {
+      return "Debes seleccionar un tipo de socio.";
+    }
+
+    if (!fechaAlta) {
+      return "Debes indicar la fecha de alta.";
+    }
+
+    if (!fechaCaducidad) {
+      return "Debes indicar la fecha de caducidad.";
+    }
+
+    if (
+      fechaCaducidad <
+      fechaAlta
+    ) {
+      return "La fecha de caducidad no puede ser anterior a la fecha de alta.";
+    }
+
+    if (
+      estado ===
+        "bloqueado" &&
+      !motivoBloqueo.trim()
+    ) {
+      return "Debes indicar el motivo del bloqueo administrativo.";
+    }
+
+    return null;
+  }
+
   async function guardarCambios() {
     if (
       !puedeEditar ||
@@ -406,35 +474,12 @@ export default function TarjetaCarnetSocioPanel({
       return;
     }
 
-    if (
-      !fechaAlta ||
-      !fechaCaducidad
-    ) {
+    const errorValidacion =
+      validarFormulario();
+
+    if (errorValidacion) {
       setError(
-        "Debes indicar las fechas de alta y caducidad.",
-      );
-
-      return;
-    }
-
-    if (
-      fechaCaducidad <
-      fechaAlta
-    ) {
-      setError(
-        "La fecha de caducidad no puede ser anterior a la fecha de alta.",
-      );
-
-      return;
-    }
-
-    if (
-      estado ===
-        "bloqueado" &&
-      !motivoBloqueo.trim()
-    ) {
-      setError(
-        "Debes indicar el motivo del bloqueo.",
+        errorValidacion,
       );
 
       return;
@@ -469,8 +514,7 @@ export default function TarjetaCarnetSocioPanel({
             body:
               JSON.stringify({
                 tipoSocio:
-                  tipoSocio.trim() ||
-                  "General",
+                  tipoSocio.trim(),
 
                 estado,
 
@@ -481,8 +525,7 @@ export default function TarjetaCarnetSocioPanel({
                 motivoBloqueo:
                   estado ===
                   "bloqueado"
-                    ? motivoBloqueo.trim() ||
-                      null
+                    ? motivoBloqueo.trim()
                     : null,
               }),
           },
@@ -509,7 +552,12 @@ export default function TarjetaCarnetSocioPanel({
       );
 
       setMensaje(
-        "El carnet se ha actualizado correctamente.",
+        estado ===
+          "activo" &&
+          carnet.estado !==
+            "activo"
+          ? "El carnet se ha activado correctamente. Si todavía no se había enviado, se ha intentado enviar el correo de bienvenida."
+          : "El carnet se ha actualizado correctamente.",
       );
 
       setEditando(false);
@@ -540,13 +588,6 @@ export default function TarjetaCarnetSocioPanel({
               )}
             </h3>
 
-            {carnet.temporada
-              .activa && (
-              <span className="inline-flex rounded-full border border-primary/30 bg-primary-container px-2.5 py-1 text-xs font-bold text-on-primary-container">
-                Temporada activa
-              </span>
-            )}
-
             <span
               className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-bold ${obtenerClasesEstado(
                 carnet.estado,
@@ -556,28 +597,61 @@ export default function TarjetaCarnetSocioPanel({
                 carnet.estado,
               )}
             </span>
+
+            {carnet.temporada
+              .activa && (
+              <span className="inline-flex rounded-full border border-primary/30 bg-primary-container px-2.5 py-1 text-xs font-bold text-on-primary-container">
+                Temporada activa
+              </span>
+            )}
+
+            {bloqueoTemporal && (
+              <span className="inline-flex rounded-full border border-error/30 bg-error-container px-2.5 py-1 text-xs font-bold text-on-error-container">
+                Acceso temporalmente
+                bloqueado
+              </span>
+            )}
+
+            {!bloqueoTemporal &&
+              tieneIntentosFallidos && (
+                <span className="inline-flex rounded-full border border-tertiary/30 bg-tertiary-container px-2.5 py-1 text-xs font-bold text-on-tertiary-container">
+                  {
+                    carnet.intentosFallidos
+                  }{" "}
+                  {carnet.intentosFallidos ===
+                  1
+                    ? "intento fallido"
+                    : "intentos fallidos"}
+                </span>
+              )}
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <p className="font-mono text-xl font-black tracking-wide text-primary">
-              {
-                carnet.numeroCarnet
-              }
-            </p>
+          <p className="mt-2 font-mono text-xl font-black tracking-wide text-primary">
+            {
+              carnet.numeroCarnet
+            }
+          </p>
 
-            <span className="rounded-full border border-outline-variant bg-surface-container-lowest px-3 py-1 text-xs font-bold text-on-surface-variant">
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-on-surface-variant">
+            <span>
               Socio nº{" "}
               {
                 carnet.numeroSocio
               }
             </span>
-          </div>
 
-          <p className="mt-2 text-sm text-on-surface-variant">
-            {carnet.tipoSocio
-              ?.trim() ||
-              "General"}
-          </p>
+            <span
+              aria-hidden="true"
+            >
+              ·
+            </span>
+
+            <span>
+              {carnet.tipoSocio
+                ?.trim() ||
+                "General"}
+            </span>
+          </div>
         </div>
 
         {puedeEditar &&
@@ -670,8 +744,7 @@ export default function TarjetaCarnetSocioPanel({
                 value={estado}
                 onChange={(evento) => {
                   const nuevoEstado =
-                    evento.target
-                      .value;
+                    evento.target.value;
 
                   if (
                     esEstadoCarnet(
@@ -709,8 +782,7 @@ export default function TarjetaCarnetSocioPanel({
               {estadoSeleccionado && (
                 <span className="text-xs leading-5 text-on-surface-variant">
                   {
-                    estadoSeleccionado
-                      .descripcion
+                    estadoSeleccionado.descripcion
                   }
                 </span>
               )}
@@ -731,14 +803,6 @@ export default function TarjetaCarnetSocioPanel({
                     evento.target.value,
                   )
                 }
-                min={
-                  carnet.temporada
-                    .fechaInicio
-                }
-                max={
-                  carnet.temporada
-                    .fechaFin
-                }
                 disabled={
                   guardando
                 }
@@ -757,19 +821,14 @@ export default function TarjetaCarnetSocioPanel({
                 value={
                   fechaCaducidad
                 }
+                min={
+                  fechaAlta ||
+                  undefined
+                }
                 onChange={(evento) =>
                   setFechaCaducidad(
                     evento.target.value,
                   )
-                }
-                min={
-                  fechaAlta ||
-                  carnet.temporada
-                    .fechaInicio
-                }
-                max={
-                  carnet.temporada
-                    .fechaFin
                 }
                 disabled={
                   guardando
@@ -802,7 +861,7 @@ export default function TarjetaCarnetSocioPanel({
                 required
                 rows={3}
                 maxLength={500}
-                placeholder="Indica por qué se ha bloqueado este carnet"
+                placeholder="Indica por qué se ha bloqueado administrativamente este carnet"
                 className="resize-y rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-3 text-sm text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-60"
               />
             </label>
@@ -810,7 +869,17 @@ export default function TarjetaCarnetSocioPanel({
 
           <div className="rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3">
             <p className="text-xs leading-5 text-on-surface-variant">
-              El número de socio y el número de carnet no pueden modificarse después de crear el carnet. Al cambiar su estado se invalidarán los accesos anteriores de esta temporada. La contraseña permanente no cambiará.
+              Al cambiar el estado se
+              invalidarán las sesiones
+              anteriores de este carnet. La
+              contraseña seguirá siendo su
+              número de carnet:{" "}
+              <strong className="font-mono text-on-surface">
+                {
+                  carnet.numeroCarnet
+                }
+              </strong>
+              .
             </p>
           </div>
 
@@ -853,7 +922,7 @@ export default function TarjetaCarnetSocioPanel({
           </div>
         </div>
       ) : (
-        <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+        <div className="grid gap-4 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-3">
           <div className="rounded-xl bg-surface-container-low p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
               Número de socio
@@ -902,19 +971,67 @@ export default function TarjetaCarnetSocioPanel({
             </p>
           </div>
 
-          <div className="rounded-xl bg-surface-container-low p-4 sm:col-span-2">
+          <div className="rounded-xl bg-surface-container-low p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-              Activado
+              Intentos fallidos
+            </p>
+
+            <p
+              className={`mt-1 text-sm font-bold ${
+                tieneIntentosFallidos
+                  ? "text-error"
+                  : "text-on-surface"
+              }`}
+            >
+              {
+                carnet.intentosFallidos
+              }
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-surface-container-low p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Bloqueado hasta
+            </p>
+
+            <p className="mt-1 text-sm font-bold text-on-surface">
+              {carnet.bloqueadoHasta
+                ? formatearFechaHora(
+                    carnet.bloqueadoHasta,
+                  )
+                : "Sin bloqueo temporal"}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-surface-container-low p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Último acceso
             </p>
 
             <p className="mt-1 text-sm font-bold text-on-surface">
               {formatearFechaHora(
-                carnet.activadoAt,
+                carnet.ultimoAccesoAt,
               )}
             </p>
           </div>
 
-          <div className="roundedrounded-xl bg-surface-container-low p-4 sm:col-span-2">
+          <div className="rounded-xl bg-surface-container-low p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+              Correo de bienvenida
+            </p>
+
+            <p className="mt-1 text-sm font-bold text-on-surface">
+              {carnet
+                .emailBienvenidaEnviadoAt
+                ? formatearFechaHora(
+                    carnet
+                      .emailBienvenidaEnviadoAt,
+                  )
+                : "No enviado"}
+            </p>
+          </div>
+
+          <div className="rounded-xl bg-surface-container-low p-4">
             <p className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
               Última actualización
             </p>
@@ -928,22 +1045,16 @@ export default function TarjetaCarnetSocioPanel({
 
           {carnet.estado ===
             "bloqueado" && (
-            <div className="rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container sm:col-span-2 lg:col-span-4">
+            <div className="rounded-xl border border-error/30 bg-error-container p-4 text-on-error-container sm:col-span-2 lg:col-span-3">
               <p className="text-xs font-bold uppercase tracking-wide">
                 Motivo del bloqueo
+                administrativo
               </p>
 
               <p className="mt-1 text-sm">
                 {carnet.motivoBloqueo
                   ?.trim() ||
                   "No se ha indicado ningún motivo."}
-              </p>
-
-              <p className="mt-2 text-xs opacity-80">
-                Bloqueado el{" "}
-                {formatearFechaHora(
-                  carnet.bloqueadoAt,
-                )}
               </p>
             </div>
           )}

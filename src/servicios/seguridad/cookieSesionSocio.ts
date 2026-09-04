@@ -33,9 +33,7 @@ export interface OpcionesCookieSesionSocio {
 
 function obtenerSecretoSesionSocio(): string {
   const secreto =
-    import.meta.env
-      .SOCIOS_SESSION_SECRET
-      ?.trim();
+    import.meta.env.SOCIOS_SESSION_SECRET ?.trim();
 
   if (!secreto) {
     throw new Error(
