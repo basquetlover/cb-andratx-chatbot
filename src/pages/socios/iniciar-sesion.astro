@@ -1,0 +1,523 @@
+---
+import Layout from "@layouts/Layout.astro";
+
+export const prerender = false;
+
+const motivo =
+  Astro.url.searchParams
+    .get("motivo")
+    ?.trim() ?? "";
+
+const mensajesMotivo:
+  Record<string, string> = {
+  "sesion-caducada":
+    "Tu sesión ha caducado. Vuelve a iniciar sesión para consultar el carnet.",
+
+  "sesion-no-valida":
+    "La sesión guardada ya no es válida. Vuelve a iniciar sesión.",
+
+  "socio-desactivado":
+    "El acceso del socio está desactivado. Contacta con el club si consideras que se trata de un error.",
+
+  "carnet-bloqueado":
+    "El carnet está bloqueado y no puede consultarse en este momento.",
+
+  "carnet-caducado":
+    "El carnet guardado ha caducado.",
+
+  "sin-carnet":
+    "No se ha encontrado un carnet activo para la temporada actual.",
+};
+
+const mensajeInicial =
+  mensajesMotivo[motivo] ??
+  null;
+---
+
+<Layout
+  title="Acceso de socios"
+  description="Inicia sesión para consultar tu carnet digital del Club Bàsquet Andratx."
+>
+  <main class="relative isolate flex min-h-dvh items-center justify-center overflow-hidden px-4 py-10 sm:py-14">
+    <div
+      class="pointer-events-none absolute inset-0 -z-10 overflow-hidden"
+      aria-hidden="true"
+    >
+      <div class="absolute -left-40 top-0 h-96 w-96 rounded-full bg-primary/10 blur-3xl"></div>
+      <div class="absolute -right-40 bottom-0 h-96 w-96 rounded-full bg-tertiary/15 blur-3xl"></div>
+    </div>
+
+    <div class="w-full max-w-md">
+      <div class="mb-5">
+        <a
+          href="/acceso"
+          class="inline-flex min-h-10 items-center gap-2 rounded-xl px-3 py-2 text-sm font-bold text-on-surface-variant transition-colors hover:bg-surface-container-low hover:text-primary"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            class="h-5 w-5 fill-current"
+            viewBox="0 -960 960 960"
+            aria-hidden="true"
+          >
+            <path d="m313-440 224 224-57 56-320-320 320-320 57 56-224 224h487v80z" />
+          </svg>
+
+          Volver
+        </a>
+      </div>
+
+      <section class="overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_20px_60px_rgba(3,42,85,0.14)]">
+        <header class="relative overflow-hidden bg-primary-container px-6 pb-7 pt-8 text-center text-on-primary-container sm:px-8">
+          <span
+            class="pointer-events-none absolute -right-12 -top-16 h-44 w-44 rounded-full border-28px border-on-primary-container/5"
+            aria-hidden="true"
+          ></span>
+
+          <img
+            src="/favicon.png"
+            alt="Escudo del C.B. Andratx"
+            width="88"
+            height="88"
+            class="relative mx-auto h-20 w-20 object-contain drop-shadow-sm sm:h-24 sm:w-24"
+          />
+
+          <p class="relative mt-5 text-xs font-black uppercase tracking-[0.18em] opacity-75">
+            Club Bàsquet Andratx
+          </p>
+
+          <h1 class="relative mt-2 text-3xl font-black">
+            Carnet de socio
+          </h1>
+
+          <p class="relative mx-auto mt-3 max-w-sm text-sm leading-6 opacity-80">
+            Introduce las credenciales que
+            recibiste por correo electrónico
+            para consultar tu carnet digital.
+          </p>
+        </header>
+
+        <form
+          id="formulario-inicio-sesion-socio"
+          class="grid gap-5 p-6 sm:p-8"
+          novalidate
+        >
+          {
+            mensajeInicial && (
+              <div
+                class="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm leading-5 text-on-error-container"
+                role="alert"
+              >
+                {mensajeInicial}
+              </div>
+            )
+          }
+
+          <div
+            id="error-inicio-sesion-socio"
+            class="hidden rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm leading-5 text-on-error-container"
+            role="alert"
+            aria-live="polite"
+          ></div>
+
+          <label class="grid gap-1.5">
+            <span class="text-sm font-bold text-on-surface">
+              Correo electrónico
+            </span>
+
+            <div class="relative">
+              <span
+                class="pointer-events-none absolute left-3 top-1/2 inline-block h-5 w-5 -translate-y-1/2 bg-outline mask-center mask-contain mask-no-repeat"
+                style="mask-image: url('/iconos/panel/email.svg'); -webkit-mask-image: url('/iconos/panel/email.svg');"
+                aria-hidden="true"
+              ></span>
+
+              <input
+                id="email-socio"
+                name="email"
+                type="email"
+                required
+                autocomplete="email"
+                inputmode="email"
+                maxlength="254"
+                placeholder="socio@ejemplo.com"
+                class="h-12 w-full rounded-xl border border-outline-variant bg-surface-container-lowest pl-11 pr-3 text-base text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+          </label>
+
+          <label class="grid gap-1.5">
+            <span class="text-sm font-bold text-on-surface">
+              Contraseña
+            </span>
+
+            <div class="relative">
+              <span
+                class="pointer-events-none absolute left-3 top-1/2 inline-block h-5 w-5 -translate-y-1/2 bg-outline mask-center mask-contain mask-no-repeat"
+                style="mask-image: url('/iconos/panel/candado.svg'); -webkit-mask-image: url('/iconos/panel/candado.svg');"
+                aria-hidden="true"
+              ></span>
+
+              <input
+                id="password-socio"
+                name="password"
+                type="password"
+                required
+                autocomplete="current-password"
+                minlength="8"
+                maxlength="100"
+                placeholder="CBA-2627001"
+                class="h-12 w-full rounded-xl border border-outline-variant bg-surface-container-lowest pl-11 pr-12 text-base text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary focus:ring-2 focus:ring-primary/20"
+              />
+
+              <button
+                id="mostrar-password-socio"
+                type="button"
+                class="absolute right-1.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-outline transition-colors hover:bg-surface-container-low hover:text-primary"
+                aria-label="Mostrar contraseña"
+                aria-pressed="false"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  class="h-5 w-5 fill-current"
+                  viewBox="0 -960 960 960"
+                  aria-hidden="true"
+                >
+                  <path d="M480-320q50 0 85-35t35-85-35-85-85-35-85 35-35 85 35 85 85 35m0-48q-30 0-51-21t-21-51 21-51 51-21 51 21 21 51-21 51-51 21m0 168q-146 0-264-83T40-440q58-74 176-157t264-83 264 83 176 157q-58 74-176 157t-264 83m0-80q113 0 207.5-58.5T832-440q-50-63-144.5-121.5T480-620t-207.5 58.5T128-440q50 63 144.5 121.5T480-280" />
+                </svg>
+              </button>
+            </div>
+
+            <span class="text-xs leading-5 text-on-surface-variant">
+              La contraseña inicial coincide con
+              el número del primer carnet que
+              recibiste.
+            </span>
+          </label>
+
+          <button
+            id="boton-inicio-sesion-socio"
+            type="submit"
+            class="mt-1 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-base font-black text-on-primary shadow-sm transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-60"
+          >
+            <span
+              id="cargando-inicio-sesion-socio"
+              class="hidden h-5 w-5 animate-spin rounded-full border-2 border-on-primary/30 border-t-on-primary"
+              aria-hidden="true"
+            ></span>
+
+            <span id="texto-boton-inicio-sesion-socio">
+              Acceder a mi carnet
+            </span>
+          </button>
+
+          <div class="rounded-xl bg-surface-container-low px-4 py-3">
+            <p class="text-xs leading-5 text-on-surface-variant">
+              El acceso permanecerá guardado en
+              este dispositivo durante la
+              temporada, salvo que cierres sesión
+              o el club bloquee el carnet.
+            </p>
+          </div>
+        </form>
+
+        <footer class="border-t border-outline-variant/60 bg-surface-container-low px-6 py-5 text-center sm:px-8">
+          <p class="text-xs leading-5 text-on-surface-variant">
+            Si tienes problemas para acceder,
+            contacta con el Club Bàsquet Andratx.
+          </p>
+
+          <a
+            href="/"
+            class="mt-2 inline-flex text-sm font-bold text-secondary hover:underline"
+          >
+            Volver a la web
+          </a>
+        </footer>
+      </section>
+    </div>
+  </main>
+</Layout>
+
+<script>
+  interface RespuestaInicioSesion {
+    ok: boolean;
+
+    data: {
+      redirect?: string;
+    } | null;
+
+    error: string | null;
+  }
+
+  const formulario =
+    document.querySelector<HTMLFormElement>(
+      "#formulario-inicio-sesion-socio",
+    );
+
+  const email =
+    document.querySelector<HTMLInputElement>(
+      "#email-socio",
+    );
+
+  const password =
+    document.querySelector<HTMLInputElement>(
+      "#password-socio",
+    );
+
+  const botonMostrarPassword =
+    document.querySelector<HTMLButtonElement>(
+      "#mostrar-password-socio",
+    );
+
+  const botonEnviar =
+    document.querySelector<HTMLButtonElement>(
+      "#boton-inicio-sesion-socio",
+    );
+
+  const textoBoton =
+    document.querySelector<HTMLSpanElement>(
+      "#texto-boton-inicio-sesion-socio",
+    );
+
+  const indicadorCarga =
+    document.querySelector<HTMLSpanElement>(
+      "#cargando-inicio-sesion-socio",
+    );
+
+  const contenedorError =
+    document.querySelector<HTMLDivElement>(
+      "#error-inicio-sesion-socio",
+    );
+
+  function mostrarError(
+    mensaje: string,
+  ) {
+    if (!contenedorError) {
+      return;
+    }
+
+    contenedorError.textContent =
+      mensaje;
+
+    contenedorError.classList.remove(
+      "hidden",
+    );
+  }
+
+  function ocultarError() {
+    if (!contenedorError) {
+      return;
+    }
+
+    contenedorError.textContent =
+      "";
+
+    contenedorError.classList.add(
+      "hidden",
+    );
+  }
+
+  function establecerCargando(
+    cargando: boolean,
+  ) {
+    if (botonEnviar) {
+      botonEnviar.disabled =
+        cargando;
+    }
+
+    if (email) {
+      email.disabled =
+        cargando;
+    }
+
+    if (password) {
+      password.disabled =
+        cargando;
+    }
+
+    if (botonMostrarPassword) {
+      botonMostrarPassword.disabled =
+        cargando;
+    }
+
+    indicadorCarga?.classList.toggle(
+      "hidden",
+      !cargando,
+    );
+
+    if (textoBoton) {
+      textoBoton.textContent =
+        cargando
+          ? "Comprobando..."
+          : "Acceder a mi carnet";
+    }
+  }
+
+  botonMostrarPassword?.addEventListener(
+    "click",
+    () => {
+      if (!password) {
+        return;
+      }
+
+      const mostrar =
+        password.type ===
+        "password";
+
+      password.type =
+        mostrar
+          ? "text"
+          : "password";
+
+      botonMostrarPassword.setAttribute(
+        "aria-pressed",
+        String(mostrar),
+      );
+
+      botonMostrarPassword.setAttribute(
+        "aria-label",
+        mostrar
+          ? "Ocultar contraseña"
+          : "Mostrar contraseña",
+      );
+    },
+  );
+
+  formulario?.addEventListener(
+    "submit",
+    async (evento) => {
+      evento.preventDefault();
+      ocultarError();
+
+      if (
+        !email ||
+        !password
+      ) {
+        mostrarError(
+          "No se ha podido preparar el formulario.",
+        );
+
+        return;
+      }
+
+      const emailLimpio =
+        email.value
+          .trim()
+          .toLowerCase();
+
+      const passwordLimpio =
+        password.value.trim();
+
+      if (!emailLimpio) {
+        mostrarError(
+          "Introduce tu correo electrónico.",
+        );
+
+        email.focus();
+
+        return;
+      }
+
+      if (
+        !email.checkValidity()
+      ) {
+        mostrarError(
+          "Introduce un correo electrónico válido.",
+        );
+
+        email.focus();
+
+        return;
+      }
+
+      if (!passwordLimpio) {
+        mostrarError(
+          "Introduce tu contraseña.",
+        );
+
+        password.focus();
+
+        return;
+      }
+
+      establecerCargando(true);
+
+      try {
+        const respuesta =
+          await fetch(
+            "/api/socios/iniciar-sesion",
+            {
+              method: "POST",
+              credentials:
+                "same-origin",
+
+              headers: {
+                Accept:
+                  "application/json",
+                "Content-Type":
+                  "application/json",
+              },
+
+              body: JSON.stringify({
+                email:
+                  emailLimpio,
+
+                password:
+                  passwordLimpio,
+              }),
+            },
+          );
+
+        let contenido:
+          RespuestaInicioSesion;
+
+        try {
+          contenido =
+            (await respuesta.json()) as
+              RespuestaInicioSesion;
+        } catch {
+          throw new Error(
+            "El servidor ha devuelto una respuesta no válida.",
+          );
+        }
+
+        if (
+          !respuesta.ok ||
+          !contenido.ok
+        ) {
+          throw new Error(
+            contenido.error ??
+              "No se ha podido iniciar sesión.",
+          );
+        }
+
+        const redireccion =
+          contenido.data
+            ?.redirect;
+
+        window.location.assign(
+          typeof redireccion ===
+            "string" &&
+            redireccion.startsWith(
+              "/socios",
+            )
+            ? redireccion
+            : "/socios",
+        );
+      } catch (error) {
+        console.error(
+          "Error iniciando sesión como socio:",
+          error,
+        );
+
+        mostrarError(
+          error instanceof Error
+            ? error.message
+            : "No se ha podido iniciar sesión.",
+        );
+      } finally {
+        establecerCargando(false);
+      }
+    },
+  );
+</script>

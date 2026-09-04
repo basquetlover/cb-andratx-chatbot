@@ -1,347 +1,256 @@
-export interface NumeroCarnetSocioDescompuesto {
-  numeroCarnet: string;
-
-  temporada: {
-    codigo: string;
-    anioInicio: number;
-    anioFin: number;
-  };
-
-  numeroSocio: number;
-}
+import {
+  supabaseServidor,
+} from "../../supabase/servidor";
 
 const PREFIJO_CARNET =
-  "CBA";
+  "CBA-";
+
+const LONGITUD_CODIGO_TEMPORADA =
+  4;
 
 const LONGITUD_MINIMA_NUMERO_SOCIO =
   3;
 
-function convertirEntero(
+const EXPRESION_NUMERO_CARNET =
+  /^CBA-[0-9]{7,}$/;
+
+interface FilaNumeroSocio {
+  numero_socio:
+    | number
+    | string
+    | null;
+}
+
+export class ErrorNumeroCarnetSocio
+  extends Error {
+  constructor(
+    mensaje: string,
+  ) {
+    super(mensaje);
+
+    this.name =
+      "ErrorNumeroCarnetSocio";
+  }
+}
+
+function convertirNumeroEntero(
   valor: unknown,
 ): number | null {
   if (
     typeof valor === "number" &&
-    Number.isInteger(valor)
+    Number.isSafeInteger(valor) &&
+    valor >= 1
   ) {
     return valor;
   }
 
   if (
-    typeof valor !== "string"
+    typeof valor === "string"
   ) {
-    return null;
-  }
-
-  const texto =
-    valor.trim();
-
-  if (
-    !/^\d+$/.test(texto)
-  ) {
-    return null;
-  }
-
-  const numero =
-    Number(texto);
-
-  if (
-    !Number.isSafeInteger(numero)
-  ) {
-    return null;
-  }
-
-  return numero;
-}
-
-function obtenerAniosTemporadaDesdeNombre(
-  nombreTemporada: string,
-): {
-  anioInicio: number;
-  anioFin: number;
-} | null {
-  const texto =
-    nombreTemporada.trim();
-
-  const coincidenciaCompleta =
-    texto.match(
-      /(?:^|\D)(20\d{2})\D+(20\d{2})(?:\D|$)/,
-    );
-
-  if (coincidenciaCompleta) {
-    const anioInicio =
-      Number(
-        coincidenciaCompleta[1],
-      );
-
-    const anioFin =
-      Number(
-        coincidenciaCompleta[2],
-      );
+    const numero =
+      Number(valor);
 
     if (
-      anioFin ===
-      anioInicio + 1
+      Number.isSafeInteger(numero) &&
+      numero >= 1
     ) {
-      return {
-        anioInicio,
-        anioFin,
-      };
-    }
-  }
-
-  const coincidenciaCorta =
-    texto.match(
-      /(?:^|\D)(20\d{2})\D+(\d{2})(?:\D|$)/,
-    );
-
-  if (coincidenciaCorta) {
-    const anioInicio =
-      Number(
-        coincidenciaCorta[1],
-      );
-
-    const siglo =
-      Math.floor(
-        anioInicio / 100,
-      ) * 100;
-
-    let anioFin =
-      siglo +
-      Number(
-        coincidenciaCorta[2],
-      );
-
-    if (
-      anioFin <
-      anioInicio
-    ) {
-      anioFin += 100;
-    }
-
-    if (
-      anioFin ===
-      anioInicio + 1
-    ) {
-      return {
-        anioInicio,
-        anioFin,
-      };
+      return numero;
     }
   }
 
   return null;
 }
 
-function crearCodigoTemporada(
-  anioInicio: number,
-  anioFin: number,
-): string {
-  if (
-    !Number.isInteger(
-      anioInicio,
-    ) ||
-    !Number.isInteger(
-      anioFin,
-    )
-  ) {
-    throw new Error(
-      "Los años de la temporada no son válidos.",
-    );
-  }
-
-  if (
-    anioInicio < 2000 ||
-    anioInicio > 2099 ||
-    anioFin !==
-      anioInicio + 1
-  ) {
-    throw new Error(
-      "La temporada debe contener dos años consecutivos entre 2000 y 2099.",
-    );
-  }
-
-  const inicio =
-    String(
-      anioInicio,
-    ).slice(-2);
-
-  const fin =
-    String(
-      anioFin,
-    ).slice(-2);
-
-  return `${inicio}${fin}`;
-}
-
-function formatearNumeroSocio(
-  numeroSocio: number,
-): string {
-  if (
-    !Number.isSafeInteger(
-      numeroSocio,
-    ) ||
-    numeroSocio < 1
-  ) {
-    throw new Error(
-      "El número de socio no es válido.",
-    );
-  }
-
-  return String(
-    numeroSocio,
-  ).padStart(
-    LONGITUD_MINIMA_NUMERO_SOCIO,
-    "0",
-  );
-}
-
-export function generarNumeroCarnetSocio(
-  numeroSocio: number,
-  anioInicio: number,
-  anioFin: number,
-): string {
-  const codigoTemporada =
-    crearCodigoTemporada(
-      anioInicio,
-      anioFin,
-    );
-
-  const numeroFormateado =
-    formatearNumeroSocio(
-      numeroSocio,
-    );
-
-  return (
-    `${PREFIJO_CARNET}-` +
-    `${codigoTemporada}` +
-    `${numeroFormateado}`
-  );
-}
-
-export function generarNumeroCarnetDesdeTemporada(
-  numeroSocio: number,
-  nombreTemporada: string,
-): string {
-  const temporada =
-    obtenerAniosTemporadaDesdeNombre(
-      nombreTemporada,
-    );
-
-  if (!temporada) {
-    throw new Error(
-      `No se han podido obtener los años de la temporada "${nombreTemporada}".`,
-    );
-  }
-
-  return generarNumeroCarnetSocio(
-    numeroSocio,
-    temporada.anioInicio,
-    temporada.anioFin,
-  );
-}
-
-export function normalizarNumeroCarnetSocio(
-  valor: unknown,
-): string {
-  if (
-    typeof valor !== "string"
-  ) {
-    return "";
-  }
-
-  return valor
-    .trim()
-    .toUpperCase()
-    .replace(
-      /\s+/g,
-      "",
-    );
-}
-
-export function esNumeroCarnetSocioValido(
-  valor: unknown,
-): boolean {
-  const numeroCarnet =
-    normalizarNumeroCarnetSocio(
-      valor,
-    );
-
-  return /^CBA-\d{7,}$/.test(
-    numeroCarnet,
-  );
-}
-
-export function descomponerNumeroCarnetSocio(
-  valor: unknown,
-): NumeroCarnetSocioDescompuesto | null {
-  const numeroCarnet =
-    normalizarNumeroCarnetSocio(
-      valor,
-    );
-
+function extraerAnioFecha(
+  fecha: string,
+): number | null {
   const coincidencia =
-    numeroCarnet.match(
-      /^CBA-(\d{2})(\d{2})(\d{3,})$/,
+    /^([0-9]{4})-[0-9]{2}-[0-9]{2}$/.exec(
+      fecha.trim(),
     );
 
   if (!coincidencia) {
     return null;
   }
 
-  const anioInicioCorto =
-    Number(
-      coincidencia[1],
-    );
+  const anio =
+    Number(coincidencia[1]);
 
-  const anioFinCorto =
-    Number(
-      coincidencia[2],
-    );
-
-  const numeroSocio =
-    convertirEntero(
-      coincidencia[3],
-    );
-
-  if (
-    numeroSocio === null ||
-    numeroSocio < 1
-  ) {
-    return null;
-  }
-
-  const anioInicio =
-    2000 +
-    anioInicioCorto;
-
-  const anioFin =
-    2000 +
-    anioFinCorto;
-
-  if (
-    anioFin !==
-      anioInicio + 1
-  ) {
-    return null;
-  }
-
-  return {
-    numeroCarnet,
-
-    temporada: {
-      codigo:
-        `${coincidencia[1]}` +
-        `${coincidencia[2]}`,
-
-      anioInicio,
-      anioFin,
-    },
-
-    numeroSocio,
-  };
+  return Number.isInteger(anio)
+    ? anio
+    : null;
 }
 
-export function obtenerPasswordInicialCarnet(
+function convertirDosUltimosDigitos(
+  anio: number,
+): string {
+  return String(
+    anio % 100,
+  ).padStart(2, "0");
+}
+
+export function normalizarNumeroCarnetSocio(
+  numeroCarnet: string,
+): string {
+  return numeroCarnet
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
+export function esNumeroCarnetSocioValido(
+  numeroCarnet: string,
+): boolean {
+  return EXPRESION_NUMERO_CARNET.test(
+    normalizarNumeroCarnetSocio(
+      numeroCarnet,
+    ),
+  );
+}
+
+export function obtenerCodigoTemporadaSocio(
+  fechaInicio: string,
+  fechaFin: string,
+): string {
+  const anioInicio =
+    extraerAnioFecha(
+      fechaInicio,
+    );
+
+  const anioFin =
+    extraerAnioFecha(
+      fechaFin,
+    );
+
+  if (
+    anioInicio === null ||
+    anioFin === null
+  ) {
+    throw new ErrorNumeroCarnetSocio(
+      "Las fechas de la temporada no tienen un formato válido.",
+    );
+  }
+
+  if (
+    anioFin < anioInicio
+  ) {
+    throw new ErrorNumeroCarnetSocio(
+      "La fecha final de la temporada no puede ser anterior a la fecha inicial.",
+    );
+  }
+
+  return (
+    convertirDosUltimosDigitos(
+      anioInicio,
+    ) +
+    convertirDosUltimosDigitos(
+      anioFin,
+    )
+  );
+}
+
+export function crearNumeroCarnetSocio(
+  codigoTemporada: string,
+  numeroSocio: number,
+): string {
+  const codigoLimpio =
+    codigoTemporada
+      .trim()
+      .replace(/\D/g, "");
+
+  if (
+    codigoLimpio.length !==
+    LONGITUD_CODIGO_TEMPORADA
+  ) {
+    throw new ErrorNumeroCarnetSocio(
+      "El código de la temporada debe contener exactamente cuatro números.",
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(
+      numeroSocio,
+    ) ||
+    numeroSocio < 1
+  ) {
+    throw new ErrorNumeroCarnetSocio(
+      "El número de socio debe ser un número entero mayor o igual que uno.",
+    );
+  }
+
+  const numeroFormateado =
+    String(
+      numeroSocio,
+    ).padStart(
+      LONGITUD_MINIMA_NUMERO_SOCIO,
+      "0",
+    );
+
+  return (
+    PREFIJO_CARNET +
+    codigoLimpio +
+    numeroFormateado
+  );
+}
+
+export const generarNumeroCarnetSocio =
+  crearNumeroCarnetSocio;
+
+export function obtenerNumeroSocioDesdeCarnet(
+  numeroCarnet: string,
+): number | null {
+  const numeroNormalizado =
+    normalizarNumeroCarnetSocio(
+      numeroCarnet,
+    );
+
+  if (
+    !esNumeroCarnetSocioValido(
+      numeroNormalizado,
+    )
+  ) {
+    return null;
+  }
+
+  const contenido =
+    numeroNormalizado.slice(
+      PREFIJO_CARNET.length,
+    );
+
+  const numeroSocioTexto =
+    contenido.slice(
+      LONGITUD_CODIGO_TEMPORADA,
+    );
+
+  return convertirNumeroEntero(
+    numeroSocioTexto,
+  );
+}
+
+export function obtenerCodigoTemporadaDesdeCarnet(
+  numeroCarnet: string,
+): string | null {
+  const numeroNormalizado =
+    normalizarNumeroCarnetSocio(
+      numeroCarnet,
+    );
+
+  if (
+    !esNumeroCarnetSocioValido(
+      numeroNormalizado,
+    )
+  ) {
+    return null;
+  }
+
+  return numeroNormalizado.slice(
+    PREFIJO_CARNET.length,
+    PREFIJO_CARNET.length +
+      LONGITUD_CODIGO_TEMPORADA,
+  );
+}
+
+export function generarPasswordCarnetSocio(
   numeroCarnet: string,
 ): string {
   const numeroNormalizado =
@@ -354,10 +263,107 @@ export function obtenerPasswordInicialCarnet(
       numeroNormalizado,
     )
   ) {
-    throw new Error(
+    throw new ErrorNumeroCarnetSocio(
       "No se puede generar la contraseña porque el número de carnet no es válido.",
     );
   }
 
+  /*
+   * La contraseña inicial del carnet es
+   * exactamente su número de carnet:
+   *
+   * CBA-2627001
+   *
+   * Esta función no crea el hash. La
+   * función que inserta el carnet debe
+   * cifrar este valor antes de guardarlo.
+   */
   return numeroNormalizado;
+}
+
+export async function obtenerSiguienteNumeroSocioTemporada(
+  temporadaId: string,
+): Promise<number> {
+  const temporadaIdLimpio =
+    temporadaId.trim();
+
+  if (!temporadaIdLimpio) {
+    throw new ErrorNumeroCarnetSocio(
+      "La temporada es obligatoria para calcular el número de socio.",
+    );
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabaseServidor
+      .from(
+        "socios_temporadas",
+      )
+      .select(
+        "numero_socio",
+      )
+      .eq(
+        "temporada_id",
+        temporadaIdLimpio,
+      )
+      .not(
+        "numero_socio",
+        "is",
+        null,
+      )
+      .order(
+        "numero_socio",
+        {
+          ascending: false,
+          nullsFirst: false,
+        },
+      )
+      .limit(1)
+      .maybeSingle();
+
+  if (error) {
+    console.error(
+      "Error obteniendo el último número de socio de la temporada:",
+      error,
+    );
+
+    throw new ErrorNumeroCarnetSocio(
+      `No se ha podido calcular el siguiente número de socio: ${error.message}`,
+    );
+  }
+
+  if (!data) {
+    return 1;
+  }
+
+  const fila =
+    data as FilaNumeroSocio;
+
+  const numeroMayor =
+    convertirNumeroEntero(
+      fila.numero_socio,
+    );
+
+  if (
+    numeroMayor === null
+  ) {
+    return 1;
+  }
+
+  const siguienteNumero =
+    numeroMayor + 1;
+
+  if (
+    !Number.isSafeInteger(
+      siguienteNumero,
+    )
+  ) {
+    throw new ErrorNumeroCarnetSocio(
+      "No se puede generar el siguiente número de socio.",
+    );
+  }
+
+  return siguienteNumero;
 }

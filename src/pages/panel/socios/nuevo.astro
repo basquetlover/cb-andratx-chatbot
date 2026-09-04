@@ -1,0 +1,109 @@
+---
+import FormularioNuevoSocio from "@components/panel/socios/editor/FormularioNuevoSocio";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios/nuevo",
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en /panel/socios/nuevo:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    "/iniciar-sesion?redirect=/panel/socios/nuevo",
+  );
+}
+
+let puedeCrear = false;
+
+try {
+  puedeCrear =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.crear",
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando el permiso socios.crear:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeCrear) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+---
+
+<LayoutPanel
+  title="Nuevo socio"
+  description="Registra un socio y genera su primer carnet digital."
+  volverA="/panel/socios"
+  textoVolver="Volver a socios"
+  anchoCompleto
+>
+  <main class="mx-auto w-full max-w-5xl">
+    <div class="mb-5 rounded-2xl border border-primary/30 bg-primary-fixed px-5 py-4 text-on-primary-fixed">
+      <h2 class="font-bold">
+        Alta de socio
+      </h2>
+
+      <p class="mt-1 text-sm leading-6">
+        El número de socio se asignará automáticamente. El
+        carnet y la contraseña inicial se generarán al guardar
+        el formulario.
+      </p>
+    </div>
+
+    <FormularioNuevoSocio client:load />
+  </main>
+</LayoutPanel>

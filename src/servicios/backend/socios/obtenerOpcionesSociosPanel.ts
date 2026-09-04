@@ -3,6 +3,7 @@ import {
 } from "../../supabase/servidor";
 
 import type {
+  OpcionTipoSocio,
   OpcionesSociosPanel,
   TemporadaResumenSocio,
 } from "@tipos/SocioPanel";
@@ -10,10 +11,42 @@ import type {
 interface FilaTemporada {
   id: string;
   nombre: string | null;
-  activa: boolean | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
+  activa: boolean | null;
 }
+
+const TIPOS_SOCIO:
+  OpcionTipoSocio[] = [
+    {
+      valor: "General",
+      nombre: "General",
+    },
+    {
+      valor: "Familiar",
+      nombre: "Familiar",
+    },
+    {
+      valor: "Jugador/a",
+      nombre: "Jugador/a",
+    },
+    {
+      valor: "Entrenador/a",
+      nombre: "Entrenador/a",
+    },
+    {
+      valor: "Colaborador/a",
+      nombre: "Colaborador/a",
+    },
+    {
+      valor: "Directiva",
+      nombre: "Directiva",
+    },
+    {
+      valor: "Simpatizante",
+      nombre: "Simpatizante",
+    },
+  ];
 
 export class ErrorObtenerOpcionesSociosPanel
   extends Error {
@@ -32,16 +65,6 @@ export class ErrorObtenerOpcionesSociosPanel
   }
 }
 
-const tiposSocio = [
-  "General",
-  "Familiar",
-  "Jugador/a",
-  "Entrenador/a",
-  "Colaborador/a",
-  "Directiva",
-  "Simpatizante",
-];
-
 function convertirTemporada(
   fila: FilaTemporada,
 ): TemporadaResumenSocio | null {
@@ -59,78 +82,105 @@ function convertirTemporada(
       fila.nombre?.trim() ||
       "Temporada",
 
-    activa:
-      Boolean(
-        fila.activa,
-      ),
-
     fechaInicio:
-      fila.fecha_inicio,
+      fila.fecha_inicio
+        ?.trim() || "",
 
     fechaFin:
-      fila.fecha_fin,
+      fila.fecha_fin
+        ?.trim() || "",
+
+    activa:
+      fila.activa === true,
   };
 }
 
-export async function obtenerOpcionesSociosPanel(): Promise<
-  OpcionesSociosPanel
-> {
+export async function obtenerOpcionesSociosPanel(): Promise<OpcionesSociosPanel> {
   const {
-    data,
-    error,
-  } =
-    await supabaseServidor
-      .from("temporadas")
-      .select(`
-        id,
-        nombre,
-        activa,
-        fecha_inicio,
-        fecha_fin
-      `)
-      .order(
-        "fecha_inicio",
-        {
-          ascending: false,
-          nullsFirst: false,
-        },
-      );
+    data:
+      temporadasEncontradas,
+    error:
+      errorTemporadas,
+  } = await supabaseServidor
+    .from("temporadas")
+    .select(`
+      id,
+      nombre,
+      fecha_inicio,
+      fecha_fin,
+      activa
+    `)
+    .order(
+      "fecha_inicio",
+      {
+        ascending: false,
+      },
+    );
 
-  if (error) {
+  if (errorTemporadas) {
     throw new ErrorObtenerOpcionesSociosPanel(
-      `No se han podido obtener las temporadas: ${error.message}`,
+      `No se han podido obtener las temporadas: ${errorTemporadas.message}`,
       500,
     );
   }
 
   const temporadas =
     (
-      (data ?? []) as
-        FilaTemporada[]
-    ).flatMap(
-      (fila) => {
-        const temporada =
-          convertirTemporada(
-            fila,
-          );
+      temporadasEncontradas ??
+      []
+    )
+      .flatMap(
+        (fila) => {
+          const temporada =
+            convertirTemporada(
+              fila as
+                FilaTemporada,
+            );
 
-        return temporada
-          ? [temporada]
-          : [];
-      },
-    );
+          return temporada
+            ? [temporada]
+            : [];
+        },
+      )
+      .sort(
+        (
+          temporadaA,
+          temporadaB,
+        ) => {
+          if (
+            temporadaA.activa !==
+            temporadaB.activa
+          ) {
+            return temporadaA.activa
+              ? -1
+              : 1;
+          }
 
-  const temporadaActual =
+          return temporadaB
+            .fechaInicio
+            .localeCompare(
+              temporadaA
+                .fechaInicio,
+            );
+        },
+      );
+
+  const temporadaActiva =
     temporadas.find(
       (temporada) =>
         temporada.activa,
     ) ?? null;
 
   return {
-    temporadaActual,
+    temporadaActiva,
+
     temporadas,
-    tiposSocio: [
-      ...tiposSocio,
-    ],
+
+    tiposSocio:
+      TIPOS_SOCIO.map(
+        (tipo) => ({
+          ...tipo,
+        }),
+      ),
   };
 }

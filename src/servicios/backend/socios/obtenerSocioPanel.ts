@@ -31,17 +31,8 @@ export class ErrorObtenerSocioPanel
   }
 }
 
-function esUuidValido(
-  valor: string,
-): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    valor,
-  );
-}
-
-async function obtenerTemporadaActivaId(): Promise<
-  string | null
-> {
+async function obtenerTemporadaActivaId():
+  Promise<string | null> {
   const {
     data,
     error,
@@ -49,40 +40,50 @@ async function obtenerTemporadaActivaId(): Promise<
     await supabaseServidor
       .from("temporadas")
       .select("id")
-      .eq("activa", true)
+      .eq(
+        "activa",
+        true,
+      )
+      .order(
+        "fecha_inicio",
+        {
+          ascending: false,
+        },
+      )
       .limit(1)
       .maybeSingle();
 
   if (error) {
+    console.error(
+      "Error obteniendo la temporada activa para consultar el socio:",
+      error,
+    );
+
     throw new ErrorObtenerSocioPanel(
-      `No se ha podido obtener la temporada activa: ${error.message}`,
+      `No se ha podido consultar la temporada activa: ${error.message}`,
       500,
     );
   }
 
-  const temporada =
-    data as
-      | FilaTemporadaActiva
-      | null;
+  if (!data) {
+    return null;
+  }
 
   return (
-    temporada?.id ??
-    null
-  );
+    data as
+      FilaTemporadaActiva
+  ).id;
 }
 
 export async function obtenerSocioPanel(
   socioId: string,
 ): Promise<SocioPanel> {
-  const id =
+  const socioIdLimpio =
     socioId.trim();
 
-  if (
-    !id ||
-    !esUuidValido(id)
-  ) {
+  if (!socioIdLimpio) {
     throw new ErrorObtenerSocioPanel(
-      "El identificador del socio no es válido.",
+      "El identificador del socio es obligatorio.",
       400,
     );
   }
@@ -98,47 +99,77 @@ export async function obtenerSocioPanel(
       .from("socios")
       .select(`
         id,
-        numero_socio,
         nombre,
         apellidos,
         email,
         telefono,
         activo,
         observaciones,
+        creado_por,
+        actualizado_por,
         created_at,
         updated_at,
-        socios_temporadas (
+
+        carnets:socios_temporadas (
           id,
           socio_id,
           temporada_id,
+
+          numero_socio,
           numero_carnet,
+
           tipo_socio,
           estado,
+
           fecha_alta,
           fecha_caducidad,
-          activado_at,
-          bloqueado_at,
+
           motivo_bloqueo,
-          bloqueado_hasta,
-          email_bienvenida_enviado_at,
-          ultimo_acceso_at,
-          intentos_fallidos,
+
+          activado_at,
+          activado_por,
+
+          bloqueado_at,
+          bloqueado_por,
+
           version_acceso,
+
+          password_updated_at,
+          intentos_fallidos,
+          bloqueado_hasta,
+          ultimo_acceso_at,
+          email_bienvenida_enviado_at,
+
+          creado_por,
+          actualizado_por,
           created_at,
           updated_at,
-          temporadas (
+
+          temporada:temporadas (
             id,
             nombre,
-            activa,
             fecha_inicio,
-            fecha_fin
+            fecha_fin,
+            activa
           )
         )
       `)
-      .eq("id", id)
+      .eq(
+        "id",
+        socioIdLimpio,
+      )
       .maybeSingle();
 
   if (error) {
+    console.error(
+      "Error obteniendo la ficha del socio:",
+      {
+        socioId:
+          socioIdLimpio,
+        error,
+      },
+    );
+
     throw new ErrorObtenerSocioPanel(
       `No se ha podido obtener el socio: ${error.message}`,
       500,
@@ -160,14 +191,15 @@ export async function obtenerSocioPanel(
 
   if (!socio) {
     console.error(
-      "No se ha podido convertir el socio obtenido de Supabase:",
+      "La fila del socio no tiene el formato esperado:",
       {
-        socioId: id,
+        socioId:
+          socioIdLimpio,
       },
     );
 
     throw new ErrorObtenerSocioPanel(
-      "Los datos almacenados del socio no son válidos.",
+      "No se ha podido interpretar la información del socio.",
       500,
     );
   }

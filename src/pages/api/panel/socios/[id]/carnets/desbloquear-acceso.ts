@@ -3,9 +3,9 @@ import type {
 } from "astro";
 
 import {
-  regenerarPasswordSocioPanel,
-  ErrorRegenerarPasswordSocioPanel,
-} from "@servicios/backend/socios/regenerarPasswordSocioPanel";
+  desbloquearAccesoSocioPanel,
+  ErrorDesbloquearAccesoSocioPanel,
+} from "@servicios/backend/socios/desbloquearAccesoSocioPanel";
 
 import {
   obtenerUsuarioSesion,
@@ -19,19 +19,26 @@ import {
   NOMBRE_COOKIE_SESION,
 } from "@servicios/seguridad/cookieSesion";
 
+import type {
+  RespuestaDesbloquearAccesoSocio,
+} from "@tipos/SocioPanel";
+
 export const prerender = false;
 
 const cabecerasRespuesta = {
   "Cache-Control":
     "no-store, max-age=0",
+
   "Content-Type":
     "application/json; charset=utf-8",
+
   "X-Content-Type-Options":
     "nosniff",
 };
 
 function crearRespuesta(
-  contenido: unknown,
+  contenido:
+    RespuestaDesbloquearAccesoSocio,
   estado: number,
 ): Response {
   return Response.json(
@@ -44,23 +51,32 @@ function crearRespuesta(
   );
 }
 
-function crearRespuestaError(
-  error: string,
+function respuestaError(
+  mensaje: string,
   estado: number,
 ): Response {
   return crearRespuesta(
     {
       ok: false,
       data: null,
-      error,
-      errores: [],
+      error: mensaje,
     },
     estado,
   );
 }
 
-function obtenerIdentificador(
-  valor: string | undefined,
+function esObjeto(
+  valor: unknown,
+): valor is Record<string, unknown> {
+  return (
+    typeof valor === "object" &&
+    valor !== null &&
+    !Array.isArray(valor)
+  );
+}
+
+function convertirTexto(
+  valor: unknown,
 ): string | null {
   if (
     typeof valor !== "string"
@@ -68,10 +84,41 @@ function obtenerIdentificador(
     return null;
   }
 
-  const identificador =
+  const texto =
     valor.trim();
 
-  return identificador || null;
+  return texto || null;
+}
+
+function obtenerUsuarioIdSesion(
+  sesion: unknown,
+): string | null {
+  if (!esObjeto(sesion)) {
+    return null;
+  }
+
+  const usuario =
+    esObjeto(
+      sesion.usuario,
+    )
+      ? sesion.usuario
+      : null;
+
+  const usuarioId =
+    convertirTexto(
+      usuario?.id,
+    ) ??
+    convertirTexto(
+      sesion.usuarioId,
+    ) ??
+    convertirTexto(
+      sesion.usuario_id,
+    ) ??
+    convertirTexto(
+      sesion.id,
+    );
+
+  return usuarioId;
 }
 
 export const POST: APIRoute =
@@ -79,14 +126,24 @@ export const POST: APIRoute =
     cookies,
     params,
   }) => {
+    const socioId =
+      params.id?.trim() ?? "";
+
+    if (!socioId) {
+      return respuestaError(
+        "No se ha indicado el socio.",
+        400,
+      );
+    }
+
     const tokenSesion =
       cookies.get(
         NOMBRE_COOKIE_SESION,
       )?.value;
 
     if (!tokenSesion) {
-      return crearRespuestaError(
-        "Debes iniciar sesión para regenerar la contraseña.",
+      return respuestaError(
+        "Debes iniciar sesión para desbloquear el acceso de un socio.",
         401,
       );
     }
@@ -100,11 +157,11 @@ export const POST: APIRoute =
         );
     } catch (error) {
       console.error(
-        "Error comprobando la sesión para regenerar la contraseña de un socio:",
+        "Error comprobando la sesión para desbloquear el acceso de un socio:",
         error,
       );
 
-      return crearRespuestaError(
+      return respuestaError(
         "No se ha podido comprobar la sesión.",
         500,
       );
@@ -118,7 +175,7 @@ export const POST: APIRoute =
         },
       );
 
-      return crearRespuestaError(
+      return respuestaError(
         "La sesión no es válida o ha caducado.",
         401,
       );
@@ -134,52 +191,47 @@ export const POST: APIRoute =
         );
     } catch (error) {
       console.error(
-        "Error comprobando el permiso socios.editar para regenerar una contraseña:",
+        "Error comprobando el permiso socios.editar:",
         error,
       );
 
-      return crearRespuestaError(
+      return respuestaError(
         "No se ha podido comprobar el permiso del usuario.",
         500,
       );
     }
 
     if (!autorizado) {
-      return crearRespuestaError(
-        "No tienes permiso para regenerar contraseñas de socios.",
+      return respuestaError(
+        "No tienes permiso para desbloquear el acceso de socios.",
         403,
       );
     }
 
-    const socioId =
-      obtenerIdentificador(
-        params.id,
+    const usuarioId =
+      obtenerUsuarioIdSesion(
+        sesion,
       );
 
-    const carnetId =
-      obtenerIdentificador(
-        params.carnetId,
+    if (!usuarioId) {
+      console.error(
+        "No se ha podido obtener el identificador del administrador desde la sesión:",
+        {
+          socioId,
+        },
       );
 
-    if (!socioId) {
-      return crearRespuestaError(
-        "El identificador del socio no es válido.",
-        400,
-      );
-    }
-
-    if (!carnetId) {
-      return crearRespuestaError(
-        "El identificador del carnet no es válido.",
-        400,
+      return respuestaError(
+        "No se ha podido identificar al administrador.",
+        500,
       );
     }
 
     try {
       const resultado =
-        await regenerarPasswordSocioPanel(
-          carnetId,
-          sesion.usuario.id,
+        await desbloquearAccesoSocioPanel(
+          socioId,
+          usuarioId,
         );
 
       return crearRespuesta(
@@ -187,28 +239,27 @@ export const POST: APIRoute =
           ok: true,
           data: resultado,
           error: null,
-          errores: [],
         },
         200,
       );
     } catch (error) {
-      console.error(
-        `Error en POST /api/panel/socios/${socioId}/carnets/${carnetId}/regenerar-password:`,
-        error,
-      );
-
       if (
         error instanceof
-        ErrorRegenerarPasswordSocioPanel
+        ErrorDesbloquearAccesoSocioPanel
       ) {
-        return crearRespuestaError(
+        return respuestaError(
           error.message,
           error.status,
         );
       }
 
-      return crearRespuestaError(
-        "No se ha podido regenerar la contraseña del socio.",
+      console.error(
+        `Error en POST /api/panel/socios/${socioId}/desbloquear-acceso:`,
+        error,
+      );
+
+      return respuestaError(
+        "No se ha podido desbloquear el acceso del socio.",
         500,
       );
     }
@@ -222,8 +273,7 @@ export const ALL: APIRoute =
         data: null,
         error:
           "Método no permitido.",
-        errores: [],
-      },
+      } satisfies RespuestaDesbloquearAccesoSocio,
       {
         status: 405,
         headers: {

@@ -4,12 +4,21 @@ export type EstadoCarnetSocio =
   | "bloqueado"
   | "caducado";
 
+export type FiltroActividadSocio =
+  | "todos"
+  | "activos"
+  | "inactivos";
+
+export type FiltroEstadoCarnetSocio =
+  | EstadoCarnetSocio
+  | "todos";
+
 export interface TemporadaResumenSocio {
   id: string;
   nombre: string;
+  fechaInicio: string;
+  fechaFin: string;
   activa: boolean;
-  fechaInicio: string | null;
-  fechaFin: string | null;
 }
 
 export interface CarnetTemporadaSocio {
@@ -17,6 +26,7 @@ export interface CarnetTemporadaSocio {
   socioId: string;
   temporadaId: string;
 
+  numeroSocio: number;
   numeroCarnet: string;
 
   tipoSocio: string | null;
@@ -25,22 +35,27 @@ export interface CarnetTemporadaSocio {
   fechaAlta: string;
   fechaCaducidad: string;
 
+  motivoBloqueo: string | null;
+
   activadoAt: string | null;
+  activadoPor: string | null;
 
   bloqueadoAt: string | null;
-  motivoBloqueo: string | null;
+  bloqueadoPor: string | null;
+
+  versionAcceso: number;
+
+  passwordUpdatedAt: string;
+
+  intentosFallidos: number;
   bloqueadoHasta: string | null;
+  ultimoAccesoAt: string | null;
 
   emailBienvenidaEnviadoAt:
     | string
     | null;
 
-  ultimoAccesoAt:
-    | string
-    | null;
-
-  intentosFallidos: number;
-  versionAcceso: number;
+  accesoBloqueado: boolean;
 
   createdAt: string;
   updatedAt: string;
@@ -52,8 +67,6 @@ export interface CarnetTemporadaSocio {
 export interface ResumenSocioPanel {
   id: string;
 
-  numeroSocio: number;
-
   nombre: string;
   apellidos: string;
   nombreCompleto: string;
@@ -64,10 +77,9 @@ export interface ResumenSocioPanel {
   activo: boolean;
 
   carnetActual:
-    | CarnetTemporadaSocio
-    | null;
+    CarnetTemporadaSocio | null;
 
-  totalTemporadas: number;
+  totalCarnets: number;
 
   createdAt: string;
   updatedAt: string;
@@ -77,55 +89,75 @@ export interface SocioPanel
   extends ResumenSocioPanel {
   observaciones: string | null;
 
-  historial:
+  carnets:
     CarnetTemporadaSocio[];
 }
 
+export interface OpcionTipoSocio {
+  valor: string;
+  nombre: string;
+}
+
 export interface OpcionesSociosPanel {
-  temporadaActual:
-    | TemporadaResumenSocio
-    | null;
+  temporadaActiva:
+    TemporadaResumenSocio | null;
 
   temporadas:
     TemporadaResumenSocio[];
 
-  tiposSocio: string[];
+  tiposSocio:
+    OpcionTipoSocio[];
+}
+
+export interface CrearCarnetTemporadaSocio {
+  temporadaId: string;
+  tipoSocio: string;
+
+  estado:
+    | "pendiente"
+    | "activo";
+
+  fechaAlta: string;
+  fechaCaducidad: string;
+}
+
+export interface ActualizarCarnetTemporadaSocio {
+  tipoSocio: string;
+
+  estado:
+    EstadoCarnetSocio;
+
+  fechaAlta: string;
+  fechaCaducidad: string;
+
+  motivoBloqueo?:
+    | string
+    | null;
 }
 
 export interface CrearSocioPanel {
   nombre: string;
   apellidos: string;
-  email: string;
 
-  telefono?:
-    | string
-    | null;
+  email: string;
+  telefono?: string | null;
 
   observaciones?:
     | string
     | null;
 
-  temporadaId: string;
+  activo: boolean;
 
-  tipoSocio?:
-    | string
-    | null;
-
-  fechaAlta: string;
-  fechaCaducidad: string;
-
-  activar: boolean;
-  enviarBienvenida: boolean;
+  carnet:
+    CrearCarnetTemporadaSocio;
 }
 
 export interface ActualizarSocioPanel {
   nombre: string;
   apellidos: string;
-  email: string;
 
-  telefono:
-    | string
-    | null;
+  email: string;
+  telefono: string | null;
 
   observaciones:
     | string
@@ -134,55 +166,25 @@ export interface ActualizarSocioPanel {
   activo: boolean;
 }
 
-export interface CrearCarnetTemporadaSocio {
-  temporadaId: string;
-
-  tipoSocio:
-    | string
-    | null;
-
-  fechaAlta: string;
-  fechaCaducidad: string;
-
-  activar: boolean;
-  enviarBienvenida: boolean;
-}
-
-export interface ActualizarCarnetTemporadaSocio {
-  tipoSocio:
-    | string
-    | null;
-
-  fechaAlta: string;
-  fechaCaducidad: string;
-
-  estado:
-    EstadoCarnetSocio;
-
-  motivoBloqueo:
-    | string
-    | null;
-}
-
 export interface CredencialesCarnetSocio {
   email: string;
-  password: string;
+
+  numeroSocio: number;
+  numeroCarnet: string;
+
+  /*
+   * La contraseña se devuelve únicamente
+   * al crear el carnet. Nunca se almacena
+   * sin cifrar en la base de datos.
+   */
+  passwordCarnet: string;
 }
 
-export interface ResultadoCreacionSocio {
+export interface ResultadoCrearSocio {
   socio: SocioPanel;
 
-  credenciales:
-    | CredencialesCarnetSocio
-    | null;
-
-  emailEnviado: boolean;
-}
-
-export interface ResultadoRegenerarPasswordSocio {
-  socioId: string;
-  carnetId: string;
-  numeroCarnet: string;
+  carnet:
+    CarnetTemporadaSocio;
 
   credenciales:
     CredencialesCarnetSocio;
@@ -190,75 +192,32 @@ export interface ResultadoRegenerarPasswordSocio {
   emailEnviado: boolean;
 }
 
-export interface DatosCarnetSocioPublico {
-  socioId: string;
-  carnetId: string;
+export type ResultadoCrearSocioPanel =
+  ResultadoCrearSocio;
 
-  numeroSocio: number;
-  numeroCarnet: string;
-
-  nombre: string;
-  apellidos: string;
-  nombreCompleto: string;
-
-  tipoSocio: string | null;
-
-  temporada: {
-    id: string;
-    nombre: string;
-  };
-
-  estado:
-    EstadoCarnetSocio;
-
-  fechaAlta: string;
-  fechaCaducidad: string;
-}
-
-export interface ResultadoEscaneoCarnet {
-  encontrado: boolean;
-  valido: boolean;
-
-  motivo:
-    | "valido"
-    | "formato-invalido"
-    | "no-encontrado"
-    | "socio-desactivado"
-    | "carnet-pendiente"
-    | "carnet-bloqueado"
-    | "carnet-caducado";
-
-  mensaje: string;
-
-  socio:
-    | {
-        id: string;
-        numeroSocio: number;
-        nombre: string;
-        apellidos: string;
-        nombreCompleto: string;
-        email: string;
-        telefono: string | null;
-        activo: boolean;
-      }
-    | null;
+export interface ResultadoCrearCarnetSocio {
+  socio: SocioPanel;
 
   carnet:
-    | CarnetTemporadaSocio
-    | null;
+    CarnetTemporadaSocio;
+
+  credenciales:
+    CredencialesCarnetSocio;
+
+  emailEnviado: boolean;
 }
 
-export interface FiltrosListadoSocios {
-  consulta?: string;
+export type ResultadoCrearCarnetSocioPanel =
+  ResultadoCrearCarnetSocio;
 
-  estado?:
-    | EstadoCarnetSocio
-    | "todos";
+export interface FiltrosListadoSociosPanel {
+  busqueda?: string;
 
   activo?:
-    | "todos"
-    | "activos"
-    | "inactivos";
+    FiltroActividadSocio;
+
+  estado?:
+    FiltroEstadoCarnetSocio;
 
   temporadaId?: string;
 
@@ -266,14 +225,119 @@ export interface FiltrosListadoSocios {
   limite?: number;
 }
 
-export interface ResultadoListadoSocios {
+export type FiltrosSociosPanel =
+  FiltrosListadoSociosPanel;
+
+export interface ResultadoListadoSociosPanel {
   socios:
     ResumenSocioPanel[];
 
   total: number;
+
   pagina: number;
   limite: number;
   totalPaginas: number;
+}
+
+export type MotivoResultadoEscaneoCarnet =
+  | "valido"
+  | "formato-invalido"
+  | "no-encontrado"
+  | "socio-desactivado"
+  | "carnet-pendiente"
+  | "carnet-bloqueado"
+  | "carnet-caducado";
+
+export type MotivoEscaneoCarnet =
+  MotivoResultadoEscaneoCarnet;
+
+export interface SocioResultadoEscaneo {
+  id: string;
+
+  nombre: string;
+  apellidos: string;
+  nombreCompleto: string;
+
+  email: string;
+  telefono: string | null;
+
+  activo: boolean;
+}
+
+export interface ResultadoEscaneoCarnet {
+  encontrado: boolean;
+  valido: boolean;
+
+  motivo:
+    MotivoResultadoEscaneoCarnet;
+
+  mensaje: string;
+
+  numeroCarnet: string | null;
+
+  socio:
+    SocioResultadoEscaneo | null;
+
+  carnet:
+    CarnetTemporadaSocio | null;
+}
+
+export interface DatosAccesoCarnetSocio {
+  email: string;
+  password: string;
+}
+
+export interface SocioCarnetPublico {
+  id: string;
+
+  nombre: string;
+  apellidos: string;
+  nombreCompleto: string;
+}
+
+export interface CarnetSocioPublico {
+  socio:
+    SocioCarnetPublico;
+
+  carnet: {
+    id: string;
+
+    numeroSocio: number;
+    numeroCarnet: string;
+
+    tipoSocio: string | null;
+
+    estado:
+      EstadoCarnetSocio;
+
+    fechaAlta: string;
+    fechaCaducidad: string;
+
+    temporada: {
+      id: string;
+      nombre: string;
+    };
+  };
+}
+
+export interface SesionCarnetSocio {
+  socioId: string;
+  carnetId: string;
+
+  temporadaId: string;
+
+  versionAcceso: number;
+
+  expiraAt: string;
+}
+
+export interface ResultadoDesbloquearAccesoSocio {
+  socioId: string;
+  carnetId: string;
+
+  intentosFallidos: number;
+  bloqueadoHasta: string | null;
+  accesoBloqueado: boolean;
 }
 
 export interface ErrorCampoSocio {
@@ -281,23 +345,37 @@ export interface ErrorCampoSocio {
   mensaje: string;
 }
 
-export interface RespuestaListadoSocios {
+export interface RespuestaListadoSociosPanel {
   ok: boolean;
 
   data:
-    | ResultadoListadoSocios
+    | ResultadoListadoSociosPanel
     | null;
 
   error: string | null;
+
+  errores?:
+    ErrorCampoSocio[];
 }
 
 export interface RespuestaSocioPanel {
   ok: boolean;
 
+  data: {
+    socio: SocioPanel;
+  } | null;
+
+  error: string | null;
+
+  errores?:
+    ErrorCampoSocio[];
+}
+
+export interface RespuestaCrearSocioPanel {
+  ok: boolean;
+
   data:
-    | {
-        socio: SocioPanel;
-      }
+    | ResultadoCrearSocio
     | null;
 
   error: string | null;
@@ -306,11 +384,11 @@ export interface RespuestaSocioPanel {
     ErrorCampoSocio[];
 }
 
-export interface RespuestaCrearSocio {
+export interface RespuestaCrearCarnetSocio {
   ok: boolean;
 
   data:
-    | ResultadoCreacionSocio
+    | ResultadoCrearCarnetSocio
     | null;
 
   error: string | null;
@@ -319,48 +397,45 @@ export interface RespuestaCrearSocio {
     ErrorCampoSocio[];
 }
 
-export interface RespuestaRegenerarPassword {
+export interface RespuestaOpcionesSociosPanel {
   ok: boolean;
 
-  data:
-    | ResultadoRegenerarPasswordSocio
-    | null;
+  data: {
+    opciones:
+      OpcionesSociosPanel;
+  } | null;
 
   error: string | null;
 }
 
-export interface RespuestaOpcionesSocios {
+export interface RespuestaEscanearCarnet {
   ok: boolean;
 
-  data:
-    | OpcionesSociosPanel
-    | null;
+  data: {
+    resultado:
+      ResultadoEscaneoCarnet;
+  } | null;
 
   error: string | null;
 }
 
-export interface RespuestaEscaneoCarnet {
+export interface RespuestaAccesoCarnetSocio {
   ok: boolean;
 
-  data:
-    | ResultadoEscaneoCarnet
-    | null;
+  data: {
+    carnet:
+      CarnetSocioPublico;
+  } | null;
 
   error: string | null;
 }
 
-export interface RespuestaAccesoCarnet {
+export interface RespuestaDesbloquearAccesoSocio {
   ok: boolean;
 
   data:
-    | {
-        carnet:
-          DatosCarnetSocioPublico;
-      }
+    | ResultadoDesbloquearAccesoSocio
     | null;
 
   error: string | null;
-
-  errores?:
-    ErrorCampoSocio[];
 }

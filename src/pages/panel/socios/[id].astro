@@ -1,0 +1,286 @@
+---
+import EditorSocioPanel from "@components/panel/socios/editor/EditorSocioPanel";
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerSocioPanel,
+} from "@servicios/backend/socios/obtenerSocioPanel";
+
+import {
+  obtenerOpcionesSociosPanel,
+} from "@servicios/backend/socios/obtenerOpcionesSociosPanel";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+import type {
+  OpcionesSociosPanel,
+  SocioPanel,
+} from "@tipos/SocioPanel";
+
+export const prerender = false;
+
+const socioId =
+  Astro.params.id?.trim() ?? "";
+
+const rutaActual =
+  socioId
+    ? `/panel/socios/${encodeURIComponent(
+        socioId,
+      )}`
+    : "/panel/socios";
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "Error comprobando la sesión en el editor de socios:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaActual,
+    )}`,
+  );
+}
+
+let puedeVer = false;
+let puedeEditar = false;
+
+try {
+  [
+    puedeVer,
+    puedeEditar,
+  ] = await Promise.all([
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.ver",
+    ),
+
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "socios.editar",
+    ),
+  ]);
+} catch (error) {
+  console.error(
+    "Error comprobando los permisos del editor de socios:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+
+let socio: SocioPanel | null =
+  null;
+
+let opciones:
+  OpcionesSociosPanel | null =
+  null;
+
+let noEncontrado = false;
+let errorCarga: string | null =
+  null;
+
+if (!socioId) {
+  noEncontrado = true;
+  Astro.response.status = 404;
+} else {
+  try {
+    [
+      socio,
+      opciones,
+    ] = await Promise.all([
+      obtenerSocioPanel(
+        socioId,
+      ),
+
+      obtenerOpcionesSociosPanel(),
+    ]);
+
+    if (!socio) {
+      noEncontrado = true;
+      Astro.response.status = 404;
+    }
+  } catch (error) {
+    console.error(
+      `Error cargando el socio ${socioId}:`,
+      error,
+    );
+
+    const estado =
+      typeof error === "object" &&
+      error !== null &&
+      "status" in error &&
+      typeof error.status ===
+        "number"
+        ? error.status
+        : 500;
+
+    if (estado === 404) {
+      noEncontrado = true;
+      Astro.response.status = 404;
+    } else {
+      errorCarga =
+        error instanceof Error
+          ? error.message
+          : "No se ha podido cargar la información del socio.";
+
+      Astro.response.status =
+        estado >= 400 &&
+        estado <= 599
+          ? estado
+          : 500;
+    }
+  }
+}
+
+const nombreSocio =
+  socio?.nombreCompleto?.trim() ||
+  "Socio";
+---
+
+<LayoutPanel
+  title={socio
+    ? nombreSocio
+    : errorCarga
+      ? "Error al cargar el socio"
+      : "Socio no encontrado"}
+  description={socio
+    ? "Consulta y modifica los datos personales, el estado y los carnets del socio."
+    : undefined}
+  volverA="/panel/socios"
+  textoVolver="Volver a socios"
+  anchoCompleto
+>
+  {
+    errorCarga ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-12 w-12 bg-error mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <h1 class="mt-4 text-xl font-bold">
+            No se ha podido cargar el socio
+          </h1>
+
+          <p class="mt-2 text-sm leading-6">
+            {errorCarga}
+          </p>
+
+          <div class="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <a
+              href={rutaActual}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+            >
+              Volver a intentarlo
+            </a>
+
+            <a
+              href="/panel/socios"
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold text-error"
+            >
+              Volver a socios
+            </a>
+          </div>
+        </div>
+      </section>
+    ) : noEncontrado || !socio || !opciones ? (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-7 text-center shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-outline mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/usuario.svg'); -webkit-mask-image: url('/iconos/panel/usuario.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide text-primary">
+            Error 404
+          </p>
+
+          <h1 class="mt-1 text-2xl font-bold text-on-surface">
+            Socio no encontrado
+          </h1>
+
+          <p class="mt-2 text-sm leading-6 text-on-surface-variant">
+            El socio solicitado no existe o ha
+            sido eliminado.
+          </p>
+
+          <a
+            href="/panel/socios"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary"
+          >
+            <span
+              class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/volver.svg'); -webkit-mask-image: url('/iconos/panel/volver.svg');"
+              aria-hidden="true"
+            />
+
+            Volver a socios
+          </a>
+        </div>
+      </section>
+    ) : (
+      <EditorSocioPanel
+        client:load
+        socioInicial={socio}
+        opciones={opciones}
+        puedeEditar={puedeEditar}
+        puedeCrearCarnet={puedeEditar}
+      />
+    )
+  }
+</LayoutPanel>

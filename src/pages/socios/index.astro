@@ -1,0 +1,185 @@
+---
+import SocioPublico from "@components/socios/SocioPublico";
+import Layout from "@layouts/Layout.astro";
+
+import {
+  ErrorObtenerCarnetSocioSesion,
+  obtenerCarnetSocioSesion,
+} from "@servicios/backend/socios/obtenerCarnetSocioSesion";
+
+import {
+  NOMBRE_COOKIE_SESION_SOCIO,
+  OPCIONES_ELIMINAR_COOKIE_SESION_SOCIO,
+} from "@servicios/seguridad/cookieSesionSocio";
+
+import type {
+  CarnetSocioPublico,
+} from "@tipos/SocioPublico";
+
+export const prerender = false;
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "private, no-store, no-cache, must-revalidate, max-age=0",
+);
+
+Astro.response.headers.set(
+  "Pragma",
+  "no-cache",
+);
+
+Astro.response.headers.set(
+  "Expires",
+  "0",
+);
+
+Astro.response.headers.set(
+  "X-Robots-Tag",
+  "noindex, nofollow, noarchive",
+);
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION_SOCIO,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    "/socios/iniciar-sesion?motivo=sesion-no-valida",
+  );
+}
+
+let datos:
+  CarnetSocioPublico | null =
+    null;
+
+let errorCarga: string | null =
+  null;
+
+try {
+  datos =
+    await obtenerCarnetSocioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  if (
+    error instanceof
+    ErrorObtenerCarnetSocioSesion
+  ) {
+    Astro.cookies.delete(
+      NOMBRE_COOKIE_SESION_SOCIO,
+      OPCIONES_ELIMINAR_COOKIE_SESION_SOCIO,
+    );
+
+    const parametros =
+      new URLSearchParams({
+        motivo: error.motivo,
+      });
+
+    return Astro.redirect(
+      `/socios/iniciar-sesion?${parametros.toString()}`,
+    );
+  }
+
+  console.error(
+    "Error cargando el carnet público del socio:",
+    error,
+  );
+
+  Astro.response.status = 500;
+
+  errorCarga =
+    "No se ha podido cargar tu carnet de socio en este momento.";
+}
+---
+
+<Layout
+  title="Carnet de socio"
+  description="Consulta tu carnet digital del Club Bàsquet Andratx."
+  menu
+  menuMobile
+>
+  <main class="relative min-h-[calc(100dvh-5rem)] overflow-hidden px-3 py-6 sm:px-4 md:py-10">
+    <div
+      class="pointer-events-none absolute inset-0 -z-10"
+      aria-hidden="true"
+    >
+      <div class="absolute -left-24 top-12 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
+
+      <div class="absolute -right-24 bottom-12 h-80 w-80 rounded-full bg-tertiary/15 blur-3xl"></div>
+    </div>
+
+    {
+      datos ? (
+        <>
+          <header class="mx-auto mb-6 max-w-3xl text-center md:mb-8">
+            <span class="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container shadow-sm">
+              <span
+                class="inline-block h-8 w-8 bg-current mask-center mask-contain mask-no-repeat"
+                style="mask-image: url('/iconos/panel/socios.svg'); -webkit-mask-image: url('/iconos/panel/socios.svg');"
+                aria-hidden="true"
+              />
+            </span>
+
+            <p class="mt-4 text-sm font-bold uppercase tracking-[0.18em] text-primary">
+              Club Bàsquet Andratx
+            </p>
+
+            <h1 class="mt-1 text-3xl font-bold text-on-tertiary-fixed sm:text-4xl md:text-5xl">
+              Carnet de socio
+            </h1>
+
+            <p class="mx-auto mt-3 max-w-2xl text-sm leading-6 text-on-surface-variant sm:text-base">
+              Lleva siempre contigo tu carnet digital de la temporada actual.
+            </p>
+          </header>
+
+          <SocioPublico
+            client:load
+            datos={datos}
+          />
+        </>
+      ) : (
+        <section class="mx-auto flex min-h-[calc(100dvh-12rem)] max-w-xl items-center justify-center">
+          <div class="w-full rounded-2xl border border-error/30 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8">
+            <span
+              class="mx-auto inline-block h-12 w-12 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+              aria-hidden="true"
+            />
+
+            <h1 class="mt-4 text-xl font-bold">
+              No se ha podido cargar el carnet
+            </h1>
+
+            <p class="mt-2 text-sm leading-6">
+              {errorCarga}
+            </p>
+
+            <div class="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
+              <a
+                href="/socios"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error"
+              >
+                Volver a intentarlo
+              </a>
+
+              <a
+                href="/"
+                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold text-error"
+              >
+                Volver a la web
+              </a>
+            </div>
+          </div>
+        </section>
+      )
+    }
+
+    <section class="mx-auto mt-6 max-w-5xl rounded-2xl border border-outline-variant/60 bg-surface-container-low px-4 py-4 sm:px-5">
+      <p class="text-xs leading-5 text-on-surface-variant">
+        El carnet es personal e intransferible. El Club Bàsquet Andratx puede comprobar su validez mediante el código QR y bloquearlo desde el panel de administración cuando resulte necesario.
+      </p>
+    </section>
+  </main>
+</Layout>

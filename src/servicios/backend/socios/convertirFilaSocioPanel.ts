@@ -6,14 +6,6 @@ import type {
   TemporadaResumenSocio,
 } from "@tipos/SocioPanel";
 
-const estadosCarnet:
-  EstadoCarnetSocio[] = [
-    "pendiente",
-    "activo",
-    "bloqueado",
-    "caducado",
-  ];
-
 function esObjeto(
   valor: unknown,
 ): valor is Record<string, unknown> {
@@ -28,17 +20,10 @@ function convertirTexto(
   valor: unknown,
 ): string {
   if (
-    typeof valor === "string"
-  ) {
-    return valor.trim();
-  }
-
-  if (
+    typeof valor === "string" ||
     typeof valor === "number"
   ) {
-    return String(
-      valor,
-    ).trim();
+    return String(valor).trim();
   }
 
   return "";
@@ -55,6 +40,7 @@ function convertirTextoNullable(
 
 function convertirNumero(
   valor: unknown,
+  predeterminado = 0,
 ): number {
   if (
     typeof valor === "number" &&
@@ -64,8 +50,7 @@ function convertirNumero(
   }
 
   if (
-    typeof valor === "string" &&
-    valor.trim()
+    typeof valor === "string"
   ) {
     const numero =
       Number(valor);
@@ -77,7 +62,7 @@ function convertirNumero(
     }
   }
 
-  return 0;
+  return predeterminado;
 }
 
 function convertirBooleano(
@@ -89,50 +74,66 @@ function convertirBooleano(
 function convertirEstadoCarnet(
   valor: unknown,
 ): EstadoCarnetSocio {
-  const texto =
-    convertirTexto(valor);
+  switch (valor) {
+    case "activo":
+    case "pendiente":
+    case "bloqueado":
+    case "caducado":
+      return valor;
 
-  return (
-    estadosCarnet.find(
-      (estado) =>
-        estado === texto,
-    ) ?? "pendiente"
-  );
+    default:
+      return "pendiente";
+  }
 }
 
 function obtenerRelacionUnica(
   valor: unknown,
 ): Record<string, unknown> | null {
-  if (esObjeto(valor)) {
-    return valor;
-  }
-
-  if (
-    Array.isArray(valor)
-  ) {
-    const primerElemento =
+  if (Array.isArray(valor)) {
+    const primeraRelacion =
       valor.find(
         esObjeto,
       );
 
-    return primerElemento ?? null;
+    return primeraRelacion ??
+      null;
   }
 
-  return null;
+  return esObjeto(valor)
+    ? valor
+    : null;
 }
 
 function obtenerColeccion(
   valor: unknown,
-): Record<string, unknown>[] {
-  if (
-    !Array.isArray(valor)
-  ) {
-    return [];
+): unknown[] {
+  return Array.isArray(valor)
+    ? valor
+    : [];
+}
+
+function comprobarAccesoBloqueado(
+  bloqueadoHasta: string | null,
+): boolean {
+  if (!bloqueadoHasta) {
+    return false;
   }
 
-  return valor.filter(
-    esObjeto,
-  );
+  const fechaBloqueo =
+    new Date(
+      bloqueadoHasta,
+    ).getTime();
+
+  if (
+    !Number.isFinite(
+      fechaBloqueo,
+    )
+  ) {
+    return false;
+  }
+
+  return fechaBloqueo >
+    Date.now();
 }
 
 function convertirTemporada(
@@ -162,22 +163,23 @@ function convertirTemporada(
     nombre:
       convertirTexto(
         fila.nombre,
-      ) ||
-      "Temporada",
+      ) || "Temporada",
+
+    fechaInicio:
+      convertirTexto(
+        fila.fecha_inicio ??
+          fila.fechaInicio,
+      ),
+
+    fechaFin:
+      convertirTexto(
+        fila.fecha_fin ??
+          fila.fechaFin,
+      ),
 
     activa:
       convertirBooleano(
         fila.activa,
-      ),
-
-    fechaInicio:
-      convertirTextoNullable(
-        fila.fecha_inicio,
-      ),
-
-    fechaFin:
-      convertirTextoNullable(
-        fila.fecha_fin,
       ),
   };
 }
@@ -196,43 +198,83 @@ export function convertirFilaCarnetSocio(
 
   const socioId =
     convertirTexto(
-      valor.socio_id,
+      valor.socio_id ??
+        valor.socioId,
     );
 
   const temporadaId =
     convertirTexto(
-      valor.temporada_id,
+      valor.temporada_id ??
+        valor.temporadaId,
+    );
+
+  const numeroSocio =
+    convertirNumero(
+      valor.numero_socio ??
+        valor.numeroSocio,
     );
 
   const numeroCarnet =
     convertirTexto(
-      valor.numero_carnet,
+      valor.numero_carnet ??
+        valor.numeroCarnet,
     );
 
   const temporada =
     convertirTemporada(
-      valor.temporadas ??
-        valor.temporada,
+      valor.temporada,
     );
 
   if (
     !id ||
     !socioId ||
     !temporadaId ||
-    !numeroCarnet
+    numeroSocio < 1 ||
+    !numeroCarnet ||
+    !temporada
   ) {
     return null;
   }
+
+  const createdAt =
+    convertirTexto(
+      valor.created_at ??
+        valor.createdAt,
+    );
+
+  const updatedAt =
+    convertirTexto(
+      valor.updated_at ??
+        valor.updatedAt,
+    ) ||
+    createdAt;
+
+  const passwordUpdatedAt =
+    convertirTexto(
+      valor.password_updated_at ??
+        valor.passwordUpdatedAt,
+    ) ||
+    updatedAt ||
+    createdAt;
+
+  const bloqueadoHasta =
+    convertirTextoNullable(
+      valor.bloqueado_hasta ??
+        valor.bloqueadoHasta,
+    );
 
   return {
     id,
     socioId,
     temporadaId,
+
+    numeroSocio,
     numeroCarnet,
 
     tipoSocio:
       convertirTextoNullable(
-        valor.tipo_socio,
+        valor.tipo_socio ??
+          valor.tipoSocio,
       ),
 
     estado:
@@ -242,122 +284,154 @@ export function convertirFilaCarnetSocio(
 
     fechaAlta:
       convertirTexto(
-        valor.fecha_alta,
+        valor.fecha_alta ??
+          valor.fechaAlta,
       ),
 
     fechaCaducidad:
       convertirTexto(
-        valor.fecha_caducidad,
-      ),
-
-    activadoAt:
-      convertirTextoNullable(
-        valor.activado_at,
-      ),
-
-    bloqueadoAt:
-      convertirTextoNullable(
-        valor.bloqueado_at,
+        valor.fecha_caducidad ??
+          valor.fechaCaducidad,
       ),
 
     motivoBloqueo:
       convertirTextoNullable(
-        valor.motivo_bloqueo,
+        valor.motivo_bloqueo ??
+          valor.motivoBloqueo,
       ),
 
-    bloqueadoHasta:
+    activadoAt:
       convertirTextoNullable(
-        valor.bloqueado_hasta,
+        valor.activado_at ??
+          valor.activadoAt,
       ),
 
-    emailBienvenidaEnviadoAt:
+    activadoPor:
       convertirTextoNullable(
-        valor.email_bienvenida_enviado_at,
+        valor.activado_por ??
+          valor.activadoPor,
       ),
 
-    ultimoAccesoAt:
+    bloqueadoAt:
       convertirTextoNullable(
-        valor.ultimo_acceso_at,
+        valor.bloqueado_at ??
+          valor.bloqueadoAt,
       ),
 
-    intentosFallidos:
-      convertirNumero(
-        valor.intentos_fallidos,
+    bloqueadoPor:
+      convertirTextoNullable(
+        valor.bloqueado_por ??
+          valor.bloqueadoPor,
       ),
 
     versionAcceso:
       Math.max(
         1,
-        convertirNumero(
-          valor.version_acceso,
+        Math.trunc(
+          convertirNumero(
+            valor.version_acceso ??
+              valor.versionAcceso,
+            1,
+          ),
         ),
       ),
 
-    createdAt:
-      convertirTexto(
-        valor.created_at,
+    passwordUpdatedAt,
+
+    intentosFallidos:
+      Math.max(
+        0,
+        Math.trunc(
+          convertirNumero(
+            valor.intentos_fallidos ??
+              valor.intentosFallidos,
+            0,
+          ),
+        ),
       ),
 
-    updatedAt:
-      convertirTexto(
-        valor.updated_at,
+    bloqueadoHasta,
+
+    ultimoAccesoAt:
+      convertirTextoNullable(
+        valor.ultimo_acceso_at ??
+          valor.ultimoAccesoAt,
       ),
 
-    temporada:
-      temporada ?? {
-        id:
-          temporadaId,
+    emailBienvenidaEnviadoAt:
+      convertirTextoNullable(
+        valor.email_bienvenida_enviado_at ??
+          valor.emailBienvenidaEnviadoAt,
+      ),
 
-        nombre:
-          "Temporada",
+    accesoBloqueado:
+      comprobarAccesoBloqueado(
+        bloqueadoHasta,
+      ),
 
-        activa:
-          false,
+    createdAt,
+    updatedAt,
 
-        fechaInicio:
-          null,
-
-        fechaFin:
-          null,
-      },
+    temporada,
   };
 }
 
-function ordenarHistorial(
-  carnets:
-    CarnetTemporadaSocio[],
+function obtenerCarnets(
+  valor:
+    Record<string, unknown>,
 ): CarnetTemporadaSocio[] {
-  return [...carnets].sort(
-    (primero, segundo) => {
-      const comparacionFecha =
-        segundo.fechaAlta.localeCompare(
-          primero.fechaAlta,
+  const coleccion =
+    obtenerColeccion(
+      valor.carnets ??
+        valor.socios_temporadas,
+    );
+
+  return coleccion
+    .flatMap(
+      (elemento) => {
+        const carnet =
+          convertirFilaCarnetSocio(
+            elemento,
+          );
+
+        return carnet
+          ? [carnet]
+          : [];
+      },
+    )
+    .sort(
+      (
+        carnetA,
+        carnetB,
+      ) => {
+        const fechaA =
+          carnetA.temporada
+            .fechaInicio ||
+          carnetA.fechaAlta ||
+          carnetA.createdAt;
+
+        const fechaB =
+          carnetB.temporada
+            .fechaInicio ||
+          carnetB.fechaAlta ||
+          carnetB.createdAt;
+
+        return fechaB.localeCompare(
+          fechaA,
         );
-
-      if (
-        comparacionFecha !== 0
-      ) {
-        return comparacionFecha;
-      }
-
-      return segundo.createdAt.localeCompare(
-        primero.createdAt,
-      );
-    },
-  );
+      },
+    );
 }
 
 function obtenerCarnetActual(
-  historial:
+  carnets:
     CarnetTemporadaSocio[],
   temporadaActivaId:
     string | null,
 ): CarnetTemporadaSocio | null {
-  if (
-    temporadaActivaId
-  ) {
+  if (temporadaActivaId) {
     const carnetTemporadaActiva =
-      historial.find(
+      carnets.find(
         (carnet) =>
           carnet.temporadaId ===
           temporadaActivaId,
@@ -370,26 +444,25 @@ function obtenerCarnetActual(
     }
   }
 
-  const carnetMarcadoActivo =
-    historial.find(
-      (carnet) =>
-        carnet.temporada.activa,
-    );
-
   return (
-    carnetMarcadoActivo ??
-    null
+    carnets.find(
+      (carnet) =>
+        carnet.temporada
+          .activa,
+    ) ?? null
   );
 }
 
-function convertirDatosSocio(
+function convertirDatosComunesSocio(
   valor: unknown,
   temporadaActivaId:
-    string | null,
+    string | null = null,
 ): {
   resumen: ResumenSocioPanel;
-  observaciones: string | null;
-  historial: CarnetTemporadaSocio[];
+  fila:
+    Record<string, unknown>;
+  carnets:
+    CarnetTemporadaSocio[];
 } | null {
   if (!esObjeto(valor)) {
     return null;
@@ -400,85 +473,55 @@ function convertirDatosSocio(
       valor.id,
     );
 
-  const numeroSocio =
-    convertirNumero(
-      valor.numero_socio,
-    );
+  if (!id) {
+    return null;
+  }
 
   const nombre =
     convertirTexto(
       valor.nombre,
-    );
+    ) || "Socio";
 
   const apellidos =
     convertirTexto(
       valor.apellidos,
     );
 
-  const email =
-    convertirTexto(
-      valor.email,
-    ).toLowerCase();
+  const nombreCompleto =
+    [nombre, apellidos]
+      .filter(Boolean)
+      .join(" ");
 
-  if (
-    !id ||
-    numeroSocio < 1 ||
-    !nombre ||
-    !apellidos ||
-    !email
-  ) {
-    return null;
-  }
-
-  const filasCarnets =
-    obtenerColeccion(
-      valor.socios_temporadas ??
-        valor.carnets,
-    );
-
-  const historial =
-    ordenarHistorial(
-      filasCarnets.flatMap(
-        (fila) => {
-          const carnet =
-            convertirFilaCarnetSocio(
-              fila,
-            );
-
-          return carnet
-            ? [carnet]
-            : [];
-        },
-      ),
-    );
-
-  const carnetActual =
-    obtenerCarnetActual(
-      historial,
-      temporadaActivaId,
+  const carnets =
+    obtenerCarnets(
+      valor,
     );
 
   const createdAt =
     convertirTexto(
-      valor.created_at,
+      valor.created_at ??
+        valor.createdAt,
     );
 
   const updatedAt =
     convertirTexto(
-      valor.updated_at,
-    );
+      valor.updated_at ??
+        valor.updatedAt,
+    ) ||
+    createdAt;
 
   const resumen:
     ResumenSocioPanel = {
       id,
-      numeroSocio,
+
       nombre,
       apellidos,
+      nombreCompleto,
 
-      nombreCompleto:
-        `${nombre} ${apellidos}`.trim(),
-
-      email,
+      email:
+        convertirTexto(
+          valor.email,
+        ),
 
       telefono:
         convertirTextoNullable(
@@ -490,35 +533,33 @@ function convertirDatosSocio(
           valor.activo,
         ),
 
-      carnetActual,
+      carnetActual:
+        obtenerCarnetActual(
+          carnets,
+          temporadaActivaId,
+        ),
 
-      totalTemporadas:
-        historial.length,
+      totalCarnets:
+        carnets.length,
 
       createdAt,
       updatedAt,
-  };
+    };
 
   return {
     resumen,
-
-    observaciones:
-      convertirTextoNullable(
-        valor.observaciones,
-      ),
-
-    historial,
+    fila: valor,
+    carnets,
   };
 }
 
 export function convertirFilaResumenSocioPanel(
   valor: unknown,
   temporadaActivaId:
-    | string
-    | null = null,
+    string | null = null,
 ): ResumenSocioPanel | null {
   return (
-    convertirDatosSocio(
+    convertirDatosComunesSocio(
       valor,
       temporadaActivaId,
     )?.resumen ?? null
@@ -528,11 +569,10 @@ export function convertirFilaResumenSocioPanel(
 export function convertirFilaSocioPanel(
   valor: unknown,
   temporadaActivaId:
-    | string
-    | null = null,
+    string | null = null,
 ): SocioPanel | null {
   const datos =
-    convertirDatosSocio(
+    convertirDatosComunesSocio(
       valor,
       temporadaActivaId,
     );
@@ -545,9 +585,12 @@ export function convertirFilaSocioPanel(
     ...datos.resumen,
 
     observaciones:
-      datos.observaciones,
+      convertirTextoNullable(
+        datos.fila
+          .observaciones,
+      ),
 
-    historial:
-      datos.historial,
+    carnets:
+      datos.carnets,
   };
 }

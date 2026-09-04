@@ -7,18 +7,22 @@ import {
 } from "./convertirFilaSocioPanel";
 
 import type {
-  EstadoCarnetSocio,
-  FiltrosListadoSocios,
-  ResultadoListadoSocios,
+  FiltrosListadoSociosPanel,
+  ResultadoListadoSociosPanel,
 } from "@tipos/SocioPanel";
 
-interface FilaTemporadaActiva {
+interface FilaTemporada {
   id: string;
 }
 
-interface FilaRelacionSocio {
-  socio_id: string;
-}
+const PAGINA_PREDETERMINADA =
+  1;
+
+const LIMITE_PREDETERMINADO =
+  20;
+
+const LIMITE_MAXIMO =
+  100;
 
 export class ErrorObtenerListadoSociosPanel
   extends Error {
@@ -37,83 +41,61 @@ export class ErrorObtenerListadoSociosPanel
   }
 }
 
-function normalizarPagina(
+function convertirEnteroPositivo(
   valor: unknown,
+  predeterminado: number,
 ): number {
   if (
-    typeof valor !== "number" ||
-    !Number.isInteger(valor) ||
-    valor < 1
+    typeof valor === "number" &&
+    Number.isInteger(valor) &&
+    valor >= 1
   ) {
-    return 1;
+    return valor;
   }
 
-  return valor;
-}
-
-function normalizarLimite(
-  valor: unknown,
-): number {
   if (
-    typeof valor !== "number" ||
-    !Number.isInteger(valor)
+    typeof valor === "string"
   ) {
-    return 20;
+    const numero =
+      Number(valor);
+
+    if (
+      Number.isInteger(numero) &&
+      numero >= 1
+    ) {
+      return numero;
+    }
   }
 
-  return Math.min(
-    100,
-    Math.max(
-      1,
-      valor,
-    ),
-  );
+  return predeterminado;
 }
 
-function normalizarConsulta(
-  valor: unknown,
+function limpiarBusqueda(
+  valor: string | undefined,
 ): string {
-  if (
-    typeof valor !== "string"
-  ) {
+  if (!valor) {
     return "";
   }
 
+  /*
+   * Estos caracteres pueden alterar la
+   * sintaxis del filtro OR de PostgREST.
+   */
   return valor
     .trim()
-    .slice(0, 100)
     .replace(
-      /[,%()]/g,
+      /[,%()"'\\]/g,
       " ",
     )
     .replace(
       /\s+/g,
       " ",
-    );
+    )
+    .slice(0, 100);
 }
 
-function esUuidValido(
-  valor: string,
-): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    valor,
-  );
-}
-
-function esEstadoCarnet(
-  valor: unknown,
-): valor is EstadoCarnetSocio {
-  return (
-    valor === "pendiente" ||
-    valor === "activo" ||
-    valor === "bloqueado" ||
-    valor === "caducado"
-  );
-}
-
-async function obtenerTemporadaActivaId(): Promise<
-  string | null
-> {
+async function obtenerTemporadaActivaId():
+  Promise<string | null> {
   const {
     data,
     error,
@@ -121,221 +103,180 @@ async function obtenerTemporadaActivaId(): Promise<
     await supabaseServidor
       .from("temporadas")
       .select("id")
-      .eq("activa", true)
+      .eq(
+        "activa",
+        true,
+      )
+      .order(
+        "fecha_inicio",
+        {
+          ascending: false,
+        },
+      )
       .limit(1)
       .maybeSingle();
 
   if (error) {
     throw new ErrorObtenerListadoSociosPanel(
-      `No se ha podido obtener la temporada activa: ${error.message}`,
+      `No se ha podido consultar la temporada activa: ${error.message}`,
       500,
     );
   }
 
-  const temporada =
-    data as
-      | FilaTemporadaActiva
-      | null;
-
-  return (
-    temporada?.id ??
-    null
-  );
-}
-
-async function obtenerSociosPermitidosPorCarnet(
-  temporadaId:
-    string | null,
-  estado:
-    EstadoCarnetSocio | null,
-): Promise<string[] | null> {
-  if (
-    !temporadaId &&
-    !estado
-  ) {
+  if (!data) {
     return null;
   }
 
-  if (
-    estado &&
-    !temporadaId
-  ) {
-    return [];
-  }
+  return (
+    data as
+      FilaTemporada
+  ).id;
+}
 
-  let consulta =
-    supabaseServidor
-      .from("socios_temporadas")
-      .select("socio_id");
+function crearSeleccion(
+  relacionObligatoria: boolean,
+): string {
+  const relacionCarnets =
+    relacionObligatoria
+      ? "carnets:socios_temporadas!inner"
+      : "carnets:socios_temporadas";
 
-  if (temporadaId) {
-    consulta =
-      consulta.eq(
-        "temporada_id",
-        temporadaId,
-      );
-  }
+  return `
+    id,
+    nombre,
+    apellidos,
+    email,
+    telefono,
+    activo,
+    created_at,
+    updated_at,
 
-  if (estado) {
-    consulta =
-      consulta.eq(
-        "estado",
-        estado,
-      );
-  }
+    ${relacionCarnets} (
+      id,
+      socio_id,
+      temporada_id,
 
-  const {
-    data,
-    error,
-  } = await consulta;
+      numero_socio,
+      numero_carnet,
 
-  if (error) {
-    throw new ErrorObtenerListadoSociosPanel(
-      `No se han podido aplicar los filtros de carnets: ${error.message}`,
-      500,
-    );
-  }
+      tipo_socio,
+      estado,
 
-  const filas =
-    (data ?? []) as
-      FilaRelacionSocio[];
+      fecha_alta,
+      fecha_caducidad,
 
-  return Array.from(
-    new Set(
-      filas
-        .map(
-          (fila) =>
-            fila.socio_id,
-        )
-        .filter(Boolean),
-    ),
-  );
+      motivo_bloqueo,
+
+      activado_at,
+      activado_por,
+
+      bloqueado_at,
+      bloqueado_por,
+
+      version_acceso,
+
+      password_updated_at,
+      intentos_fallidos,
+      bloqueado_hasta,
+      ultimo_acceso_at,
+      email_bienvenida_enviado_at,
+
+      created_at,
+      updated_at,
+
+      temporada:temporadas (
+        id,
+        nombre,
+        fecha_inicio,
+        fecha_fin,
+        activa
+      )
+    )
+  `;
 }
 
 export async function obtenerListadoSociosPanel(
   filtros:
-    FiltrosListadoSocios = {},
-): Promise<ResultadoListadoSocios> {
+    FiltrosListadoSociosPanel = {},
+): Promise<ResultadoListadoSociosPanel> {
   const pagina =
-    normalizarPagina(
+    convertirEnteroPositivo(
       filtros.pagina,
+      PAGINA_PREDETERMINADA,
     );
 
   const limite =
-    normalizarLimite(
-      filtros.limite,
+    Math.min(
+      convertirEnteroPositivo(
+        filtros.limite,
+        LIMITE_PREDETERMINADO,
+      ),
+      LIMITE_MAXIMO,
     );
 
-  const consultaTexto =
-    normalizarConsulta(
-      filtros.consulta,
+  const busqueda =
+    limpiarBusqueda(
+      filtros.busqueda,
     );
+
+  const filtroActividad =
+    filtros.activo ??
+    "todos";
+
+  const filtroEstado =
+    filtros.estado ??
+    "todos";
+
+  const temporadaFiltradaId =
+    filtros.temporadaId
+      ?.trim() || null;
 
   const temporadaActivaId =
+    temporadaFiltradaId ??
     await obtenerTemporadaActivaId();
 
-  const temporadaSolicitada =
-    typeof filtros.temporadaId ===
-      "string" &&
-    esUuidValido(
-      filtros.temporadaId.trim(),
-    )
-      ? filtros.temporadaId.trim()
-      : null;
+  const filtraPorCarnet =
+    Boolean(
+      temporadaFiltradaId,
+    ) ||
+    filtroEstado !==
+      "todos";
 
-  const estadoSolicitado =
-    esEstadoCarnet(
-      filtros.estado,
-    )
-      ? filtros.estado
-      : null;
+  const desde =
+    (pagina - 1) *
+    limite;
 
-  const temporadaFiltro =
-    temporadaSolicitada ??
-    (
-      estadoSolicitado
-        ? temporadaActivaId
-        : null
-    );
-
-  const sociosPermitidos =
-    await obtenerSociosPermitidosPorCarnet(
-      temporadaFiltro,
-      estadoSolicitado,
-    );
-
-  if (
-    sociosPermitidos &&
-    sociosPermitidos.length === 0
-  ) {
-    return {
-      socios: [],
-      total: 0,
-      pagina,
-      limite,
-      totalPaginas: 0,
-    };
-  }
+  const hasta =
+    desde +
+    limite -
+    1;
 
   let consulta =
     supabaseServidor
       .from("socios")
       .select(
-        `
-          id,
-          numero_socio,
-          nombre,
-          apellidos,
-          email,
-          telefono,
-          activo,
-          created_at,
-          updated_at,
-          socios_temporadas (
-            id,
-            socio_id,
-            temporada_id,
-            numero_carnet,
-            tipo_socio,
-            estado,
-            fecha_alta,
-            fecha_caducidad,
-            activado_at,
-            bloqueado_at,
-            motivo_bloqueo,
-            bloqueado_hasta,
-            email_bienvenida_enviado_at,
-            ultimo_acceso_at,
-            intentos_fallidos,
-            version_acceso,
-            created_at,
-            updated_at,
-            temporadas (
-              id,
-              nombre,
-              activa,
-              fecha_inicio,
-              fecha_fin
-            )
-          )
-        `,
+        crearSeleccion(
+          filtraPorCarnet,
+        ),
         {
           count: "exact",
         },
       );
 
-  if (
-    sociosPermitidos
-  ) {
+  if (busqueda) {
     consulta =
-      consulta.in(
-        "id",
-        sociosPermitidos,
+      consulta.or(
+        [
+          `nombre.ilike.%${busqueda}%`,
+          `apellidos.ilike.%${busqueda}%`,
+          `email.ilike.%${busqueda}%`,
+          `telefono.ilike.%${busqueda}%`,
+        ].join(","),
       );
   }
 
   if (
-    filtros.activo ===
+    filtroActividad ===
     "activos"
   ) {
     consulta =
@@ -346,7 +287,7 @@ export async function obtenerListadoSociosPanel(
   }
 
   if (
-    filtros.activo ===
+    filtroActividad ===
     "inactivos"
   ) {
     consulta =
@@ -356,49 +297,26 @@ export async function obtenerListadoSociosPanel(
       );
   }
 
-  if (consultaTexto) {
-    const numeroBuscado =
-      /^\d+$/.test(
-        consultaTexto,
-      )
-        ? Number(
-            consultaTexto,
-          )
-        : null;
-
-    const filtrosBusqueda = [
-      `nombre.ilike.%${consultaTexto}%`,
-      `apellidos.ilike.%${consultaTexto}%`,
-      `email.ilike.%${consultaTexto}%`,
-    ];
-
-    if (
-      numeroBuscado !== null &&
-      Number.isSafeInteger(
-        numeroBuscado,
-      )
-    ) {
-      filtrosBusqueda.push(
-        `numero_socio.eq.${numeroBuscado}`,
-      );
-    }
-
+  if (
+    temporadaFiltradaId
+  ) {
     consulta =
-      consulta.or(
-        filtrosBusqueda.join(
-          ",",
-        ),
+      consulta.eq(
+        "carnets.temporada_id",
+        temporadaFiltradaId,
       );
   }
 
-  const desde =
-    (pagina - 1) *
-    limite;
-
-  const hasta =
-    desde +
-    limite -
-    1;
+  if (
+    filtroEstado !==
+    "todos"
+  ) {
+    consulta =
+      consulta.eq(
+        "carnets.estado",
+        filtroEstado,
+      );
+  }
 
   const {
     data,
@@ -424,6 +342,14 @@ export async function obtenerListadoSociosPanel(
       );
 
   if (error) {
+    console.error(
+      "Error obteniendo el listado de socios:",
+      {
+        filtros,
+        error,
+      },
+    );
+
     throw new ErrorObtenerListadoSociosPanel(
       `No se ha podido obtener el listado de socios: ${error.message}`,
       500,
@@ -431,35 +357,37 @@ export async function obtenerListadoSociosPanel(
   }
 
   const socios =
-    (data ?? []).flatMap(
-      (fila) => {
-        const socio =
-          convertirFilaResumenSocioPanel(
-            fila,
-            temporadaActivaId,
-          );
+    (data ?? [])
+      .flatMap(
+        (fila) => {
+          const socio =
+            convertirFilaResumenSocioPanel(
+              fila,
+              temporadaActivaId,
+            );
 
-        return socio
-          ? [socio]
-          : [];
-      },
-    );
+          return socio
+            ? [socio]
+            : [];
+        },
+      );
 
   const total =
     count ?? 0;
+
+  const totalPaginas =
+    total === 0
+      ? 0
+      : Math.ceil(
+          total /
+          limite,
+        );
 
   return {
     socios,
     total,
     pagina,
     limite,
-
-    totalPaginas:
-      total === 0
-        ? 0
-        : Math.ceil(
-            total /
-              limite,
-          ),
+    totalPaginas,
   };
 }

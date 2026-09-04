@@ -21,6 +21,8 @@ import {
 
 import type {
   CrearCarnetTemporadaSocio,
+  ErrorCampoSocio,
+  RespuestaCrearCarnetSocio,
 } from "@tipos/SocioPanel";
 
 export const prerender = false;
@@ -28,14 +30,17 @@ export const prerender = false;
 const cabecerasRespuesta = {
   "Cache-Control":
     "no-store, max-age=0",
+
   "Content-Type":
     "application/json; charset=utf-8",
+
   "X-Content-Type-Options":
     "nosniff",
 };
 
 function crearRespuesta(
-  contenido: unknown,
+  contenido:
+    RespuestaCrearCarnetSocio,
   estado: number,
 ): Response {
   return Response.json(
@@ -51,7 +56,8 @@ function crearRespuesta(
 function crearRespuestaError(
   error: string,
   estado: number,
-  errores: unknown[] = [],
+  errores:
+    ErrorCampoSocio[] = [],
 ): Response {
   return crearRespuesta(
     {
@@ -74,22 +80,8 @@ function esObjeto(
   );
 }
 
-function obtenerErroresCampo(
-  error: unknown,
-): unknown[] {
-  if (!esObjeto(error)) {
-    return [];
-  }
-
-  return Array.isArray(
-    error.errores,
-  )
-    ? error.errores
-    : [];
-}
-
-function obtenerSocioId(
-  valor: string | undefined,
+function convertirTexto(
+  valor: unknown,
 ): string | null {
   if (
     typeof valor !== "string"
@@ -97,10 +89,181 @@ function obtenerSocioId(
     return null;
   }
 
-  const socioId =
+  const texto =
     valor.trim();
 
-  return socioId || null;
+  return texto || null;
+}
+
+function obtenerSocioId(
+  valor: string | undefined,
+): string | null {
+  return convertirTexto(
+    valor,
+  );
+}
+
+function obtenerUsuarioIdSesion(
+  sesion: unknown,
+): string | null {
+  if (!esObjeto(sesion)) {
+    return null;
+  }
+
+  const usuario =
+    esObjeto(
+      sesion.usuario,
+    )
+      ? sesion.usuario
+      : null;
+
+  return (
+    convertirTexto(
+      usuario?.id,
+    ) ??
+    convertirTexto(
+      sesion.usuarioId,
+    ) ??
+    convertirTexto(
+      sesion.usuario_id,
+    ) ??
+    convertirTexto(
+      sesion.id,
+    )
+  );
+}
+
+function obtenerErroresCampo(
+  error: unknown,
+): ErrorCampoSocio[] {
+  if (!esObjeto(error)) {
+    return [];
+  }
+
+  if (
+    !Array.isArray(
+      error.errores,
+    )
+  ) {
+    return [];
+  }
+
+  return error.errores.flatMap(
+    (elemento) => {
+      if (!esObjeto(elemento)) {
+        return [];
+      }
+
+      const campo =
+        convertirTexto(
+          elemento.campo,
+        );
+
+      const mensaje =
+        convertirTexto(
+          elemento.mensaje,
+        );
+
+      if (
+        !campo ||
+        !mensaje
+      ) {
+        return [];
+      }
+
+      return [
+        {
+          campo,
+          mensaje,
+        },
+      ];
+    },
+  );
+}
+
+async function obtenerDatosCarnet(
+  request: Request,
+): Promise<CrearCarnetTemporadaSocio | null> {
+  const tipoContenido =
+    request.headers.get(
+      "content-type",
+    ) ?? "";
+
+  if (
+    !tipoContenido
+      .toLowerCase()
+      .includes(
+        "application/json",
+      )
+  ) {
+    return null;
+  }
+
+  let contenido:
+    unknown;
+
+  try {
+    contenido =
+      await request.json();
+  } catch {
+    return null;
+  }
+
+  if (!esObjeto(contenido)) {
+    return null;
+  }
+
+  const temporadaId =
+    convertirTexto(
+      contenido.temporadaId ??
+        contenido.temporada_id,
+    );
+
+  const tipoSocio =
+    convertirTexto(
+      contenido.tipoSocio ??
+        contenido.tipo_socio,
+    );
+
+  const estado =
+    convertirTexto(
+      contenido.estado,
+    );
+
+  const fechaAlta =
+    convertirTexto(
+      contenido.fechaAlta ??
+        contenido.fecha_alta,
+    );
+
+  const fechaCaducidad =
+    convertirTexto(
+      contenido.fechaCaducidad ??
+        contenido.fecha_caducidad,
+    );
+
+  if (
+    !temporadaId ||
+    !tipoSocio ||
+    !fechaAlta ||
+    !fechaCaducidad ||
+    (
+      estado !==
+        "pendiente" &&
+      estado !==
+        "activo"
+    )
+  ) {
+    return null;
+  }
+
+  return {
+    temporadaId,
+    tipoSocio,
+    estado,
+    fechaAlta,
+    fechaCaducidad,
+  };
 }
 
 export const POST: APIRoute =
@@ -181,6 +344,18 @@ export const POST: APIRoute =
       );
     }
 
+    const usuarioId =
+      obtenerUsuarioIdSesion(
+        sesion,
+      );
+
+    if (!usuarioId) {
+      return crearRespuestaError(
+        "No se ha podido identificar al administrador.",
+        500,
+      );
+    }
+
     const socioId =
       obtenerSocioId(
         params.id,
@@ -193,57 +368,24 @@ export const POST: APIRoute =
       );
     }
 
-    const tipoContenido =
-      request.headers.get(
-        "content-type",
-      ) ?? "";
-
-    if (
-      !tipoContenido
-        .toLowerCase()
-        .includes(
-          "application/json",
-        )
-    ) {
-      return crearRespuestaError(
-        "El contenido de la petición debe enviarse en formato JSON.",
-        415,
-      );
-    }
-
-    let cuerpoDesconocido: unknown;
-
-    try {
-      cuerpoDesconocido =
-        await request.json();
-    } catch {
-      return crearRespuestaError(
-        "El cuerpo de la petición no contiene un JSON válido.",
-        400,
-      );
-    }
-
-    if (
-      !esObjeto(
-        cuerpoDesconocido,
-      )
-    ) {
-      return crearRespuestaError(
-        "Los datos enviados no son válidos.",
-        400,
-      );
-    }
-
     const datos =
-      cuerpoDesconocido as unknown as
-        CrearCarnetTemporadaSocio;
+      await obtenerDatosCarnet(
+        request,
+      );
+
+    if (!datos) {
+      return crearRespuestaError(
+        "Los datos del carnet no son válidos.",
+        400,
+      );
+    }
 
     try {
       const resultado =
         await crearCarnetSocioPanel(
           socioId,
           datos,
-          sesion.usuario.id,
+          usuarioId,
         );
 
       return crearRespuesta(
@@ -290,7 +432,7 @@ export const ALL: APIRoute =
         error:
           "Método no permitido.",
         errores: [],
-      },
+      } satisfies RespuestaCrearCarnetSocio,
       {
         status: 405,
         headers: {
