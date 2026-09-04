@@ -8,17 +8,22 @@ import {
 
 import type {
   CarnetSocioPublico,
+} from "@tipos/SocioPanel";
+
+import type {
   RespuestaCerrarSesionSocio,
 } from "@tipos/SocioPublico";
 
 interface Propiedades {
-  datos: CarnetSocioPublico;
+  datos:
+    CarnetSocioPublico;
 }
 
 function obtenerTemporadaVisible(
   nombre: string,
 ): string {
-  const texto = nombre.trim();
+  const texto =
+    nombre.trim();
 
   if (!texto) {
     return "TEMPORADA";
@@ -33,7 +38,9 @@ function obtenerTemporadaVisible(
 }
 
 function obtenerTipoSocio(
-  tipoSocio: string | null,
+  tipoSocio:
+    | string
+    | null,
 ): string {
   const tipo =
     tipoSocio?.trim();
@@ -46,9 +53,12 @@ function obtenerTipoSocio(
     tipo.toLowerCase();
 
   if (
-    normalizado === "socio" ||
-    normalizado === "socia" ||
-    normalizado === "socio/a"
+    normalizado ===
+      "socio" ||
+    normalizado ===
+      "socia" ||
+    normalizado ===
+      "socio/a"
   ) {
     return "SOCIO/A";
   }
@@ -59,83 +69,126 @@ function obtenerTipoSocio(
 export default function SocioPublico({
   datos,
 }: Propiedades) {
-  const [cerrandoSesion, setCerrandoSesion] =
-    useState(false);
+  const [
+    cerrandoSesion,
+    setCerrandoSesion,
+  ] = useState(false);
 
-  const [errorCerrarSesion, setErrorCerrarSesion] =
-    useState<string | null>(
-      null,
-    );
+  const [
+    errorCerrarSesion,
+    setErrorCerrarSesion,
+  ] = useState<
+    string | null
+  >(null);
 
   const nombreCompleto =
-    datos.socio.nombreCompleto
+    (
+      datos.socio
+        .nombreCompleto ||
+      [
+        datos.socio.nombre,
+        datos.socio.apellidos,
+      ]
+        .filter(Boolean)
+        .join(" ")
+    )
       .trim()
       .toUpperCase();
 
+  const nombreSocio =
+    datos.socio.nombre
+      ?.trim() ||
+    datos.socio
+      .nombreCompleto
+      ?.trim() ||
+    "Socio/a";
+
+  const nombreTemporada =
+    datos.carnet
+      .temporada
+      .nombre ||
+    "Temporada";
+
   const temporada =
     obtenerTemporadaVisible(
-      datos.temporada.nombre,
+      nombreTemporada,
     );
 
   const tipoSocio =
     obtenerTipoSocio(
-      datos.carnet.tipoSocio,
+      datos.carnet
+        .tipoSocio,
     );
 
-  const cerrarSesion =
-    async () => {
-      if (cerrandoSesion) {
-        return;
-      }
+  const numeroCarnet =
+    datos.carnet
+      .numeroCarnet;
 
-      setCerrandoSesion(true);
-      setErrorCerrarSesion(null);
+  const numeroSocio =
+    datos.carnet
+      .numeroSocio;
 
-      try {
-        const respuesta =
-          await fetch(
-            "/api/socios/cerrar-sesion",
-            {
-              method: "POST",
-              credentials:
-                "same-origin",
-              headers: {
-                Accept:
-                  "application/json",
-              },
+  async function cerrarSesion() {
+    if (cerrandoSesion) {
+      return;
+    }
+
+    setCerrandoSesion(true);
+    setErrorCerrarSesion(
+      null,
+    );
+
+    try {
+      const respuesta =
+        await fetch(
+          "/api/socios/cerrar-sesion",
+          {
+            method: "POST",
+
+            credentials:
+              "same-origin",
+
+            headers: {
+              Accept:
+                "application/json",
             },
-          );
-
-        const contenido =
-          (await respuesta.json()) as
-            RespuestaCerrarSesionSocio;
-
-        if (
-          !respuesta.ok ||
-          !contenido.ok
-        ) {
-          throw new Error(
-            contenido.error ??
-              "No se ha podido cerrar la sesión.",
-          );
-        }
-
-        window.location.assign(
-          "/socios/iniciar-sesion",
-        );
-      } catch (error) {
-        console.error(
-          "Error cerrando la sesión del socio:",
-          error,
+          },
         );
 
-        setErrorCerrarSesion(
-          "No se ha podido cerrar la sesión. Inténtalo de nuevo.",
-        );
+      const contenido =
+        (await respuesta.json()) as
+          RespuestaCerrarSesionSocio;
 
-        setCerrandoSesion(false);
+      if (
+        !respuesta.ok ||
+        !contenido.ok
+      ) {
+        throw new Error(
+          contenido.error ??
+            "No se ha podido cerrar la sesión.",
+        );
       }
-    };
+
+      window.location.assign(
+        "/socios/iniciar-sesion",
+      );
+    } catch (error) {
+      console.error(
+        "Error cerrando la sesión del socio:",
+        error,
+      );
+
+      setErrorCerrarSesion(
+        error instanceof Error
+          ? error.message
+          : "No se ha podido cerrar la sesión. Inténtalo de nuevo.",
+      );
+
+      setCerrandoSesion(
+        false,
+      );
+    }
+  }
 
   return (
     <div className="mx-auto grid w-full max-w-5xl items-start gap-6 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)] lg:gap-8">
@@ -168,6 +221,7 @@ export default function SocioPublico({
           style={{
             clipPath:
               "polygon(0 43%, 94% 0, 83% 20%, 100% 30%, 82% 44%, 96% 54%, 8% 100%, 18% 72%)",
+
             opacity: 0.8,
           }}
           aria-hidden="true"
@@ -178,6 +232,7 @@ export default function SocioPublico({
           style={{
             clipPath:
               "polygon(0 30%, 100% 0, 84% 28%, 100% 44%, 79% 55%, 92% 79%, 0 100%, 14% 65%)",
+
             opacity: 0.85,
           }}
           aria-hidden="true"
@@ -226,7 +281,8 @@ export default function SocioPublico({
           </p>
 
           <p className="mt-[2%] rounded-full bg-[#ffc801] px-[7%] py-[1.5%] text-[clamp(0.68rem,3vw,1rem)] font-black italic text-[#032a55] shadow-md">
-            TEMPORADA {temporada}
+            TEMPORADA{" "}
+            {temporada}
           </p>
 
           <div className="relative mt-[4%] flex h-[19%] w-[45%] items-center justify-center">
@@ -256,20 +312,20 @@ export default function SocioPublico({
           </p>
 
           <p className="mt-[1%] text-[clamp(0.75rem,3.5vw,1.05rem)] font-bold italic tracking-wider text-white/95">
-            {datos.carnet.numeroCarnet}
+            {numeroCarnet}
           </p>
 
           <div className="mt-[3%] flex w-[43%] max-w-45 items-center justify-center rounded-2xl bg-white p-[3%] shadow-[0_10px_25px_rgba(0,0,0,0.3)]">
             <QRCodeSVG
               value={
-                datos.qr.contenido
+                numeroCarnet
               }
               size={360}
               level="H"
               bgColor="#ffffff"
               fgColor="#000000"
               className="h-auto w-full"
-              aria-label={`Código QR del carnet ${datos.carnet.numeroCarnet}`}
+              aria-label={`Código QR del carnet ${numeroCarnet}`}
             />
           </div>
 
@@ -309,11 +365,9 @@ export default function SocioPublico({
             Carnet digital
           </p>
 
-          <h1 className="mt-1 text-2xl font-bold">
-            Hola,{" "}
-            {datos.socio.nombre ||
-              datos.socio.nombreCompleto}
-          </h1>
+          <h2 className="mt-1 text-2xl font-bold">
+            Hola, {nombreSocio}
+          </h2>
 
           <p className="mt-1 text-sm opacity-85">
             Este es tu carnet del Club Bàsquet Andratx.
@@ -324,11 +378,21 @@ export default function SocioPublico({
           <dl className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl bg-surface-container-low p-4">
               <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
-                Número de carnet
+                Número de socio
               </dt>
 
               <dd className="mt-1 font-bold text-on-surface">
-                {datos.carnet.numeroCarnet}
+                {numeroSocio}
+              </dd>
+            </div>
+
+            <div className="rounded-xl bg-surface-container-low p-4">
+              <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
+                Número de carnet
+              </dt>
+
+              <dd className="mt-1 font-mono font-bold text-on-surface">
+                {numeroCarnet}
               </dd>
             </div>
 
@@ -338,7 +402,7 @@ export default function SocioPublico({
               </dt>
 
               <dd className="mt-1 font-bold text-on-surface">
-                {datos.temporada.nombre}
+                {nombreTemporada}
               </dd>
             </div>
 
@@ -348,12 +412,13 @@ export default function SocioPublico({
               </dt>
 
               <dd className="mt-1 font-bold text-on-surface">
-                {datos.carnet.tipoSocio ??
+                {datos.carnet
+                  .tipoSocio ??
                   "Socio/a"}
               </dd>
             </div>
 
-            <div className="rounded-xl bg-surface-container-low p-4">
+            <div className="rounded-xl bg-surface-container-low p-4 sm:col-span-2">
               <dt className="text-xs font-semibold uppercase tracking-wide text-on-surface-variant">
                 Estado
               </dt>
@@ -384,14 +449,20 @@ export default function SocioPublico({
               className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm text-on-error-container"
               role="alert"
             >
-              {errorCerrarSesion}
+              {
+                errorCerrarSesion
+              }
             </p>
           )}
 
           <button
             type="button"
-            onClick={cerrarSesion}
-            disabled={cerrandoSesion}
+            onClick={
+              cerrarSesion
+            }
+            disabled={
+              cerrandoSesion
+            }
             className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:bg-primary-container hover:text-on-primary-container disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cerrandoSesion && (

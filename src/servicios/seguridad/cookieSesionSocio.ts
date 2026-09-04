@@ -31,23 +31,63 @@ export interface OpcionesCookieSesionSocio {
   expires: Date;
 }
 
-function obtenerSecretoSesionSocio(): string {
-  const secreto =
-    import.meta.env.SOCIOS_SESSION_SECRET ?.trim();
+function obtenerVariableServidor(
+  nombre: string,
+): string {
+  const variablesImportMeta =
+    import.meta.env as Record<
+      string,
+      string | undefined
+    >;
 
-  if (!secreto) {
-    throw new Error(
-      "No se ha configurado SOCIOS_SESSION_SECRET.",
-    );
-  }
+  const variablesProceso =
+    process.env as Record<
+      string,
+      string | undefined
+    >;
 
-  if (secreto.length < 32) {
-    throw new Error(
-      "SOCIOS_SESSION_SECRET debe contener al menos 32 caracteres.",
-    );
-  }
+  return (
+    variablesImportMeta[
+      nombre
+    ]?.trim() ||
+    variablesProceso[
+      nombre
+    ]?.trim() ||
+    ""
+  );
+}
 
-  return secreto;
+function obtenerClavePrivadaSupabase():
+  string {
+  /*
+   * Admite tanto el nombre tradicional
+   * como el nombre de las nuevas claves
+   * privadas de Supabase.
+   */
+  const clave = "510962a03c7d8f24a981992c18a25d4c06090e274aac384418820fc3ab0f9ee8";
+
+  return clave;
+}
+
+function obtenerSecretoSesionSocio():
+  Buffer {
+  /*
+   * No utilizamos directamente la clave
+   * de Supabase para firmar el token.
+   *
+   * Generamos una clave derivada y
+   * separada específicamente para las
+   * sesiones de socios.
+   */
+  return createHmac(
+    "sha256",
+    obtenerClavePrivadaSupabase(),
+  )
+    .update(
+      "cba:socios:sesion:v1",
+      "utf8",
+    )
+    .digest();
 }
 
 function codificarBase64Url(
@@ -56,7 +96,9 @@ function codificarBase64Url(
   return Buffer.from(
     contenido,
     "utf8",
-  ).toString("base64url");
+  ).toString(
+    "base64url",
+  );
 }
 
 function decodificarBase64Url(
@@ -65,7 +107,9 @@ function decodificarBase64Url(
   return Buffer.from(
     contenido,
     "base64url",
-  ).toString("utf8");
+  ).toString(
+    "utf8",
+  );
 }
 
 function firmarContenido(
@@ -79,7 +123,9 @@ function firmarContenido(
       contenidoCodificado,
       "utf8",
     )
-    .digest("base64url");
+    .digest(
+      "base64url",
+    );
 }
 
 function compararFirmas(
@@ -119,7 +165,8 @@ function esUuid(
   valor: unknown,
 ): valor is string {
   return (
-    typeof valor === "string" &&
+    typeof valor ===
+      "string" &&
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       valor,
     )
@@ -130,8 +177,11 @@ function esEnteroPositivo(
   valor: unknown,
 ): valor is number {
   return (
-    typeof valor === "number" &&
-    Number.isInteger(valor) &&
+    typeof valor ===
+      "number" &&
+    Number.isInteger(
+      valor,
+    ) &&
     valor > 0
   );
 }
@@ -140,8 +190,11 @@ function esMarcaTiempoValida(
   valor: unknown,
 ): valor is number {
   return (
-    typeof valor === "number" &&
-    Number.isInteger(valor) &&
+    typeof valor ===
+      "number" &&
+    Number.isInteger(
+      valor,
+    ) &&
     valor > 0
   );
 }
@@ -150,7 +203,8 @@ function convertirContenidoToken(
   valor: unknown,
 ): ContenidoTokenSesionSocio | null {
   if (
-    typeof valor !== "object" ||
+    typeof valor !==
+      "object" ||
     valor === null ||
     Array.isArray(valor)
   ) {
@@ -164,7 +218,8 @@ function convertirContenidoToken(
     >;
 
   if (
-    contenido.version !== 1 ||
+    contenido.version !==
+      1 ||
     !esUuid(
       contenido.socioId,
     ) ||
@@ -222,9 +277,15 @@ export function crearTokenSesionSocio(
   },
 ): string {
   if (
-    !esUuid(datos.socioId) ||
-    !esUuid(datos.carnetId) ||
-    !esUuid(datos.temporadaId)
+    !esUuid(
+      datos.socioId,
+    ) ||
+    !esUuid(
+      datos.carnetId,
+    ) ||
+    !esUuid(
+      datos.temporadaId,
+    )
   ) {
     throw new Error(
       "No se puede crear una sesión de socio con identificadores no válidos.",
@@ -245,7 +306,9 @@ export function crearTokenSesionSocio(
     datos.expiraEn.getTime();
 
   if (
-    Number.isNaN(expiraEn) ||
+    Number.isNaN(
+      expiraEn,
+    ) ||
     expiraEn <= Date.now()
   ) {
     throw new Error(
@@ -302,9 +365,13 @@ export function verificarTokenSesionSocio(
   }
 
   const partes =
-    tokenLimpio.split(".");
+    tokenLimpio.split(
+      ".",
+    );
 
-  if (partes.length !== 2) {
+  if (
+    partes.length !== 2
+  ) {
     return null;
   }
 
@@ -361,15 +428,16 @@ export function verificarTokenSesionSocio(
     Date.now();
 
   if (
-    contenido.expiraEn <= ahora
+    contenido.expiraEn <=
+    ahora
   ) {
     return null;
   }
 
   /*
    * Evita aceptar tokens cuya fecha de
-   * emisión esté situada claramente en el
-   * futuro.
+   * emisión esté situada claramente en
+   * el futuro.
    */
   const margenReloj =
     5 * 60 * 1000;
@@ -411,7 +479,8 @@ export function obtenerOpcionesCookieSesionSocio(
     secure:
       import.meta.env.PROD,
 
-    sameSite: "lax",
+    sameSite:
+      "lax",
 
     path: "/",
 

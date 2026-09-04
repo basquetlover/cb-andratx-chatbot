@@ -1,20 +1,20 @@
 ---
-import SocioPublico from "@components/socios/SocioPublico";
-import Layout from "@layouts/Layout.astro";
+import SocioPublico from "../../components/socios/SocioPublico";
+import Layout from "../../layouts/Layout.astro";
 
 import {
   ErrorObtenerCarnetSocioSesion,
   obtenerCarnetSocioSesion,
-} from "@servicios/backend/socios/obtenerCarnetSocioSesion";
+} from "../../servicios/backend/socios/obtenerCarnetSocioSesion";
 
 import {
   NOMBRE_COOKIE_SESION_SOCIO,
-  OPCIONES_ELIMINAR_COOKIE_SESION_SOCIO,
-} from "@servicios/seguridad/cookieSesionSocio";
+  verificarTokenSesionSocio,
+} from "../../servicios/seguridad/cookieSesionSocio";
 
 import type {
   CarnetSocioPublico,
-} from "@tipos/SocioPublico";
+} from "../../types/SocioPublico";
 
 export const prerender = false;
 
@@ -38,12 +38,41 @@ Astro.response.headers.set(
   "noindex, nofollow, noarchive",
 );
 
+function eliminarCookieSesion():
+  void {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION_SOCIO,
+    {
+      domain: undefined,
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      secure:
+        import.meta.env.PROD,
+      partitioned: false,
+    },
+  );
+}
+
 const tokenSesion =
   Astro.cookies.get(
     NOMBRE_COOKIE_SESION_SOCIO,
   )?.value;
 
 if (!tokenSesion) {
+  return Astro.redirect(
+    "/socios/iniciar-sesion?motivo=sesion-no-valida",
+  );
+}
+
+const sesion =
+  verificarTokenSesionSocio(
+    tokenSesion,
+  );
+
+if (!sesion) {
+  eliminarCookieSesion();
+
   return Astro.redirect(
     "/socios/iniciar-sesion?motivo=sesion-no-valida",
   );
@@ -59,31 +88,34 @@ let errorCarga: string | null =
 try {
   datos =
     await obtenerCarnetSocioSesion(
-      tokenSesion,
+      sesion,
     );
-} catch (error) {
+} catch (error: unknown) {
   if (
     error instanceof
     ErrorObtenerCarnetSocioSesion
   ) {
-    Astro.cookies.delete(
-      NOMBRE_COOKIE_SESION_SOCIO,
-      OPCIONES_ELIMINAR_COOKIE_SESION_SOCIO,
-    );
-
-    const parametros =
-      new URLSearchParams({
-        motivo: error.motivo,
-      });
+    eliminarCookieSesion();
 
     return Astro.redirect(
-      `/socios/iniciar-sesion?${parametros.toString()}`,
+      "/socios/iniciar-sesion?motivo=carnet-no-disponible",
     );
   }
 
   console.error(
     "Error cargando el carnet público del socio:",
-    error,
+    error instanceof Error
+      ? {
+          nombre:
+            error.name,
+
+          mensaje:
+            error.message,
+
+          stack:
+            error.stack,
+        }
+      : error,
   );
 
   Astro.response.status = 500;
@@ -104,9 +136,11 @@ try {
       class="pointer-events-none absolute inset-0 -z-10"
       aria-hidden="true"
     >
-      <div class="absolute -left-24 top-12 h-72 w-72 rounded-full bg-primary/10 blur-3xl"></div>
+      <div class="absolute -left-24 top-12 h-72 w-72 rounded-full bg-primary/10 blur-3xl">
+      </div>
 
-      <div class="absolute -right-24 bottom-12 h-80 w-80 rounded-full bg-tertiary/15 blur-3xl"></div>
+      <div class="absolute -right-24 bottom-12 h-80 w-80 rounded-full bg-tertiary/15 blur-3xl">
+      </div>
     </div>
 
     {
