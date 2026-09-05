@@ -191,7 +191,7 @@ export default function SocioPublico({
   }
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl items-start gap-6 lg:grid-cols-[minmax(0,430px)_minmax(0,1fr)] lg:gap-8">
+    <div className="mx-auto w-full max-w-5xl items-start gap-6  lg:gap-8">
       <section
         className="relative mx-auto aspect-9/16 w-full max-w-107.5 overflow-hidden rounded-4xl border border-white/10 bg-[#032a55] text-white shadow-[0_24px_70px_rgba(0,36,80,0.35)]"
         aria-label={`Carnet de socio de ${datos.socio.nombreCompleto}`}
@@ -359,7 +359,7 @@ export default function SocioPublico({
         </div>
       </section>
 
-      <aside className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
+      {/* <aside className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
         <div className="border-b border-outline-variant/60 bg-primary-container px-5 py-5 text-on-primary-container sm:px-6">
           <p className="text-xs font-bold uppercase tracking-[0.16em] opacity-80">
             Carnet digital
@@ -455,7 +455,11 @@ export default function SocioPublico({
             </p>
           )}
 
-          <button
+          
+        </div>
+      </aside> */}
+      <div className="w-full max-w-96 mx-auto" >
+        <button
             type="button"
             onClick={
               cerrarSesion
@@ -463,7 +467,7 @@ export default function SocioPublico({
             disabled={
               cerrandoSesion
             }
-            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:bg-primary-container hover:text-on-primary-container disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex mt-15  min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:border-primary hover:bg-primary-container hover:text-on-primary-container disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cerrandoSesion && (
               <span
@@ -476,8 +480,9 @@ export default function SocioPublico({
               ? "Cerrando sesión..."
               : "Cerrar sesión"}
           </button>
-        </div>
-      </aside>
+      </div>
+      
     </div>
+    
   );
 }
