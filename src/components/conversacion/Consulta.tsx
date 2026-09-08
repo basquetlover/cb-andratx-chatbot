@@ -43,7 +43,9 @@ export default function Consulta({ alResponderContinuacion }: Propiedades) {
 
       {opcionSeleccionada === "proximo-partido" && <ProximoPartido alCompletar={() => setFlujoCompletado(true)} />}
 
-      {opcionSeleccionada && !["horarios-entrenamiento", "proximo-partido"].includes(opcionSeleccionada) && (
+      {opcionSeleccionada === "reglamento" && (<> </>)}
+
+      {opcionSeleccionada && !["horarios-entrenamiento", "proximo-partido", "reglamento"].includes(opcionSeleccionada) && (
         <MensajeIA>
           <p className="font-semibold text-on-secondary-fixed">Esta consulta todavía no está disponible</p>
           <p className="mt-1 text-sm text-on-surface-variant">Estamos preparando este apartado del asistente.</p>
