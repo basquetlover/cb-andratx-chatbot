@@ -52,6 +52,7 @@ interface FilaTemporada {
 
 interface FilaEquipo {
   id: string;
+  slug: string | null;
   nombre: string | null;
   nombre_corto: string | null;
   temporada_id: string;
@@ -863,7 +864,9 @@ function convertirEntrenamientosAEventos(
             equipo.categoria,
 
           url:
-            `/equipos/${equipo.id}`,
+            equipo.slug?.trim()
+              ? `/equipos/${encodeURIComponent(equipo.slug.trim())}`
+              : null,
 
           equipoId:
             equipo.id,
@@ -1777,6 +1780,7 @@ export const GET: APIRoute =
             id,
             nombre,
             nombre_corto,
+            slug,
             temporada_id,
             id_equipo_fbib,
             categoria

@@ -58,12 +58,8 @@ interface FilaTemporada {
   nombre: string | null;
 }
 
-function validarUuid(
-  valor: string,
-): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-    valor,
-  );
+function validarSlug(valor: string): boolean {
+  return valor.length <= 120 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(valor);
 }
 
 function convertirTexto(
@@ -467,12 +463,11 @@ async function obtenerDatosFbibEquipo(
 }
 
 export async function obtenerEquipoPublico(
-  equipoId: string,
+  equipoSlug: string,
 ): Promise<DatosEquipoPublico> {
-  const id =
-    equipoId.trim();
+  const slug = equipoSlug.trim();
 
-  if (!validarUuid(id)) {
+  if (!validarSlug(slug)) {
     throw new ErrorObtenerEquipoPublico(
       "El identificador del equipo no es válido.",
       404,
@@ -499,7 +494,7 @@ export async function obtenerEquipoPublico(
       mostrar_sponsor,
       activo
     `)
-    .eq("id", id)
+    .eq("slug", slug)
     .eq("activo", true)
     .maybeSingle();
 

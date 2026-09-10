@@ -122,8 +122,8 @@ function TarjetaEquipo({ equipo, esFavorito, compacta = false, alCambiarFavorito
 
       {equipo.descripcion && !compacta && <p className="mt-4 line-clamp-2 text-sm text-on-surface-variant">{equipo.descripcion}</p>}
 
-      {equipo.id && (
-        <a href={`/equipos/${equipo.id}`} className="mt-4 inline-flex w-fit items-center gap-2 text-sm font-bold text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
+      {equipo.slug?.trim() && (
+        <a href={`/equipos/${encodeURIComponent(equipo.slug.trim())}`} className="mt-4 inline-flex w-fit items-center gap-2 text-sm font-bold text-secondary transition-colors hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary">
           Ver equipo
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
             <path d="M5 12h14M13 6l6 6-6 6" strokeLinecap="round" strokeLinejoin="round" />

@@ -11,8 +11,8 @@ import type { DatosEquipoPublico } from "@tipos/EquipoPublico";
 
 export const prerender = false;
 
-const equipoId =
-  Astro.params.id?.trim() ?? "";
+const equipoSlug =
+  Astro.params.slug?.trim() ?? "";
 
 let equipo:
   DatosEquipoPublico | null = null;
@@ -28,7 +28,7 @@ let mensajeError: string | null =
 try {
   equipo =
     await obtenerEquipoPublico(
-      equipoId,
+      equipoSlug,
     );
 } catch (error) {
   if (
@@ -40,7 +40,7 @@ try {
     Astro.response.status = 404;
   } else {
     console.error(
-      `Error cargando la página pública del equipo ${equipoId}:`,
+      `Error cargando la página pública del equipo ${equipoSlug}:`,
       error,
     );
 
@@ -79,7 +79,11 @@ const equipoParaComponente =
     : null;
 ---
 
-<Layout menu menuMobile>
+<Layout
+  title={equipo?.nombreCorto?.trim() || equipo?.nombre || (estado === "error" ? "Error al cargar el equipo" : "Equipo no encontrado")}
+  menu
+  menuMobile
+>
   {
     estado === "error" ? (
       <main class="mx-auto flex min-h-[65dvh] w-full max-w-xl items-center px-4 py-10">
@@ -120,7 +124,7 @@ const equipoParaComponente =
             </a>
 
             <a
-              href={`/equipos/${equipoId}`}
+              href={`/equipos/${encodeURIComponent(equipoSlug)}`}
               class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
             >
               Volver a intentarlo
