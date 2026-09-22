@@ -3,70 +3,175 @@ import Layout from '@layouts/Layout.astro';
 import Entrevistas from '@sections/Entrevistas.astro';
 import PartidosSemana from '@sections/PartidosSemana.astro';
 import Patrocinadores from '@sections/Patrocinadores.astro';
+import SobreClub from '@sections/SobreClub.astro';
 ---
-<Layout menu menuMobile>
-	<img src="/favicon.png" class="absolute top-1/2 left-1/2 -translate-1/2 opacity-50 rotate-10 hidden" />
-	<seciton class="max-w-6xl mx-auto p-4">
-		<div class="flex flex-col items-center space-y-4">
-			<h1 class="text-5xl max-md:text-4xl text-on-tertiary-fixed font-bold">Todo el C.B. Andratx</h1>
-			<h2 class="px-4 py-2 bg-on-primary-fixed text-3xl text-tertiary-container font-bold italic lados-doblados">en un solo lugar</h2>
-		</div>
-	</seciton>
 
-	<section class="max-w-5xl mx-auto md:mt-5 p-4 md:grid grid-cols-2 gap-x-5 place-items-center max-md:space-y-4">
-		<a href="/chatbot" class="w-full  flex flex-col md:aspect-square max-md:h-36 bg-primary-container text-primary fill-primary rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group">
-			<svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" viewBox="0 -960 960 960">
+<Layout
+	title="C.B. Andratx | Club Bàsquet Andratx"
+	description="Web oficial del Club Bàsquet Andratx. Consulta nuestros equipos de baloncesto, partidos, entrenamientos, calendario, resultados, entrevistas y actividades del club en Andratx, Mallorca."
+	menu
+	menuMobile
+>
+	<!-- ============================================================
+		HERO
+	============================================================= -->
+
+	<section class="max-w-6xl mx-auto px-4 pt-6 pb-4 md:pt-10 md:pb-6">
+		<div class="flex flex-col items-center text-center">
+			<p
+				class="mb-3 text-sm font-bold uppercase tracking-[0.22em] text-secondary"
+			>
+				Todo el C.B. Andratx
+			</p>
+
+			<h1
+				class="max-w-4xl text-5xl font-bold tracking-tight text-on-tertiary-fixed max-md:text-4xl"
+			>
+				Club Bàsquet Andratx
+			</h1>
+
+			<p
+				class="mt-4 px-4 py-2 bg-on-primary-fixed text-3xl text-tertiary-container font-bold italic lados-doblados max-md:text-2xl"
+			>
+				en un solo lugar
+			</p>
+
+			<p
+				class="mt-7 max-w-3xl text-base leading-7 text-on-surface-variant md:text-lg md:leading-8"
+			>
+				Web oficial del C.B. Andratx. Consulta nuestros equipos de
+				baloncesto, próximos partidos, entrenamientos, resultados,
+				calendario, entrevistas y toda la actualidad del club en
+				Andratx, Mallorca.
+			</p>
+		</div>
+	</section>
+
+	<!-- ============================================================
+		ACCESOS PRINCIPALES
+	============================================================= -->
+
+	<section
+		class="max-w-5xl mx-auto md:mt-5 p-4 md:grid grid-cols-2 gap-x-5 place-items-center max-md:space-y-4"
+		aria-label="Accesos principales del C.B. Andratx"
+	>
+		<a
+			href="/chatbot"
+			class="w-full flex flex-col md:aspect-square max-md:h-36 bg-primary-container text-primary fill-primary rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group"
+		>
+			<svg
+				xmlns="http://www.w3.org/2000/svg"
+				class="w-10 h-10"
+				viewBox="0 -960 960 960"
+				aria-hidden="true"
+			>
 				<path d="M160-360q-50 0-85-35t-35-85 35-85 85-35v-80q0-33 23.5-56.5T240-760h120q0-50 35-85t85-35 85 35 35 85h120q33 0 56.5 23.5T800-680v80q50 0 85 35t35 85-35 85-85 35v160q0 33-23.5 56.5T720-120H240q-33 0-56.5-23.5T160-200zm242.5-97.5Q420-475 420-500t-17.5-42.5T360-560t-42.5 17.5T300-500t17.5 42.5T360-440t42.5-17.5m240 0Q660-475 660-500t-17.5-42.5T600-560t-42.5 17.5T540-500t17.5 42.5T600-440t42.5-17.5M320-280h320v-80H320z"/>
 			</svg>
-			<h3 class="text-2xl font-semibold">Asistente Virtual</h3>
+
+			<h2 class="text-2xl font-semibold">
+				Asistente Virtual
+			</h2>
+
 			<p class="text-sm absolute bottom-3">
 				Pregunta sobre horarios, clasificaciones y más.
 			</p>
 
-			<span class="absolute opacity-60 group-hover:scale-150 duration-300 -top-5 -right-5">
-				<svg xmlns="http://www.w3.org/2000/svg" class="w-20 h-20" viewBox="0 -960 960 960">
+			<span
+				class="absolute opacity-60 group-hover:scale-150 duration-300 -top-5 -right-5"
+				aria-hidden="true"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="w-20 h-20"
+					viewBox="0 -960 960 960"
+				>
 					<path d="M160-360q-50 0-85-35t-35-85 35-85 85-35v-80q0-33 23.5-56.5T240-760h120q0-50 35-85t85-35 85 35 35 85h120q33 0 56.5 23.5T800-680v80q50 0 85 35t35 85-35 85-85 35v160q0 33-23.5 56.5T720-120H240q-33 0-56.5-23.5T160-200zm242.5-97.5Q420-475 420-500t-17.5-42.5T360-560t-42.5 17.5T300-500t17.5 42.5T360-440t42.5-17.5m240 0Q660-475 660-500t-17.5-42.5T600-560t-42.5 17.5T540-500t17.5 42.5T600-440t42.5-17.5M320-280h320v-80H320z"/>
 				</svg>
 			</span>
 		</a>
 
 		<div class="w-full h-full flex flex-col md:gap-y-5 gap-y-2">
-			<a href="/calendario" class="w-full flex flex-col h-full max-md:h-36 bg-surface-container-lowest  text-on-secondary-container fill-on-secondary-container border border-outline-variant/30 shadow-[0px_4px_20px_rgba(3,42,85,0.06)] rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group">
-				<svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" viewBox="0 -960 960 960">
+
+			<a
+				href="/calendario"
+				class="w-full flex flex-col h-full max-md:h-36 bg-surface-container-lowest text-on-secondary-container fill-on-secondary-container border border-outline-variant/30 shadow-[0px_4px_20px_rgba(3,42,85,0.06)] rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="w-10 h-10"
+					viewBox="0 -960 960 960"
+					aria-hidden="true"
+				>
 					<path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80zm0-80h560v-400H200zm0-480h560v-80H200zm0 0v-80zm280 240q-17 0-28.5-11.5T440-440t11.5-28.5T480-480t28.5 11.5T520-440t-11.5 28.5T480-400m-188.5-11.5Q280-423 280-440t11.5-28.5T320-480t28.5 11.5T360-440t-11.5 28.5T320-400t-28.5-11.5M640-400q-17 0-28.5-11.5T600-440t11.5-28.5T640-480t28.5 11.5T680-440t-11.5 28.5T640-400M480-240q-17 0-28.5-11.5T440-280t11.5-28.5T480-320t28.5 11.5T520-280t-11.5 28.5T480-240m-188.5-11.5Q280-263 280-280t11.5-28.5T320-320t28.5 11.5T360-280t-11.5 28.5T320-240t-28.5-11.5M640-240q-17 0-28.5-11.5T600-280t11.5-28.5T640-320t28.5 11.5T680-280t-11.5 28.5T640-240"/>
 				</svg>
-				<h3 class="text-2xl font-semibold">Calendario</h3>
+
+				<h2 class="text-2xl font-semibold">
+					Calendario
+				</h2>
+
 				<p class="text-sm absolute bottom-3">
-					Consulta en un solo lugar los partidos, entrenamientos y eventos del club.
+					Consulta partidos, entrenamientos y eventos del C.B. Andratx.
 				</p>
 
-				<span class="absolute opacity-60 group-hover:scale-150 duration-300 -top-2.5 -right-2.5">
-					<svg xmlns="http://www.w3.org/2000/svg" class="w-16 h-16" viewBox="0 -960 960 960">
+				<span
+					class="absolute opacity-60 group-hover:scale-150 duration-300 -top-2.5 -right-2.5"
+					aria-hidden="true"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-16 h-16"
+						viewBox="0 -960 960 960"
+					>
 						<path d="M200-80q-33 0-56.5-23.5T120-160v-560q0-33 23.5-56.5T200-800h40v-80h80v80h320v-80h80v80h40q33 0 56.5 23.5T840-720v560q0 33-23.5 56.5T760-80zm0-80h560v-400H200zm0-480h560v-80H200zm0 0v-80zm280 240q-17 0-28.5-11.5T440-440t11.5-28.5T480-480t28.5 11.5T520-440t-11.5 28.5T480-400m-188.5-11.5Q280-423 280-440t11.5-28.5T320-480t28.5 11.5T360-440t-11.5 28.5T320-400t-28.5-11.5M640-400q-17 0-28.5-11.5T600-440t11.5-28.5T640-480t28.5 11.5T680-440t-11.5 28.5T640-400M480-240q-17 0-28.5-11.5T440-280t11.5-28.5T480-320t28.5 11.5T520-280t-11.5 28.5T480-240m-188.5-11.5Q280-263 280-280t11.5-28.5T320-320t28.5 11.5T360-280t-11.5 28.5T320-240t-28.5-11.5M640-240q-17 0-28.5-11.5T600-280t11.5-28.5T640-320t28.5 11.5T680-280t-11.5 28.5T640-240"/>
 					</svg>
 				</span>
-				
-				<!-- <p class="absolute top-1/2 left-1/2 -translate-1/2 text-3xl font-semibold opacity-100 text-on-secondary-fixed bg-surface-container-lowest">Próximamente</p> -->
 			</a>
 
-			<a href="/equipos" class="w-full flex flex-col h-full max-md:h-36 bg-on-secondary-container text-surface-container-lowest fill-surface-container-lowest rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group ">
-				<svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10" viewBox="0 -960 960 960">
+			<a
+				href="/equipos"
+				class="w-full flex flex-col h-full max-md:h-36 bg-on-secondary-container text-surface-container-lowest fill-surface-container-lowest rounded-lg relative overflow-hidden p-4 hover:scale-105 duration-300 group"
+			>
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					class="w-10 h-10"
+					viewBox="0 -960 960 960"
+					aria-hidden="true"
+				>
 					<path d="M0-240v-63q0-43 44-70t116-27q13 0 25 .5t23 2.5q-14 21-21 44t-7 48v65zm240 0v-65q0-32 17.5-58.5T307-410t76.5-30 96.5-10q53 0 97.5 10t76.5 30 49 46.5 17 58.5v65zm540 0v-65q0-26-6.5-49T754-397q11-2 22.5-2.5t23.5-.5q72 0 116 26.5t44 70.5v63zm-455-80h311q-10-20-55.5-35T480-370t-100.5 15-54.5 35M160-440q-33 0-56.5-23.5T80-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T160-440m640 0q-33 0-56.5-23.5T720-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T800-440m-320-40q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480m0-80q17 0 28.5-11.5T520-600t-11.5-28.5T480-640t-28.5 11.5T440-600t11.5 28.5T480-560m0-40"/>
 				</svg>
-				<h3 class="text-2xl font-semibold">Equipos</h3>
+
+				<h2 class="text-2xl font-semibold">
+					Equipos
+				</h2>
+
 				<p class="text-sm absolute bottom-3">
-					Descubre los equipos que forman el C.B. Andratx y guarda los que más te interesan.
+					Descubre los equipos de baloncesto que forman el C.B. Andratx.
 				</p>
 
-				<span class="absolute opacity-60 group-hover:scale-150 duration-300 -top-6 -right-6">
-					<svg xmlns="http://www.w3.org/2000/svg" class="w-20 h-20" viewBox="0 -960 960 960">
+				<span
+					class="absolute opacity-60 group-hover:scale-150 duration-300 -top-6 -right-6"
+					aria-hidden="true"
+				>
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						class="w-20 h-20"
+						viewBox="0 -960 960 960"
+					>
 						<path d="M0-240v-63q0-43 44-70t116-27q13 0 25 .5t23 2.5q-14 21-21 44t-7 48v65zm240 0v-65q0-32 17.5-58.5T307-410t76.5-30 96.5-10q53 0 97.5 10t76.5 30 49 46.5 17 58.5v65zm540 0v-65q0-26-6.5-49T754-397q11-2 22.5-2.5t23.5-.5q72 0 116 26.5t44 70.5v63zm-455-80h311q-10-20-55.5-35T480-370t-100.5 15-54.5 35M160-440q-33 0-56.5-23.5T80-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T160-440m640 0q-33 0-56.5-23.5T720-520q0-34 23.5-57t56.5-23q34 0 57 23t23 57q0 33-23 56.5T800-440m-320-40q-50 0-85-35t-35-85q0-51 35-85.5t85-34.5q51 0 85.5 34.5T600-600q0 50-34.5 85T480-480m0-80q17 0 28.5-11.5T520-600t-11.5-28.5T480-640t-28.5 11.5T440-600t11.5 28.5T480-560m0-40"/>
 					</svg>
 				</span>
 			</a>
 		</div>
 	</section>
+
+	
+
+	<!-- ============================================================
+		CONTENIDO DINÁMICO
+	============================================================= -->
+
 	<PartidosSemana />
 	<Entrevistas />
+	<SobreClub />
 	<Patrocinadores />
 </Layout>

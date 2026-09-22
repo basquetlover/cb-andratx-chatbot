@@ -1,18 +1,104 @@
 ---
-import Equipos from '@components/equipos/Equipos';
-import Layout from '@layouts/Layout.astro';
-import Patrocinadores from '@sections/Patrocinadores.astro';
+import Equipos from "@components/equipos/Equipos";
+import Layout from "@layouts/Layout.astro";
+import Patrocinadores from "@sections/Patrocinadores.astro";
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+import type {
+  RespuestaEquiposPagina,
+} from "@tipos/EquiposPagina";
+
+
+// ============================================================
+// CONFIGURACIÓN
+// ============================================================
+
+export const prerender = false;
+
+
+// ============================================================
+// TIPOS
+// ============================================================
+
+type DatosInicialesEquipos =
+  NonNullable<
+    RespuestaEquiposPagina["data"]
+  >;
+
+
+// ============================================================
+// PRECARGA DE EQUIPOS PARA SSR
+// ============================================================
+
+let datosIniciales:
+  | DatosInicialesEquipos
+  | null = null;
+
+try {
+  const urlApi =
+    new URL(
+      "/api/equipos/temporada-activa",
+      Astro.url.origin,
+    );
+
+  const respuesta =
+    await fetch(
+      urlApi,
+      {
+        method: "GET",
+
+        headers: {
+          Accept:
+            "application/json",
+
+          /*
+           * Lo enviamos porque tu API
+           * puede tener validación
+           * de origen.
+           */
+          Origin:
+            Astro.url.origin,
+        },
+
+        cache:
+          "no-store",
+      },
+    );
+
+  const contenido =
+    (await respuesta.json()) as RespuestaEquiposPagina;
+
+  if (
+    respuesta.ok &&
+    contenido.ok &&
+    contenido.data
+  ) {
+    datosIniciales =
+      contenido.data;
+  } else {
+    console.error(
+      "No se han podido precargar los equipos:",
+      contenido.error ??
+        "Respuesta no válida de la API",
+    );
+  }
+} catch (error) {
+  console.error(
+    "Error precargando los equipos para SSR:",
+    error,
+  );
+}
 ---
 
 <Layout
-  title="Equipos"
-  description="Descubre los equipos, categorías y niveles que forman el C.B. Andratx durante la temporada 2026/27."
+  title="Equipos de baloncesto"
+  description="Consulta los equipos del Club Bàsquet Andratx durante la temporada 2026/27. Descubre las categorías, niveles y equipos de baloncesto del C.B. Andratx en Andratx, Mallorca."
   menu
   menuMobile
 >
-	<Equipos client:load />
-	<Patrocinadores />
+  <Equipos
+    client:load
+    datosIniciales={datosIniciales}
+  />
+
+  <Patrocinadores />
 </Layout>
