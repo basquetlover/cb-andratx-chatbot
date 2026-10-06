@@ -1,132 +1,125 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/css" href="https://www.xml-sitemaps.com/css/sitemap.css"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
 
-<url>
-<loc>https://cbandratx.es/</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>1.0000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/chatbot</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>0.8000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/calendario</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>0.8000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.8000</priority>
-</url>
-
-<!-- Equipos: temporada 2026/27 -->
-
-<url>
-<loc>https://cbandratx.es/equipos/iniciacion-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/premini-fem-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/premini-masc-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/mini-fem-a-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/mini-fem-b-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/infantil-fem-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/infatil-masc-a-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/infantil-masc-b-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/cadete-fem-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/cadete-mas-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/balear-masc-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/insular-masc-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/insular-fem-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/equipos/mas-40-2627</loc>
-<lastmod>2026-09-10</lastmod>
-<priority>0.7000</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/cookies</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>0.6400</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/aviso-legal/</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>0.6400</priority>
-</url>
-
-<url>
-<loc>https://cbandratx.es/privacidad/</loc>
-<lastmod>2026-09-03T09:00:47+00:00</lastmod>
-<priority>0.6400</priority>
-</url>
-
+  <url>
+       <loc>https://cbandratx.es/</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>1.0000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/sitemap.xml</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/chatbot</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/calendario</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/acceso</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/cookies</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.8000</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/iniciacion-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/premini-fem-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/premini-masc-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/mini-fem-b-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/mini-fem-a-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/infantil-fem-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/infatil-masc-a-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/infantil-masc-b-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/cadete-mas-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/cadete-fem-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/mas-40-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/balear-masc-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/insular-masc-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/equipos/insular-fem-2627</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.6400</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/aviso-legal/</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.4096</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/privacidad/</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.4096</priority>
+  </url>
+  <url>
+       <loc>https://cbandratx.es/socios/iniciar-sesion</loc>
+       <lastmod>2026-10-06T06:52:49+00:00</lastmod>
+       <priority>0.4096</priority>
+  </url>
 </urlset>
