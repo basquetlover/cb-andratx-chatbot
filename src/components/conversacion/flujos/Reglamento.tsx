@@ -1,3 +1,5 @@
+import { useEffect, useRef } from "react";
+
 import MensajeIA from "@components/MensajeIA";
 
 interface Propiedades {
@@ -10,19 +12,38 @@ const URL_REGLAMENTO_FBIB = "https://www.fbib.es/documents/24";
 // Imagen ubicada en public/imagenes/fbib.png.
 const LOGO_FBIB = "/img/logo-fbib.svg";
 
-export default function Reglamento({ alCompletar }: Propiedades) {
+export default function Reglamento({
+  alCompletar,
+}: Propiedades) {
   const enlace = URL_REGLAMENTO_FBIB.trim();
+
+  const alCompletarRef = useRef(alCompletar);
+  const completadoRef = useRef(false);
+
+  useEffect(() => {
+    alCompletarRef.current = alCompletar;
+  }, [alCompletar]);
+
+  useEffect(() => {
+    if (completadoRef.current) {
+      return;
+    }
+
+    completadoRef.current = true;
+    alCompletarRef.current();
+  }, []);
 
   return (
     <MensajeIA>
-        <p className="font-semibold text-on-secondary-fixed">
+      <p className="font-semibold text-on-secondary-fixed">
         Reglamento de las competiciones de la FBIB
-        </p>
+      </p>
 
-        <p className="mt-1 text-sm text-on-surface-variant">
-        Consulta el reglamento aplicable a las competiciones de ámbito
-        balear de la Federació de Bàsquet de les Illes Balears (FBIB).
-        </p>
+      <p className="mt-1 text-sm text-on-surface-variant">
+        Consulta el reglamento aplicable a las competiciones de
+        ámbito balear de la Federació de Bàsquet de les Illes
+        Balears (FBIB).
+      </p>
 
       <div className="mt-4 overflow-hidden rounded-xl border border-outline-variant bg-surface-container-lowest">
         <div className="flex flex-col items-center gap-3 px-5 py-6 text-center">
@@ -39,17 +60,17 @@ export default function Reglamento({ alCompletar }: Propiedades) {
             Federació de Bàsquet de les Illes Balears
           </p>
 
-            <p className="text-sm text-on-surface-variant">
-            Accede a la normativa y al reglamento que se aplican en las
-            competiciones organizadas por la FBIB en las Illes Balears.
-            </p>
+          <p className="text-sm text-on-surface-variant">
+            Accede a la normativa y al reglamento que se aplican
+            en las competiciones organizadas por la FBIB en las
+            Illes Balears.
+          </p>
 
           {enlace ? (
             <a
               href={enlace}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={() => alCompletar()}
               className="mt-2 inline-flex items-center justify-center gap-2 rounded-full bg-secondary px-5 py-3 text-sm font-semibold text-on-secondary transition-colors hover:bg-on-secondary-fixed focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-secondary"
             >
               Consultar reglamento
@@ -69,19 +90,9 @@ export default function Reglamento({ alCompletar }: Propiedades) {
               </svg>
             </a>
           ) : (
-            <>
-              <p className="text-sm text-on-surface-variant">
-                El enlace al reglamento todavía no está disponible.
-              </p>
-
-              <button
-                type="button"
-                onClick={() => alCompletar()}
-                className="mt-2 rounded-full border border-secondary px-5 py-3 text-sm font-semibold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
-              >
-                Continuar
-              </button>
-            </>
+            <p className="mt-2 text-sm text-on-surface-variant">
+              El enlace al reglamento todavía no está disponible.
+            </p>
           )}
         </div>
 
@@ -94,3 +105,5 @@ export default function Reglamento({ alCompletar }: Propiedades) {
     </MensajeIA>
   );
 }
+
+
