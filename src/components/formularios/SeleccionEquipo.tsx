@@ -1,8 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import MensajeIA from "@components/MensajeIA";
 
 import type { EquipoDisponible } from "@tipos/Equipo";
+
+interface ConfiguracionSeleccionEquipo {
+  requiereFbib: boolean;
+  alContinuarSinEquipos?: () => void;
+}
+
+export const ContextoSeleccionEquipo =
+  createContext<ConfiguracionSeleccionEquipo>({
+    requiereFbib: false,
+  });
 
 interface RespuestaEquipos {
   ok: boolean;
@@ -26,66 +42,122 @@ interface PropiedadesSeleccionMultiple {
   alConfirmar: () => void;
 }
 
-type Propiedades = PropiedadesSeleccionUnica | PropiedadesSeleccionMultiple;
+type Propiedades =
+  | PropiedadesSeleccionUnica
+  | PropiedadesSeleccionMultiple;
 
 interface GrupoCategoria {
   categoria: string;
   equipos: EquipoDisponible[];
 }
 
-const ordenCategorias = ["escoleta", "iniciacion", "premini", "mini", "infantil", "cadete", "junior", "senior"];
+const ordenCategorias = [
+  "escoleta",
+  "iniciacion",
+  "premini",
+  "mini",
+  "infantil",
+  "cadete",
+  "junior",
+  "senior",
+];
 
 function normalizarTexto(texto: string): string {
-  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return texto
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function obtenerPosicionCategoria(categoria: string): number {
-  const categoriaNormalizada = normalizarTexto(categoria);
-  const posicion = ordenCategorias.findIndex((nombreCategoria) => categoriaNormalizada.includes(nombreCategoria));
+  const texto = normalizarTexto(categoria);
+
+  const posicion = ordenCategorias.findIndex((nombre) =>
+    texto.includes(nombre),
+  );
 
   return posicion === -1 ? ordenCategorias.length : posicion;
 }
 
 export default function SeleccionEquipo(propiedades: Propiedades) {
+  const {
+    requiereFbib,
+    alContinuarSinEquipos,
+  } = useContext(ContextoSeleccionEquipo);
+
   const [equipos, setEquipos] = useState<EquipoDisponible[]>([]);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [seleccionOmitida, setSeleccionOmitida] = useState(false);
 
   const esMultiple = propiedades.modo === "multiple";
   const maximo = esMultiple ? propiedades.maximo ?? 5 : 1;
-  const seleccionConfirmada = esMultiple ? propiedades.seleccionConfirmada : propiedades.equipoSeleccionado !== null;
-  const equiposSeleccionados = esMultiple ? propiedades.equiposSeleccionados : propiedades.equipoSeleccionado ? [propiedades.equipoSeleccionado] : [];
+
+  const seleccionConfirmada = esMultiple
+    ? propiedades.seleccionConfirmada
+    : propiedades.equipoSeleccionado !== null;
+
+  const equiposSeleccionados = esMultiple
+    ? propiedades.equiposSeleccionados
+    : propiedades.equipoSeleccionado
+      ? [propiedades.equipoSeleccionado]
+      : [];
+
+  const bloqueado = seleccionConfirmada || seleccionOmitida;
+
+  const estaDisponible = (equipo: EquipoDisponible): boolean =>
+    !requiereFbib || equipo.tieneVinculacionFbib === true;
+
+  const cantidadDisponibles = equipos.filter(estaDisponible).length;
+
+  const hayEquiposSinVincular =
+    requiereFbib &&
+    equipos.some((equipo) => !estaDisponible(equipo));
+
+  const seleccionValida =
+    !cargando &&
+    !error &&
+    equiposSeleccionados.length > 0 &&
+    equiposSeleccionados.length <= maximo &&
+    equiposSeleccionados.every((seleccionado) =>
+      equipos.some(
+        (equipo) =>
+          equipo.id === seleccionado.id &&
+          estaDisponible(equipo),
+      ),
+    );
 
   const equiposPorCategoria = useMemo<GrupoCategoria[]>(() => {
     const grupos = new Map<string, EquipoDisponible[]>();
 
     equipos.forEach((equipo) => {
       const categoria = equipo.categoria?.trim() || "Sin categoría";
-      const equiposCategoria = grupos.get(categoria) ?? [];
+      const grupo = grupos.get(categoria) ?? [];
 
-      equiposCategoria.push(equipo);
-      grupos.set(categoria, equiposCategoria);
+      grupo.push(equipo);
+      grupos.set(categoria, grupo);
     });
 
     return Array.from(grupos.entries())
       .map(([categoria, equiposCategoria]) => ({
         categoria,
-        equipos: equiposCategoria.sort((primerEquipo, segundoEquipo) => {
-          const primerNombre = primerEquipo.nombre ?? primerEquipo.nombreCorto ?? "";
-          const segundoNombre = segundoEquipo.nombre ?? segundoEquipo.nombreCorto ?? "";
-
-          return primerNombre.localeCompare(segundoNombre, "es");
-        }),
+        equipos: equiposCategoria.sort((primero, segundo) =>
+          (primero.nombre ?? primero.nombreCorto ?? "").localeCompare(
+            segundo.nombre ?? segundo.nombreCorto ?? "",
+            "es",
+          ),
+        ),
       }))
-      .sort((primerGrupo, segundoGrupo) => {
-        const primeraPosicion = obtenerPosicionCategoria(primerGrupo.categoria);
-        const segundaPosicion = obtenerPosicionCategoria(segundoGrupo.categoria);
+      .sort((primero, segundo) => {
+        const diferencia =
+          obtenerPosicionCategoria(primero.categoria) -
+          obtenerPosicionCategoria(segundo.categoria);
 
-        if (primeraPosicion !== segundaPosicion) {
-          return primeraPosicion - segundaPosicion;
-        }
-
-        return primerGrupo.categoria.localeCompare(segundoGrupo.categoria, "es");
+        return (
+          diferencia ||
+          primero.categoria.localeCompare(segundo.categoria, "es")
+        );
       });
   }, [equipos]);
 
@@ -106,23 +178,27 @@ export default function SeleccionEquipo(propiedades: Propiedades) {
           signal: controlador.signal,
         });
 
-        if (!respuesta.ok) {
-          throw new Error("No se han podido obtener los equipos");
-        }
-
         const resultado = (await respuesta.json()) as RespuestaEquipos;
 
-        if (!resultado.ok) {
-          throw new Error(resultado.error ?? "No se han podido obtener los equipos");
+        if (
+          !respuesta.ok ||
+          !resultado.ok ||
+          !Array.isArray(resultado.data)
+        ) {
+          throw new Error(
+            resultado.error ?? "No se han podido obtener los equipos",
+          );
         }
 
-        const equiposValidos = resultado.data.filter((equipo) => typeof equipo.id === "string");
+        if (controlador.signal.aborted) return;
 
-        setEquipos(equiposValidos);
+        setEquipos(
+          resultado.data.filter(
+            (equipo) => typeof equipo.id === "string",
+          ),
+        );
       } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") {
-          return;
-        }
+        if (controlador.signal.aborted) return;
 
         console.error("Error al cargar los equipos:", error);
         setError("No se ha podido cargar la lista de equipos.");
@@ -133,15 +209,13 @@ export default function SeleccionEquipo(propiedades: Propiedades) {
       }
     };
 
-    cargarEquipos();
+    void cargarEquipos();
 
-    return () => {
-      controlador.abort();
-    };
+    return () => controlador.abort();
   }, []);
 
   const alternarEquipo = (equipo: EquipoDisponible) => {
-    if (seleccionConfirmada) {
+    if (bloqueado || cargando || error || !estaDisponible(equipo)) {
       return;
     }
 
@@ -150,10 +224,16 @@ export default function SeleccionEquipo(propiedades: Propiedades) {
       return;
     }
 
-    const estaSeleccionado = propiedades.equiposSeleccionados.some((equipoSeleccionado) => equipoSeleccionado.id === equipo.id);
+    const seleccionado = propiedades.equiposSeleccionados.some(
+      (elemento) => elemento.id === equipo.id,
+    );
 
-    if (estaSeleccionado) {
-      propiedades.alCambiarSeleccion(propiedades.equiposSeleccionados.filter((equipoSeleccionado) => equipoSeleccionado.id !== equipo.id));
+    if (seleccionado) {
+      propiedades.alCambiarSeleccion(
+        propiedades.equiposSeleccionados.filter(
+          (elemento) => elemento.id !== equipo.id,
+        ),
+      );
       return;
     }
 
@@ -161,74 +241,163 @@ export default function SeleccionEquipo(propiedades: Propiedades) {
       return;
     }
 
-    propiedades.alCambiarSeleccion([...propiedades.equiposSeleccionados, equipo]);
+    propiedades.alCambiarSeleccion([
+      ...propiedades.equiposSeleccionados,
+      equipo,
+    ]);
   };
 
   const confirmarSeleccion = () => {
-    if (propiedades.modo !== "multiple" || propiedades.equiposSeleccionados.length === 0) {
+    if (
+      propiedades.modo !== "multiple" ||
+      bloqueado ||
+      !seleccionValida
+    ) {
       return;
     }
 
     propiedades.alConfirmar();
   };
 
+  const continuarSinEquipos = () => {
+    if (
+      bloqueado ||
+      cargando ||
+      !alContinuarSinEquipos ||
+      (!error && cantidadDisponibles > 0)
+    ) {
+      return;
+    }
+
+    setSeleccionOmitida(true);
+    alContinuarSinEquipos();
+  };
+
   return (
     <MensajeIA>
-      <p className="font-semibold text-on-secondary-fixed">{esMultiple ? "¿Qué equipos quieres consultar?" : "¿Qué equipo quieres consultar?"}</p>
+      <p className="font-semibold text-on-secondary-fixed">
+        {esMultiple
+          ? "¿Qué equipos quieres consultar?"
+          : "¿Qué equipo quieres consultar?"}
+      </p>
 
       <p className="mt-1 text-sm text-on-surface-variant">
-        {esMultiple ? `Selecciona hasta ${maximo} equipos y confirma cuando hayas terminado:` : "Selecciona uno de los siguientes equipos:"}
+        {esMultiple
+          ? `Selecciona hasta ${maximo} equipos y confirma cuando hayas terminado:`
+          : "Selecciona uno de los siguientes equipos:"}
       </p>
 
       {cargando && (
-        <div className="mt-4 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant" role="status">
+        <div
+          className="mt-4 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant"
+          role="status"
+        >
           Cargando equipos...
         </div>
       )}
 
       {!cargando && error && (
-        <div className="mt-4 rounded-xl border border-error bg-error-container px-4 py-3 text-sm text-on-error-container" role="alert">
+        <div
+          className="mt-4 rounded-xl border border-error bg-error-container px-4 py-3 text-sm text-on-error-container"
+          role="alert"
+        >
           {error}
         </div>
       )}
 
       {!cargando && !error && equipos.length === 0 && (
-        <div className="mt-4 rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-3 text-sm text-on-surface-variant">
+        <p className="mt-4 text-sm text-on-surface-variant">
           No hay equipos disponibles en este momento.
-        </div>
+        </p>
+      )}
+
+      {!cargando && !error && hayEquiposSinVincular && (
+        <p className="mt-4 rounded-xl border border-outline-variant bg-surface-container px-4 py-3 text-sm text-on-surface-variant">
+          Esta consulta utiliza información de la FBIB. Los equipos
+          que todavía no están vinculados aparecen en la lista,
+          pero no se pueden seleccionar para esta consulta.
+        </p>
       )}
 
       {!cargando && !error && equiposPorCategoria.length > 0 && (
         <div className="mt-5 flex flex-col gap-6">
           {equiposPorCategoria.map((grupo) => (
             <section key={grupo.categoria} className="w-full">
-              <div className="relative mb-5 grid h-auto w-full grid-cols-[1fr_auto_1fr] place-items-center gap-x-2">
-                <div className="h-px w-full bg-on-secondary-fixed" aria-hidden="true" />
-                <p className="font-semibold uppercase">{grupo.categoria}</p>
-                <div className="h-px w-full bg-on-secondary-fixed" aria-hidden="true" />
+              <div className="relative mb-5 grid w-full grid-cols-[1fr_auto_1fr] place-items-center gap-x-2">
+                <div
+                  className="h-px w-full bg-on-secondary-fixed"
+                  aria-hidden="true"
+                />
+
+                <p className="font-semibold uppercase">
+                  {grupo.categoria}
+                </p>
+
+                <div
+                  className="h-px w-full bg-on-secondary-fixed"
+                  aria-hidden="true"
+                />
               </div>
 
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {grupo.equipos.map((equipo) => {
-                  const estaSeleccionado = equiposSeleccionados.some((equipoSeleccionado) => equipoSeleccionado.id === equipo.id);
-                  const limiteAlcanzado = esMultiple && equiposSeleccionados.length >= maximo && !estaSeleccionado;
-                  const estaDeshabilitado = seleccionConfirmada || limiteAlcanzado;
+                  const seleccionado = equiposSeleccionados.some(
+                    (elemento) => elemento.id === equipo.id,
+                  );
 
-                  const clasesBoton = [
-                    "relative rounded-xl border px-4 py-3 text-left transition-colors",
-                    estaSeleccionado ? "border-secondary bg-secondary text-on-secondary opacity-100" : "border-outline-variant bg-surface-container-lowest text-on-secondary-fixed",
-                    !estaDeshabilitado ? "cursor-pointer hover:border-on-secondary-fixed hover:bg-secondary-container" : "cursor-not-allowed",
-                    estaDeshabilitado && !estaSeleccionado ? "opacity-50" : "",
-                  ]
-                    .filter(Boolean)
-                    .join(" ");
+                  const sinVinculacion = !estaDisponible(equipo);
+
+                  const limiteAlcanzado =
+                    esMultiple &&
+                    equiposSeleccionados.length >= maximo &&
+                    !seleccionado;
+
+                  const deshabilitado =
+                    bloqueado || sinVinculacion || limiteAlcanzado;
 
                   return (
-                    <button key={equipo.id} type="button" data-equipo={equipo.id} disabled={estaDeshabilitado} onClick={() => alternarEquipo(equipo)} className={clasesBoton} aria-pressed={estaSeleccionado}>
-                      <span className="block pr-7 font-semibold">{equipo.nombre ?? equipo.nombreCorto ?? "Equipo"}</span>
+                    <button
+                      key={equipo.id}
+                      type="button"
+                      data-equipo={equipo.id}
+                      disabled={deshabilitado}
+                      aria-pressed={seleccionado}
+                      onClick={() => alternarEquipo(equipo)}
+                      className={`relative rounded-xl border px-4 py-3 text-left transition-colors ${
+                        seleccionado
+                          ? "border-secondary bg-secondary text-on-secondary"
+                          : "border-outline-variant bg-surface-container-lowest text-on-secondary-fixed"
+                      } ${
+                        deshabilitado
+                          ? "cursor-not-allowed"
+                          : "cursor-pointer hover:border-on-secondary-fixed hover:bg-secondary-container"
+                      } ${
+                        sinVinculacion
+                          ? "bg-surface-container opacity-60"
+                          : deshabilitado && !seleccionado
+                            ? "opacity-50"
+                            : ""
+                      }`}
+                    >
+                      <span className="block pr-7 font-semibold">
+                        {equipo.nombre ?? equipo.nombreCorto ?? "Equipo"}
+                      </span>
 
-                      {esMultiple && (
-                        <span className={`absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border text-xs font-bold ${estaSeleccionado ? "border-on-secondary bg-on-secondary text-secondary" : "border-outline-variant text-transparent"}`} aria-hidden="true">
+                      {sinVinculacion && (
+                        <span className="mt-2 block text-xs font-medium">
+                          No disponible para esta consulta
+                        </span>
+                      )}
+
+                      {esMultiple && !sinVinculacion && (
+                        <span
+                          className={`absolute right-3 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border text-xs font-bold ${
+                            seleccionado
+                              ? "border-on-secondary bg-on-secondary text-secondary"
+                              : "border-outline-variant text-transparent"
+                          }`}
+                          aria-hidden="true"
+                        >
                           ✓
                         </span>
                       )}
@@ -239,15 +408,46 @@ export default function SeleccionEquipo(propiedades: Propiedades) {
             </section>
           ))}
 
-          {esMultiple && !seleccionConfirmada && (
+          {cantidadDisponibles === 0 && (
+            <p className="text-sm text-on-surface-variant">
+              Ningún equipo está disponible para esta consulta
+              en este momento.
+            </p>
+          )}
+
+          {esMultiple && !bloqueado && cantidadDisponibles > 0 && (
             <div className="sticky bottom-3 z-10 flex justify-center pt-2">
-              <button type="button" disabled={equiposSeleccionados.length === 0} onClick={confirmarSeleccion} className="rounded-full bg-primary-container px-6 py-3 font-semibold text-on-primary-container shadow-md transition-colors hover:bg-primary-fixed-dim disabled:cursor-not-allowed disabled:opacity-50">
-                {equiposSeleccionados.length === 0 ? "Selecciona al menos un equipo" : `Consultar ${equiposSeleccionados.length} ${equiposSeleccionados.length === 1 ? "equipo" : "equipos"}`}
+              <button
+                type="button"
+                disabled={!seleccionValida}
+                onClick={confirmarSeleccion}
+                className="rounded-full bg-primary-container px-6 py-3 font-semibold text-on-primary-container shadow-md transition-colors hover:bg-primary-fixed-dim disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {equiposSeleccionados.length === 0
+                  ? "Selecciona al menos un equipo"
+                  : `Consultar ${equiposSeleccionados.length} ${
+                      equiposSeleccionados.length === 1
+                        ? "equipo"
+                        : "equipos"
+                    }`}
               </button>
             </div>
           )}
         </div>
       )}
+
+      {!cargando &&
+        !bloqueado &&
+        alContinuarSinEquipos &&
+        (error || cantidadDisponibles === 0) && (
+          <button
+            type="button"
+            onClick={continuarSinEquipos}
+            className="mt-4 rounded-full border border-secondary px-4 py-2 text-sm font-semibold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
+          >
+            Continuar
+          </button>
+        )}
     </MensajeIA>
   );
 }

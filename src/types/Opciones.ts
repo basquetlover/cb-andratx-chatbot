@@ -16,6 +16,9 @@ export interface OpcionPrincipal {
   nombre: string;
   estado: EstadoOpcion;
   siguientePaso: SiguientePaso;
+
+  // Necesita que el equipo tenga id_equipo_fbib configurado.
+  requiereFbib: boolean;
 }
 
 export const opcionesPrincipales = [
@@ -24,36 +27,42 @@ export const opcionesPrincipales = [
     nombre: "Horarios de entrenamiento",
     estado: "disponible",
     siguientePaso: "seleccionar-equipo",
+    requiereFbib: false,
   },
   {
     id: "proximo-partido",
     nombre: "Próximo partido",
     estado: "disponible",
     siguientePaso: "seleccionar-equipo",
+    requiereFbib: true,
   },
   {
     id: "partidos-por-fecha",
     nombre: "Partidos por fecha",
     estado: "disponible",
     siguientePaso: "seleccionar-fecha",
+    requiereFbib: true,
   },
   {
     id: "clasificacion",
     nombre: "Clasificación",
     estado: "disponible",
     siguientePaso: "seleccionar-equipo",
+    requiereFbib: true,
   },
   {
     id: "eventos-club",
     nombre: "Eventos del club",
     estado: "disponible",
     siguientePaso: "mostrar-eventos-club",
+    requiereFbib: false,
   },
   {
     id: "reglamento",
     nombre: "Consultar el reglamento",
     estado: "disponible",
     siguientePaso: "consultar-reglamento",
+    requiereFbib: false,
   },
   // {
   //   id: "otra-consulta",

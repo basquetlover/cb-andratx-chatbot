@@ -12,8 +12,10 @@ export interface EquipoTemporada {
   descripcion: string | null;
   imagen: string | null;
   patrocinadores: string | null;
+  sponsorId: string | null;
   mostrarSponsor: boolean;
   chatbot: boolean;
+  tieneVinculacionFbib: boolean;
 }
 
 export interface ResultadoEquiposTemporada {
@@ -32,25 +34,31 @@ interface FilaEquipoSupabase {
   nivel: string | null;
   descripcion: string | null;
   imagen: string | null;
-  patrcinadores: string | null;
+  patrocinadores: string | null;
   mostrar_sponsor: boolean | null;
   chatbot: boolean | null;
+  id_equipo_fbib: string | number | null;
 }
 
 interface OpcionesConsulta {
   soloChatbot?: boolean;
 }
 
-export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: OpcionesConsulta = {}): Promise<ResultadoEquiposTemporada | null> {
-  const { data: temporada, error: errorTemporada } = await supabaseServidor
-    .from("temporadas")
-    .select("id")
-    .eq("activa", true)
-    .limit(1)
-    .maybeSingle();
+export async function obtenerEquiposTemporadaActiva({
+  soloChatbot = false,
+}: OpcionesConsulta = {}): Promise<ResultadoEquiposTemporada | null> {
+  const { data: temporada, error: errorTemporada } =
+    await supabaseServidor
+      .from("temporadas")
+      .select("id")
+      .eq("activa", true)
+      .limit(1)
+      .maybeSingle();
 
   if (errorTemporada) {
-    throw new Error(`Error al obtener la temporada activa: ${errorTemporada.message}`);
+    throw new Error(
+      `Error al obtener la temporada activa: ${errorTemporada.message}`,
+    );
   }
 
   if (!temporada?.id) {
@@ -74,7 +82,8 @@ export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: Opc
       imagen,
       patrocinadores,
       mostrar_sponsor,
-      chatbot
+      chatbot,
+      id_equipo_fbib
     `)
     .eq("temporada_id", temporadaId)
     .eq("activo", true);
@@ -88,7 +97,9 @@ export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: Opc
     .order("nombre", { ascending: true });
 
   if (errorEquipos) {
-    throw new Error(`Error al obtener los equipos: ${errorEquipos.message}`);
+    throw new Error(
+      `Error al obtener los equipos: ${errorEquipos.message}`,
+    );
   }
 
   const filas = (equipos ?? []) as FilaEquipoSupabase[];
@@ -106,14 +117,19 @@ export async function obtenerEquiposTemporadaActiva({ soloChatbot = false }: Opc
       nivel: equipo.nivel,
       descripcion: equipo.descripcion,
       imagen: equipo.imagen,
+      patrocinadores: equipo.patrocinadores,
       sponsorId: equipo.patrocinadores,
       mostrarSponsor: equipo.mostrar_sponsor ?? true,
       chatbot: equipo.chatbot === true,
+      tieneVinculacionFbib:
+        String(equipo.id_equipo_fbib ?? "").trim().length > 0,
     })),
   };
 }
 
-export async function obtenerEquiposChatbotTemporadaActiva(): Promise<EquipoTemporada[]> {
+export async function obtenerEquiposChatbotTemporadaActiva(): Promise<
+  EquipoTemporada[]
+> {
   const resultado = await obtenerEquiposTemporadaActiva({
     soloChatbot: true,
   });

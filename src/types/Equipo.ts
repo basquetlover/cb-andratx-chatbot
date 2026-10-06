@@ -6,4 +6,5 @@ export interface EquipoDisponible {
   genero: string | null;
   nivel: string | null;
   imagen: string | null;
+  tieneVinculacionFbib: boolean;
 }
