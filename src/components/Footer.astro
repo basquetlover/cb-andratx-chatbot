@@ -1,7 +1,24 @@
 ---
-import { obtenerRedesSocialesClub, type RedSocialClub } from "@servicios/backend/club/obtenerRedesSocialesClub";
+import {
+  obtenerRedesSocialesClub,
+  type RedSocialClub,
+} from "@servicios/backend/club/obtenerRedesSocialesClub";
 
 const añoActual = new Date().getFullYear();
+
+// Contacto del club.
+// Los campos vacíos no se muestran.
+const contactoClub = {
+  email: "cbandratx1985@gmail.com",
+  telefono: "694210948",
+  horario: "",
+};
+
+const emailContacto = contactoClub.email.trim();
+const telefonoContacto = contactoClub.telefono.trim();
+const horarioContacto = contactoClub.horario.trim();
+
+const enlaceTelefono = telefonoContacto.replace(/[^\d+]/g, "");
 
 const navegacion = [
   {
@@ -27,101 +44,316 @@ let redes: RedSocialClub[] = [];
 try {
   redes = await obtenerRedesSocialesClub();
 } catch (error) {
-  console.error("No se han podido cargar las redes sociales del footer:", error);
+  console.error(
+    "No se han podido cargar las redes sociales del footer:",
+    error,
+  );
 }
+
+const dibujoBalon =
+  "M162-520h114q-6-38-23-71t-43-59q-18 29-30.5 61.5T162-520m522 0h114q-5-36-17.5-68.5T750-650q-26 26-43 59t-23 71M210-310q26-26 43-59t23-71H162q5 36 17.5 68.5T210-310m540 0q18-29 30.5-61.5T798-440H684q6 38 23 71t43 59M358-520h82v-278q-53 8-98.5 29.5T260-712q39 38 64.5 86.5T358-520m162 0h82q8-57 33.5-105.5T700-712q-36-35-81.5-56.5T520-798zm-80 358v-278h-82q-8 57-33.5 105.5T260-248q36 35 81.5 56.5T440-162m80 0q53-8 98.5-29.5T700-248q-39-38-64.5-86.5T602-440h-82zm-40 82q-83 0-156-31.5T197-197t-85.5-127T80-480t31.5-156T197-763t127-85.5T480-880t156 31.5T763-763t85.5 127T880-480t-31.5 156T763-197t-127 85.5T480-80";
 ---
 
-<footer class="relative mt-auto overflow-hidden bg-on-primary-container text-on-primary" aria-labelledby="titulo-footer">
-  <span class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full rotate-20 fill-primary-container/15" aria-hidden="true">
-    <svg xmlns="http://www.w3.org/2000/svg" class="w-full h-full" viewBox="0 -960 960 960">
-        <path d="M162-520h114q-6-38-23-71t-43-59q-18 29-30.5 61.5T162-520m522 0h114q-5-36-17.5-68.5T750-650q-26 26-43 59t-23 71M210-310q26-26 43-59t23-71H162q5 36 17.5 68.5T210-310m540 0q18-29 30.5-61.5T798-440H684q6 38 23 71t43 59M358-520h82v-278q-53 8-98.5 29.5T260-712q39 38 64.5 86.5T358-520m162 0h82q8-57 33.5-105.5T700-712q-36-35-81.5-56.5T520-798zm-80 358v-278h-82q-8 57-33.5 105.5T260-248q36 35 81.5 56.5T440-162m80 0q53-8 98.5-29.5T700-248q-39-38-64.5-86.5T602-440h-82zm-40 82q-83 0-156-31.5T197-197t-85.5-127T80-480t31.5-156T197-763t127-85.5T480-880t156 31.5T763-763t85.5 127T880-480t-31.5 156T763-197t-127 85.5T480-80"/>
+<footer
+  class="relative mt-auto overflow-hidden bg-on-primary-container text-on-primary"
+  aria-labelledby="titulo-footer"
+>
+  <span
+    class="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rotate-20 rounded-full fill-primary-container/15"
+    aria-hidden="true"
+  >
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      class="h-full w-full"
+      viewBox="0 -960 960 960"
+    >
+      <path d={dibujoBalon}></path>
     </svg>
- </span>
-  <span class="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" aria-hidden="true"></span>
+  </span>
 
-  <div class="relative mx-auto w-full max-w-300 px-4 pb-28 pt-12 sm:px-6 md:pb-8 md:pt-14">
-    <div class="grid gap-10 md:grid-cols-[1.2fr_0.8fr_1fr] md:gap-12">
-      <section>
-        <a href="/" class="inline-flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim" aria-label="Ir al inicio del C.B. Andratx">
-          <span class="flex h-20 w-20 items-center justify-center rounded-full bg-surface-container-lowest p-2 shadow-lg">
-            <img src="/favicon.png" alt="" class="h-full w-full object-contain" />
+  <span
+    class="pointer-events-none absolute -bottom-32 -left-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl"
+    aria-hidden="true"></span>
+
+  <div
+    class="relative mx-auto w-full max-w-300 px-4 pb-28 pt-12 sm:px-6 md:pb-8 md:pt-14"
+  >
+    <div
+      class="grid gap-10 md:grid-cols-2 lg:grid-cols-[1.2fr_0.65fr_1fr_0.9fr] lg:gap-8"
+    >
+      <section class="min-w-0">
+        <a
+          href="/"
+          class="inline-flex items-center gap-3 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim"
+          aria-label="Ir al inicio del C.B. Andratx"
+        >
+          <span
+            class="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-surface-container-lowest p-2 shadow-lg"
+          >
+            <img
+              src="/favicon.png"
+              alt=""
+              class="h-full w-full object-contain"
+            />
           </span>
 
-            <span class="flex flex-col">
-                <span id="titulo-footer" class="text-2xl font-semibold text-primary-fixed">C.B. Andratx</span>
-
-                <span class="mt-1 flex items-center gap-1 text-sm font-bold uppercase italic text-on-primary" aria-label="#FentBasquetDesde1985">
-                    <span class="inline-block h-4 w-4 shrink-0 bg-on-primary mask-[url('/iconos/tag.svg')] mask-center mask-contain mask-no-repeat" aria-hidden="true"></span>
-                    FentBasquetDesde1985
-                </span>
-
-                <span class="mt-0.5 flex items-center gap-1 text-sm font-bold uppercase italic text-on-primary" aria-label="#SentimentBlauGroc">
-                    <span class="inline-block h-4 w-4 shrink-0 bg-on-primary mask-[url('/iconos/tag.svg')] mask-center mask-contain mask-no-repeat" aria-hidden="true"></span>
-                    <span>Sentiment<span class="text-primary-container">Blau</span><span class="text-tertiary-fixed-dim">Groc</span></span>
-                </span>
+          <span class="flex min-w-0 flex-col">
+            <span
+              id="titulo-footer"
+              class="text-2xl font-semibold text-primary-fixed"
+            >
+              C.B. Andratx
             </span>
+
+            <span
+              class="mt-1 flex items-center gap-1 text-sm font-bold uppercase italic text-on-primary"
+              aria-label="#FentBasquetDesde1985"
+            >
+              <span
+                class="inline-block h-4 w-4 shrink-0 bg-on-primary mask-[url('/iconos/tag.svg')] mask-center mask-contain mask-no-repeat"
+                aria-hidden="true"></span>
+              FentBasquetDesde1985
+            </span>
+
+            <span
+              class="mt-0.5 flex items-center gap-1 text-sm font-bold uppercase italic text-on-primary"
+              aria-label="#SentimentBlauGroc"
+            >
+              <span
+                class="inline-block h-4 w-4 shrink-0 bg-on-primary mask-[url('/iconos/tag.svg')] mask-center mask-contain mask-no-repeat"
+                aria-hidden="true"></span>
+
+              <span>
+                Sentiment<span class="text-primary-container">Blau</span><span
+                  class="text-tertiary-fixed-dim">Groc</span
+                >
+              </span>
+            </span>
+          </span>
         </a>
 
-        <p class="mt-5 max-w-md text-sm leading-relaxed text-primary-fixed">Toda la información del club, sus equipos, entrenamientos, partidos, entrevistas y actividades en un mismo lugar.</p>
+        <p class="mt-5 max-w-md text-sm leading-relaxed text-primary-fixed">
+          Toda la información del club, sus equipos, entrenamientos, partidos,
+          entrevistas y actividades en un mismo lugar.
+        </p>
 
         <div class="mt-6 flex items-center gap-3">
-          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"></span>
+          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"
+          ></span>
 
           <span class="text-tertiary-fixed-dim" aria-hidden="true">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" class="h-6 w-6" fill="currentColor">
-              <path d="M162-520h114q-6-38-23-71t-43-59q-18 29-30.5 61.5T162-520m522 0h114q-5-36-17.5-68.5T750-650q-26 26-43 59t-23 71M210-310q26-26 43-59t23-71H162q5 36 17.5 68.5T210-310m540 0q18-29 30.5-61.5T798-440H684q6 38 23 71t43 59M358-520h82v-278q-53 8-98.5 29.5T260-712q39 38 64.5 86.5T358-520m162 0h82q8-57 33.5-105.5T700-712q-36-35-81.5-56.5T520-798zm-80 358v-278h-82q-8 57-33.5 105.5T260-248q36 35 81.5 56.5T440-162m80 0q53-8 98.5-29.5T700-248q-39-38-64.5-86.5T602-440h-82zm-40 82q-83 0-156-31.5T197-197t-85.5-127T80-480t31.5-156T197-763t127-85.5T480-880t156 31.5T763-763t85.5 127T880-480t-31.5 156T763-197t-127 85.5T480-80"></path>
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 -960 960 960"
+              class="h-6 w-6"
+              fill="currentColor"
+            >
+              <path d={dibujoBalon}></path>
             </svg>
           </span>
 
-          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"></span>
+          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"
+          ></span>
         </div>
       </section>
 
       <nav aria-label="Navegación del pie de página">
-        <p class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim">Explora</p>
+        <p
+          class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim"
+        >
+          Explora
+        </p>
 
         <ul class="mt-5 flex flex-col gap-3">
-          {navegacion.map((enlace) => (
-            <li>
-              <a href={enlace.enlace} class="group inline-flex items-center gap-2 text-sm font-semibold text-primary-fixed transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim">
-                <span class="h-1.5 w-1.5 rounded-full bg-primary-container transition-transform duration-200 group-hover:scale-150" aria-hidden="true"></span>
-                {enlace.nombre}
-              </a>
-            </li>
-          ))}
+          {
+            navegacion.map((enlace) => (
+              <li>
+                <a
+                  href={enlace.enlace}
+                  class="group inline-flex items-center gap-2 text-sm font-semibold text-primary-fixed transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim"
+                >
+                  <span
+                    class="h-1.5 w-1.5 rounded-full bg-primary-container transition-transform duration-200 group-hover:scale-150"
+                    aria-hidden="true"
+                  />
+                  {enlace.nombre}
+                </a>
+              </li>
+            ))
+          }
         </ul>
       </nav>
 
-      <section aria-labelledby="titulo-redes-footer">
-        <p id="titulo-redes-footer" class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim">Síguenos</p>
-        <p class="mt-4 text-sm leading-relaxed text-primary-fixed">Entrevistas, resultados, actividades y toda la actualidad del club.</p>
+      <section class="min-w-0" aria-labelledby="titulo-contacto-footer">
+        <p
+          id="titulo-contacto-footer"
+          class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim"
+        >
+          Contacto
+        </p>
 
-        {redes.length > 0 ? (
-          <div class="mt-5 flex flex-wrap gap-3">
-            {redes.map((red) => (
-              <a href={red.url} target="_blank" rel="noopener noreferrer" class="group flex h-11 w-11 items-center justify-center rounded-full border border-primary-fixed/30 bg-primary/20 transition-all duration-300 hover:-translate-y-1 hover:border-tertiary-fixed-dim hover:bg-tertiary-fixed-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim" aria-label={`Visitar ${red.nombre} del C.B. Andratx`} title={red.usuario ? `${red.nombre}: ${red.usuario}` : red.nombre}>
-                <img src={`/iconos/redes/${red.icono}.svg`} class="w-5 h-5" />
+        <p class="mt-4 text-sm leading-relaxed text-primary-fixed">
+          ¿Tienes alguna duda? Ponte en contacto con el club.
+        </p>
+
+        <address class="mt-5 flex flex-col gap-4 not-italic">
+          {
+            emailContacto && (
+              <a
+                href={`mailto:${emailContacto}`}
+                class="group flex items-start gap-3 rounded-lg text-primary-fixed transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim"
+              >
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary-fixed/25 bg-primary/20 text-tertiary-fixed-dim transition-colors group-hover:bg-primary/40">
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="5" width="18" height="14" rx="2" />
+                    <path d="m3 7 9 6 9-6" />
+                  </svg>
+                </span>
+
+                <span class="min-w-0">
+                  <span class="block text-xs text-primary-fixed/75">
+                    Correo electrónico
+                  </span>
+                  <span class="mt-1 block text-sm font-semibold [overflow-wrap:anywhere]">
+                    {emailContacto}
+                  </span>
+                </span>
               </a>
-            ))}
-          </div>
-        ) : (
-          <p class="mt-5 text-sm text-primary-fixed/70">Consulta próximamente nuestras redes sociales.</p>
-        )}
+            )
+          }
+
+          {
+            telefonoContacto && enlaceTelefono && (
+              <a
+                href={`tel:${enlaceTelefono}`}
+                class="group flex items-start gap-3 rounded-lg text-primary-fixed transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim"
+              >
+                <span class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary-fixed/25 bg-primary/20 text-tertiary-fixed-dim transition-colors group-hover:bg-primary/40">
+                  <svg
+                    viewBox="0 0 24 24"
+                    class="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.79 19.79 0 0 1 2.12 4.2 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.69 2.79a2 2 0 0 1-.45 2.11L8.08 9.89a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.89.33 1.83.56 2.79.69A2 2 0 0 1 22 16.92Z" />
+                  </svg>
+                </span>
+
+                <span class="min-w-0">
+                  <span class="block text-xs text-primary-fixed/75">
+                    Teléfono
+                  </span>
+                  <span class="mt-1 block text-sm font-semibold">
+                    {telefonoContacto}
+                  </span>
+                </span>
+              </a>
+            )
+          }
+        </address>
+
+        {
+          horarioContacto && (
+            <div class="mt-5 rounded-xl border border-primary-fixed/20 bg-primary/10 px-4 py-3">
+              <p class="text-xs font-semibold text-tertiary-fixed-dim">
+                Horario de atención
+              </p>
+              <p class="mt-1 whitespace-pre-line text-sm leading-relaxed text-primary-fixed">
+                {horarioContacto}
+              </p>
+            </div>
+          )
+        }
+      </section>
+
+      <section aria-labelledby="titulo-redes-footer">
+        <p
+          id="titulo-redes-footer"
+          class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim"
+        >
+          Síguenos
+        </p>
+
+        <p class="mt-4 text-sm leading-relaxed text-primary-fixed">
+          Entrevistas, resultados, actividades y toda la actualidad del club.
+        </p>
+
+        {
+          redes.length > 0 ? (
+            <div class="mt-5 flex flex-wrap gap-3">
+              {redes.map((red) => (
+                <a
+                  href={red.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="group flex h-11 w-11 items-center justify-center rounded-full border border-primary-fixed/30 bg-primary/20 transition-all duration-300 hover:-translate-y-1 hover:border-tertiary-fixed-dim hover:bg-tertiary-fixed-dim focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim"
+                  aria-label={`Visitar ${red.nombre} del C.B. Andratx`}
+                  title={
+                    red.usuario ? `${red.nombre}: ${red.usuario}` : red.nombre
+                  }
+                >
+                  <img
+                    src={`/iconos/redes/${red.icono}.svg`}
+                    alt=""
+                    class="h-5 w-5"
+                    loading="lazy"
+                  />
+                </a>
+              ))}
+            </div>
+          ) : (
+            <p class="mt-5 text-sm text-primary-fixed/70">
+              Consulta próximamente nuestras redes sociales.
+            </p>
+          )
+        }
       </section>
     </div>
 
     <div class="mt-10 border-t border-primary-fixed/20 pt-6">
-      <div class="flex flex-col gap-4 text-xs text-primary-fixed/75 sm:flex-row sm:items-center sm:justify-between">
-        <p>© {añoActual} C.B. Andratx. Todos los derechos reservados.</p>
+      <div
+        class="flex flex-col gap-4 text-xs text-primary-fixed/75 sm:flex-row sm:items-center sm:justify-between"
+      >
+        <p>
+          © {añoActual} C.B. Andratx. Todos los derechos reservados.
+        </p>
 
         <div class="flex flex-wrap gap-x-5 gap-y-2">
-          <a href="/aviso-legal" class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim">Aviso legal</a>
-          <a href="/privacidad" class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim">Privacidad</a>
-          <a href="/cookies" class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim">Cookies y almacenamiento local</a>
+          <a
+            href="/aviso-legal"
+            class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim"
+          >
+            Aviso legal
+          </a>
+
+          <a
+            href="/privacidad"
+            class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim"
+          >
+            Privacidad
+          </a>
+
+          <a
+            href="/cookies"
+            class="transition-colors hover:text-on-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-tertiary-fixed-dim"
+          >
+            Cookies y almacenamiento local
+          </a>
         </div>
       </div>
-
-      <!-- <p class="mt-4 max-w-3xl text-[11px] leading-relaxed text-primary-fixed/55">La información publicada puede estar sujeta a cambios. Para datos importantes sobre partidos, horarios o competiciones, consulta también las fuentes oficiales del club y de la FBIB.</p> -->
     </div>
   </div>
 </footer>
@@ -155,6 +387,12 @@ try {
   ].join(";");
 
   console.log("%c🏀 C.B. ANDRATX", estiloTitulo);
-  console.log("%cDiseño y desarrollo: Pere Alemany | Full-Stack DEVELOPER", estiloDesarrollador);
-  console.log("%cWeb oficial del club · Astro + React + TypeScript", estiloInformacion);
+  console.log(
+    "%cDiseño y desarrollo: Pere Alemany | Full-Stack DEVELOPER",
+    estiloDesarrollador,
+  );
+  console.log(
+    "%cWeb oficial del club · Astro + React + TypeScript",
+    estiloInformacion,
+  );
 </script>
