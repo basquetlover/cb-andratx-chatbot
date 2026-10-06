@@ -34,25 +34,25 @@ export const opcionesPrincipales = [
   {
     id: "partidos-por-fecha",
     nombre: "Partidos por fecha",
-    estado: "proximamente",
+    estado: "disponible",
     siguientePaso: "seleccionar-fecha",
   },
   {
     id: "clasificacion",
     nombre: "Clasificación",
-    estado: "proximamente",
+    estado: "disponible",
     siguientePaso: "seleccionar-equipo",
   },
   {
     id: "eventos-club",
     nombre: "Eventos del club",
-    estado: "proximamente",
+    estado: "disponible",
     siguientePaso: "mostrar-eventos-club",
   },
   {
     id: "reglamento",
     nombre: "Consultar el reglamento",
-    estado: "proximamente",
+    estado: "disponible",
     siguientePaso: "consultar-reglamento",
   },
   // {

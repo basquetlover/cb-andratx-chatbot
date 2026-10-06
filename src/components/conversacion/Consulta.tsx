@@ -8,6 +8,10 @@ import OpcionesPrincipales from "@components/formularios/OpcionesPrincipales";
 import { opcionesPrincipales } from "@tipos/Opciones";
 import BannerRedesSociales from "./BannerRedesSociales";
 import ProximoPartido from "@components/conversacion/flujos/ProximoPartido";
+import Reglamento from "./flujos/Reglamento";
+import Clasificacion from "./flujos/Clasificacion";
+import EventosClub from "./flujos/EventosClub";
+import PartidosPorFecha from "./flujos/PartidosPorFecha";
 
 interface Propiedades {
   alResponderContinuacion: (quiereContinuar: boolean) => void;
@@ -43,9 +47,23 @@ export default function Consulta({ alResponderContinuacion }: Propiedades) {
 
       {opcionSeleccionada === "proximo-partido" && <ProximoPartido alCompletar={() => setFlujoCompletado(true)} />}
 
-      {opcionSeleccionada === "reglamento" && (<> </>)}
+      {opcionSeleccionada === "reglamento" && (
+        <Reglamento alCompletar={() => setFlujoCompletado(true)} />
+      )}
 
-      {opcionSeleccionada && !["horarios-entrenamiento", "proximo-partido", "reglamento"].includes(opcionSeleccionada) && (
+      {opcionSeleccionada === "clasificacion" && (
+        <Clasificacion alCompletar={() => setFlujoCompletado(true)} />
+      )}
+
+      {opcionSeleccionada === "eventos-club" && (
+        <EventosClub alCompletar={() => setFlujoCompletado(true)} />
+      )}
+
+      {opcionSeleccionada === "partidos-por-fecha" && (
+        <PartidosPorFecha alCompletar={() => setFlujoCompletado(true)} />
+      )}
+
+      {opcionSeleccionada && !["horarios-entrenamiento", "proximo-partido", "reglamento", "clasificacion", "eventos-club", "partidos-por-fecha"].includes(opcionSeleccionada) && (
         <MensajeIA>
           <p className="font-semibold text-on-secondary-fixed">Esta consulta todavía no está disponible</p>
           <p className="mt-1 text-sm text-on-surface-variant">Estamos preparando este apartado del asistente.</p>
