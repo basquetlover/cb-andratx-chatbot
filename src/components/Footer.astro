@@ -137,8 +137,10 @@ const dibujoBalon =
           entrevistas y actividades en un mismo lugar.
         </p>
 
-        <div class="mt-6 flex items-center gap-3">
-          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"
+        <div class="mt-6 flex items-center gap-3 md:hidden">
+          <span
+            class="h-px flex-1 bg-primary-fixed/25"
+            aria-hidden="true"
           ></span>
 
           <span class="text-tertiary-fixed-dim" aria-hidden="true">
@@ -152,7 +154,9 @@ const dibujoBalon =
             </svg>
           </span>
 
-          <span class="h-px flex-1 bg-primary-fixed/25" aria-hidden="true"
+          <span
+            class="h-px flex-1 bg-primary-fixed/25"
+            aria-hidden="true"
           ></span>
         </div>
       </section>
@@ -184,7 +188,10 @@ const dibujoBalon =
         </ul>
       </nav>
 
-      <section class="min-w-0" aria-labelledby="titulo-contacto-footer">
+      <section
+        class="min-w-0"
+        aria-labelledby="titulo-contacto-footer"
+      >
         <p
           id="titulo-contacto-footer"
           class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim"
@@ -323,7 +330,66 @@ const dibujoBalon =
       </section>
     </div>
 
-    <div class="mt-10 border-t border-primary-fixed/20 pt-6">
+    <section
+      class="mt-10"
+      aria-labelledby="titulo-colaborador-footer"
+    >
+      <div class="flex items-center gap-3 mb-6">
+          <span
+            class="h-px flex-1 bg-primary-fixed/25"
+            aria-hidden="true"
+          ></span>
+
+          <span class="text-tertiary-fixed-dim" aria-hidden="true">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 -960 960 960"
+              class="h-6 w-6"
+              fill="currentColor"
+            >
+              <path d={dibujoBalon}></path>
+            </svg>
+          </span>
+
+          <span
+            class="h-px flex-1 bg-primary-fixed/25"
+            aria-hidden="true"
+          ></span>
+        </div>
+      <div class="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+        <div class="min-w-0">
+          <p
+            id="titulo-colaborador-footer"
+            class="text-sm font-bold uppercase tracking-[0.16em] text-tertiary-fixed-dim"
+          >
+            Colabora
+          </p>
+
+          <p class="mt-2 max-w-2xl text-sm leading-relaxed text-primary-fixed/80">
+            El Club Bàsquet Andratx cuenta con la colaboración institucional del
+            Ajuntament d'Andratx.
+          </p>
+        </div>
+
+        <a
+          href="https://andratx.es/"
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Visitar la web del Ajuntament d'Andratx, colaborador del C.B. Andratx"
+          class="group inline-flex max-w-full shrink-0 items-center rounded-2xl border border-primary-fixed/15 bg-primary-fixed/5 px-4 py-3 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 hover:border-primary-fixed/30 hover:bg-primary-fixed/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-tertiary-fixed-dim"
+        >
+          <img
+            src="/img/ajuntament.png"
+            alt="Ajuntament d'Andratx"
+            class="h-24 w-auto max-w-60 mx-auto object-contain opacity-95 transition-opacity duration-200 group-hover:opacity-100 sm:h-20 sm:max-w-70"
+            loading="lazy"
+            decoding="async"
+          />
+        </a>
+      </div>
+    </section>
+
+    <div class="mt-8 border-t border-primary-fixed/20 pt-6">
       <div
         class="flex flex-col gap-4 text-xs text-primary-fixed/75 sm:flex-row sm:items-center sm:justify-between"
       >
