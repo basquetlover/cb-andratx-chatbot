@@ -1,6 +1,8 @@
+
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -14,255 +16,143 @@ import type {
 } from "@tipos/PartidoPortada";
 
 interface Propiedades {
-  datos:
-    PeriodoPartidosPortada;
-
+  datos: PeriodoPartidosPortada;
   mostrarCabecera?: boolean;
-
   tituloId?: string;
 }
 
-interface PropiedadesEscudo {
-  equipo:
-    EquipoPartidoPortada;
+const COLORES = {
+  azulOscuro: "#003650",
+  azulProfundo: "#002B45",
+  azul: "#009FE3",
+  azulClaro: "#48B9F4",
+  amarillo: "#FFD21E",
+  amarilloClaro: "#FFF2A5",
+};
+
+function convertirFecha(fecha: string): Date {
+  return new Date(`${fecha}T12:00:00`);
 }
 
-interface PropiedadesPartido {
-  partido:
-    PartidoPortada;
-}
-
-function convertirFecha(
+function formatearFecha(
   fecha: string,
-): Date {
-  return new Date(
-    `${fecha}T12:00:00`,
-  );
+  opciones: Intl.DateTimeFormatOptions,
+): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    ...opciones,
+  }).format(convertirFecha(fecha));
 }
 
-function capitalizar(
-  texto: string,
-): string {
-  if (!texto) {
-    return texto;
-  }
-
-  return (
-    texto.charAt(0).toUpperCase() +
-    texto.slice(1)
-  );
+function numeroDia(fecha: string): string {
+  return formatearFecha(fecha, { day: "2-digit" });
 }
 
-function formatearDiaSemana(
-  fecha: string,
-): string {
-  return capitalizar(
-    new Intl.DateTimeFormat(
-      "es-ES",
-      {
-        weekday: "long",
-        timeZone:
-          "Europe/Madrid",
-      },
-    ).format(
-      convertirFecha(
-        fecha,
-      ),
-    ),
-  );
+function mesNumero(fecha: string): string {
+  return formatearFecha(fecha, { month: "2-digit" });
 }
 
-function formatearDiaCorto(
-  fecha: string,
-): string {
-  return capitalizar(
-    new Intl.DateTimeFormat(
-      "es-ES",
-      {
-        weekday: "short",
-        timeZone:
-          "Europe/Madrid",
-      },
-    )
-      .format(
-        convertirFecha(
-          fecha,
-        ),
-      )
-      .replace(".", ""),
-  );
+function mesCorto(fecha: string): string {
+  return formatearFecha(fecha, { month: "short" })
+    .replace(".", "")
+    .toUpperCase();
 }
 
-function formatearNumeroDia(
-  fecha: string,
-): string {
-  return new Intl.DateTimeFormat(
-    "es-ES",
-    {
-      day: "numeric",
-      timeZone:
-        "Europe/Madrid",
-    },
-  ).format(
-    convertirFecha(
-      fecha,
-    ),
-  );
+function diaSemana(fecha: string): string {
+  return formatearFecha(fecha, { weekday: "long" })
+    .toUpperCase();
 }
 
-function formatearMesCorto(
-  fecha: string,
-): string {
-  return new Intl.DateTimeFormat(
-    "es-ES",
-    {
-      month: "short",
-      timeZone:
-        "Europe/Madrid",
-    },
-  )
-    .format(
-      convertirFecha(
-        fecha,
-      ),
-    )
-    .replace(".", "");
-}
+function iniciales(nombre: string): string {
+  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
 
-function formatearFechaCompleta(
-  fecha: string,
-): string {
-  return capitalizar(
-    new Intl.DateTimeFormat(
-      "es-ES",
-      {
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        timeZone:
-          "Europe/Madrid",
-      },
-    ).format(
-      convertirFecha(
-        fecha,
-      ),
-    ),
-  );
-}
-
-function obtenerIniciales(
-  nombre: string,
-): string {
-  const palabras =
-    nombre
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean);
-
-  if (
-    palabras.length === 0
-  ) {
-    return "—";
-  }
-
-  if (
-    palabras.length === 1
-  ) {
-    return palabras[0]
-      .slice(0, 2)
-      .toUpperCase();
+  if (palabras.length === 0) return "—";
+  if (palabras.length === 1) {
+    return palabras[0].slice(0, 2).toUpperCase();
   }
 
   return (
     palabras[0][0] +
-    palabras[
-      palabras.length - 1
-    ][0]
+    palabras[palabras.length - 1][0]
   ).toUpperCase();
 }
 
-function IconoUbicacion() {
+function construirDias(
+  datos: PeriodoPartidosPortada,
+): DiaPartidosPortada[] {
+  const grupos = new Map<string, PartidoPortada[]>();
+
+  for (const partido of datos.partidos) {
+    const lista = grupos.get(partido.fecha) ?? [];
+    lista.push(partido);
+    grupos.set(partido.fecha, lista);
+  }
+
+  return [...grupos.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([fecha, partidos]) => ({
+      fecha,
+      esHoy: fecha === datos.fechaActual,
+      partidos: [...partidos].sort((a, b) =>
+        (a.hora ?? "23:59").localeCompare(
+          b.hora ?? "23:59",
+        ),
+      ),
+    }));
+}
+
+function fechaReferencia(
+  dias: DiaPartidosPortada[],
+  fechaActual: string,
+): string | null {
+  if (dias.length === 0) return null;
+
+  const hoy = dias.find((dia) => dia.fecha === fechaActual);
+  if (hoy) return hoy.fecha;
+
+  const siguiente = dias.find(
+    (dia) => dia.fecha > fechaActual,
+  );
+
+  return siguiente?.fecha ?? dias[dias.length - 1].fecha;
+}
+
+function IconoUbicacion({
+  size = 15,
+}: {
+  size?: number;
+}) {
   return (
     <svg
+      width={size}
+      height={size}
       viewBox="0 0 24 24"
-      width="18"
-      height="18"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth="2.2"
       strokeLinecap="round"
       strokeLinejoin="round"
+      className="shrink-0"
       aria-hidden="true"
     >
       <path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
-
-      <circle
-        cx="12"
-        cy="10"
-        r="2.5"
-      />
+      <circle cx="12" cy="10" r="2.5" />
     </svg>
   );
 }
 
-function IconoEnlace() {
+function IconoCasa({ fuera }: { fuera: boolean }) {
+  if (fuera) return <IconoUbicacion size={14} />;
+
   return (
     <svg
+      width="14"
+      height="14"
       viewBox="0 0 24 24"
-      width="17"
-      height="17"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+      fill="currentColor"
       aria-hidden="true"
     >
-      <path d="M15 4h5v5" />
-
-      <path d="m20 4-9 9" />
-
-      <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" />
-    </svg>
-  );
-}
-
-function IconoCalendario() {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      width="24"
-      height="24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M7 2v3" />
-
-      <path d="M17 2v3" />
-
-      <path d="M3 9h18" />
-
-      <rect
-        x="3"
-        y="4"
-        width="18"
-        height="17"
-        rx="3"
-      />
-
-      <path d="M8 13h.01" />
-
-      <path d="M12 13h.01" />
-
-      <path d="M16 13h.01" />
-
-      <path d="M8 17h.01" />
-
-      <path d="M12 17h.01" />
+      <path d="M12 3 2 12h3v9h6v-6h2v6h6v-9h3L12 3Z" />
     </svg>
   );
 }
@@ -270,431 +160,354 @@ function IconoCalendario() {
 function IconoFlecha({
   direccion,
 }: {
-  direccion:
-    | "izquierda"
-    | "derecha";
+  direccion: "izquierda" | "derecha";
 }) {
-  const derecha =
-    direccion ===
-    "derecha";
-
   return (
     <svg
-      viewBox="0 0 24 24"
       width="20"
       height="20"
+      viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth="2.5"
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {derecha ? (
-        <>
-          <path d="m9 18 6-6-6-6" />
-        </>
+      {direccion === "derecha" ? (
+        <path d="m9 18 6-6-6-6" />
       ) : (
-        <>
-          <path d="m15 18-6-6 6-6" />
-        </>
+        <path d="m15 18-6-6 6-6" />
       )}
     </svg>
   );
 }
 
-function EscudoEquipo({
+function EscudoRival({
   equipo,
-}: PropiedadesEscudo) {
-  const [
-    imagenIncorrecta,
-    setImagenIncorrecta,
-  ] =
-    useState(false);
+}: {
+  equipo: EquipoPartidoPortada;
+}) {
+  const [error, setError] = useState(false);
 
-  const mostrarImagen =
-    Boolean(
-      equipo.escudo,
-    ) &&
-    !imagenIncorrecta;
+  useEffect(() => {
+    setError(false);
+  }, [equipo.escudo]);
 
   return (
     <div
-      className={`flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full border bg-surface-container-lowest p-2 shadow-sm sm:h-20 sm:w-20 sm:p-2.5 ${
-        equipo.esClub
-          ? "border-primary/50 ring-2 ring-primary/15"
-          : "border-outline-variant/70"
-      }`}
+      className="relative flex h-[68px] w-[68px] shrink-0 items-center justify-center rounded-full p-[5px] shadow-lg"
+      style={{
+        background: `conic-gradient(
+          ${COLORES.azul} 0deg,
+          #0068CB 110deg,
+          ${COLORES.amarillo} 155deg,
+          ${COLORES.azul} 230deg,
+          ${COLORES.amarillo} 300deg,
+          ${COLORES.azul} 360deg
+        )`,
+      }}
     >
-      {mostrarImagen ? (
-        <img
-          src={
-            equipo.escudo ??
-            undefined
-          }
-          alt={`Escudo de ${equipo.nombre}`}
-          width="64"
-          height="64"
-          loading="lazy"
-          decoding="async"
-          className="h-full w-full object-contain"
-          onError={() =>
-            setImagenIncorrecta(
-              true,
-            )
-          }
-        />
-      ) : (
-        <span className="flex h-full w-full items-center justify-center rounded-full bg-surface-container text-center text-xs font-black text-on-surface-variant">
-          {obtenerIniciales(
-            equipo.nombre,
-          )}
-        </span>
-      )}
+      <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-full border-[3px] border-[#002F59] bg-white p-2">
+        {equipo.escudo && !error ? (
+          <img
+            src={equipo.escudo}
+            alt={`Escudo de ${equipo.nombre}`}
+            width={52}
+            height={52}
+            loading="lazy"
+            decoding="async"
+            className="h-full w-full object-contain"
+            onError={() => setError(true)}
+          />
+        ) : (
+          <span className="text-center text-[11px] font-black text-[#003650]">
+            {iniciales(equipo.nombre)}
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
 function EtiquetaEstado({
   partido,
-}: PropiedadesPartido) {
-  if (
-    partido.estado ===
-    "en-juego"
-  ) {
-    return (
-      <span className="inline-flex items-center gap-1.5 rounded-full bg-error px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-on-error">
-        <span
-          className="h-1.5 w-1.5 animate-pulse rounded-full bg-on-error"
-          aria-hidden="true"
-        />
+}: {
+  partido: PartidoPortada;
+}) {
+  const estados = {
+    "en-juego": {
+      texto: "EN JUEGO",
+      fondo: "#EF233C",
+      color: "#FFFFFF",
+    },
+    finalizado: {
+      texto: "FINALIZADO",
+      fondo: "#E2E7ED",
+      color: "#003650",
+    },
+    aplazado: {
+      texto: "APLAZADO",
+      fondo: "#EF233C",
+      color: "#FFFFFF",
+    },
+    programado: {
+      texto: "PROGRAMADO",
+      fondo: "#A7DDFC",
+      color: "#003650",
+    },
+  };
 
-        En juego
-      </span>
-    );
-  }
-
-  if (
-    partido.estado ===
-    "finalizado"
-  ) {
-    return (
-      <span className="inline-flex rounded-full bg-surface-container-high px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-on-surface-variant">
-        Finalizado
-      </span>
-    );
-  }
-
-  if (
-    partido.estado ===
-    "aplazado"
-  ) {
-    return (
-      <span className="inline-flex rounded-full bg-error-container px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-on-error-container">
-        Aplazado
-      </span>
-    );
-  }
+  const estado = estados[partido.estado];
 
   return (
-    <span className="inline-flex rounded-full bg-primary-fixed px-3 py-1 text-[0.68rem] font-black uppercase tracking-wider text-on-primary-fixed">
-      Programado
+    <span
+      className="inline-flex items-center rounded-md px-2 py-1 text-[9px] font-black tracking-wide"
+      style={{
+        backgroundColor: estado.fondo,
+        color: estado.color,
+      }}
+    >
+      {estado.texto}
     </span>
   );
 }
 
-function MarcadorPartido({
+/*
+ * TARJETA HORIZONTAL
+ *
+ * Columna 1: Fecha, hora y casa/fuera
+ * Columna 2: Equipo C.B. Andratx
+ * Columna 3: Escudo rival + nombre + ubicación
+ *
+ * El resultado se muestra en el bloque central
+ * cuando el partido ha comenzado o finalizado.
+ */
+function PartidoTarjeta({
   partido,
-}: PropiedadesPartido) {
+}: {
+  partido: PartidoPortada;
+}) {
+  const esLocal = partido.equipoLocal.esClub;
+  const esVisitante = partido.equipoVisitante.esClub;
+
+  const equipoClub = esLocal
+    ? partido.equipoLocal
+    : esVisitante
+      ? partido.equipoVisitante
+      : partido.equipoLocal;
+
+  const rival = esLocal
+    ? partido.equipoVisitante
+    : esVisitante
+      ? partido.equipoLocal
+      : partido.equipoVisitante;
+
+  const fuera = !esLocal && esVisitante;
+
   const tieneResultado =
-    partido.puntosLocal !==
-      null &&
-    partido.puntosVisitante !==
-      null &&
-    (
-      partido.estado ===
-        "finalizado" ||
-      partido.estado ===
-        "en-juego"
-    );
+    partido.puntosLocal !== null &&
+    partido.puntosVisitante !== null &&
+    (partido.estado === "finalizado" ||
+      partido.estado === "en-juego");
 
-  if (
-    partido.estado ===
-    "aplazado"
-  ) {
-    return (
-      <div className="flex min-w-24 flex-col items-center justify-center text-center sm:min-w-32">
-        <span className="text-xl font-black uppercase text-error sm:text-2xl">
-          Aplazado
-        </span>
+  const puntosClub = esLocal
+    ? partido.puntosLocal
+    : partido.puntosVisitante;
 
-        {partido.hora && (
-          <span className="mt-1 text-xs font-semibold text-on-surface-variant">
-            {partido.hora} h
-          </span>
-        )}
-      </div>
-    );
-  }
-
-  if (
-    tieneResultado
-  ) {
-    return (
-      <div className="flex min-w-24 flex-col items-center justify-center text-center sm:min-w-36">
-        <div className="flex items-center gap-2 text-3xl font-black tabular-nums text-on-secondary-fixed sm:gap-3 sm:text-4xl">
-          <span>
-            {partido.puntosLocal}
-          </span>
-
-          <span className="text-lg font-bold text-outline sm:text-xl">
-            –
-          </span>
-
-          <span>
-            {partido.puntosVisitante}
-          </span>
-        </div>
-
-        {partido.estado ===
-          "en-juego" && (
-          <span className="mt-1 text-[0.65rem] font-black uppercase tracking-wider text-error">
-            Resultado en directo
-          </span>
-        )}
-      </div>
-    );
-  }
+  const puntosRival = esLocal
+    ? partido.puntosVisitante
+    : partido.puntosLocal;
 
   return (
-    <div className="flex min-w-24 flex-col items-center justify-center text-center sm:min-w-32">
-      <span className="text-3xl font-black tabular-nums text-secondary sm:text-4xl">
-        {partido.hora ??
-          "—"}
-      </span>
+    <article
+      className="relative isolate overflow-hidden rounded-[15px] border-[2px] border-white/90 text-white shadow-[0_5px_14px_rgba(0,28,55,0.19)]"
+      style={{
+        background: `linear-gradient(
+          115deg,
+          ${COLORES.azulProfundo},
+          ${COLORES.azulOscuro} 60%,
+          #002B48
+        )`,
+      }}
+    >
+      {/* Franja amarilla lateral */}
+      <div
+        className="absolute inset-y-0 right-0 w-[5px]"
+        style={{ backgroundColor: COLORES.amarillo }}
+        aria-hidden="true"
+      />
 
-      {partido.hora && (
-        <span className="mt-0.5 text-[0.68rem] font-bold uppercase tracking-wider text-on-surface-variant">
-          Hora del partido
-        </span>
-      )}
-    </div>
-  );
-}
+      {/* Textura diagonal muy suave */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(125deg,transparent 0px,transparent 24px,white 25px,transparent 26px,transparent 50px)",
+        }}
+        aria-hidden="true"
+      />
 
-function PartidoFila({
-  partido,
-}: PropiedadesPartido) {
-  return (
-    <article className="relative py-7 first:pt-4 last:pb-3 sm:py-9">
-      <div className="mb-5 flex flex-wrap items-center justify-center gap-2 sm:justify-between">
-        <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-          <EtiquetaEstado
-            partido={partido}
-          />
-
-          {partido.jornada && (
-            <span className="text-xs font-bold text-on-surface-variant">
-              {partido.jornada}
-            </span>
-          )}
-        </div>
-
-        <span className="text-xs font-semibold text-on-surface-variant">
-          {formatearFechaCompleta(
-            partido.fecha,
-          )}
-        </span>
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-start gap-2 sm:gap-6">
-        <div className="flex min-w-0 flex-col items-center text-center">
-          <span className="mb-2 text-[0.65rem] font-black uppercase tracking-[0.16em] text-secondary">
-            Local
-          </span>
-
-          <EscudoEquipo
-            equipo={
-              partido.equipoLocal
-            }
-          />
-
-          <p
-            className={`mt-3 max-w-44 text-sm font-black leading-tight sm:text-base ${
-              partido.equipoLocal
-                .esClub
-                ? "text-on-secondary-fixed"
-                : "text-on-surface"
-            }`}
+      <div className="relative z-10 px-2.5 py-3 pr-4">
+        {/* Información secundaria arriba */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-1.5">
+          <span
+            className="inline-flex items-center gap-1 rounded px-2 py-1 text-[9px] font-black"
+            style={{
+              backgroundColor: COLORES.amarillo,
+              color: COLORES.azulProfundo,
+            }}
           >
-            {
-              partido.equipoLocal
-                .nombre
-            }
-          </p>
-
-          {partido.equipoLocal
-            .esClub && (
-            <span className="mt-1 text-[0.65rem] font-black uppercase tracking-wider text-secondary">
-              C.B. Andratx
-            </span>
-          )}
-        </div>
-
-        <div className="flex min-h-32 items-center pt-7 sm:min-h-40 sm:pt-8">
-          <MarcadorPartido
-            partido={partido}
-          />
-        </div>
-
-        <div className="flex min-w-0 flex-col items-center text-center">
-          <span className="mb-2 text-[0.65rem] font-black uppercase tracking-[0.16em] text-secondary">
-            Visitante
+            <IconoCasa fuera={fuera} />
+            {fuera ? "FUERA" : "CASA"}
           </span>
 
-          <EscudoEquipo
-            equipo={
-              partido
-                .equipoVisitante
-            }
-          />
-
-          <p
-            className={`mt-3 max-w-44 text-sm font-black leading-tight sm:text-base ${
-              partido
-                .equipoVisitante
-                .esClub
-                ? "text-on-secondary-fixed"
-                : "text-on-surface"
-            }`}
-          >
-            {
-              partido
-                .equipoVisitante
-                .nombre
-            }
-          </p>
-
-          {partido
-            .equipoVisitante
-            .esClub && (
-            <span className="mt-1 text-[0.65rem] font-black uppercase tracking-wider text-secondary">
-              C.B. Andratx
-            </span>
-          )}
+          <EtiquetaEstado partido={partido} />
         </div>
-      </div>
 
-      <footer className="mt-6 flex flex-col items-center justify-center gap-3 text-sm sm:flex-row sm:flex-wrap sm:gap-x-6">
-        {partido.ubicacion && (
-          <span className="inline-flex items-center gap-1.5 text-center font-medium text-on-surface-variant">
-            <span className="shrink-0 text-secondary">
-              <IconoUbicacion />
+        {/* TRES COLUMNAS HORIZONTALES */}
+        <div className="grid grid-cols-[58px_minmax(0,1fr)_minmax(0,1.45fr)] items-center gap-2">
+          {/* 1. FECHA Y HORA */}
+          <div className="flex h-full flex-col items-center justify-center border-r border-white/20 pr-1.5 text-center">
+            <span className="text-[15px] font-black leading-none tracking-tight">
+              {numeroDia(partido.fecha)}
+              <span className="text-[11px]">/</span>
+              {mesNumero(partido.fecha)}
             </span>
 
-            {partido.ubicacion}
-          </span>
+            <span
+              className="mt-2 text-[16px] font-black leading-none tabular-nums"
+              style={{ color: COLORES.amarillo }}
+            >
+              {partido.hora ?? "--:--"}
+            </span>
+          </div>
+
+          {/* 2. NOMBRE EQUIPO ANDRATX */}
+          <div className="flex h-full min-w-0 flex-col items-center justify-center border-r border-white/20 pr-1 text-center">
+            <p className="break-words text-[13px] font-black uppercase italic leading-[1.14] tracking-tight">
+              {equipoClub.nombre}
+            </p>
+
+            <span
+              className="mt-2 text-[17px] font-black italic leading-none"
+              style={{ color: COLORES.amarillo }}
+            >
+              {tieneResultado
+                ? `${puntosClub} - ${puntosRival}`
+                : partido.estado === "aplazado"
+                  ? "—"
+                  : "VS"}
+            </span>
+          </div>
+
+          {/* 3. ESCUDO + RIVAL + UBICACIÓN */}
+          <div className="flex min-w-0 items-center gap-2">
+            <EscudoRival equipo={rival} />
+
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-1.5">
+              <p className="break-words text-[12px] font-black uppercase italic leading-[1.1] tracking-tight">
+                {rival.nombre}
+              </p>
+
+              {partido.ubicacion && (
+                <p
+                  className="flex items-start gap-1 text-[10px] font-bold uppercase leading-tight"
+                  style={{ color: COLORES.amarilloClaro }}
+                >
+                  <IconoUbicacion size={12} />
+                  <span className="min-w-0 break-words">
+                    {partido.ubicacion}
+                  </span>
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Pie secundario */}
+        {(partido.jornada || partido.enlaceFbib) && (
+          <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/15 pt-2">
+            <span className="text-[10px] font-semibold text-white/65">
+              {partido.jornada ?? ""}
+            </span>
+
+            {partido.enlaceFbib && (
+              <a
+                href={partido.enlaceFbib}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[10px] font-bold text-white/80 underline decoration-white/30 underline-offset-2 transition-colors hover:text-[#FFD21E]"
+                aria-label={`Ver partido de ${equipoClub.nombre} contra ${rival.nombre} en la FBIB`}
+              >
+                Ver en FBIB ↗
+              </a>
+            )}
+          </footer>
         )}
-
-        {partido.enlaceFbib && (
-          <a
-            href={
-              partido.enlaceFbib
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 font-bold text-secondary underline decoration-secondary/30 underline-offset-4 transition-colors hover:text-primary"
-          >
-            Ver en la FBIB
-
-            <IconoEnlace />
-          </a>
-        )}
-      </footer>
+      </div>
     </article>
   );
 }
 
-function construirDias(
-  datos:
-    PeriodoPartidosPortada,
-): DiaPartidosPortada[] {
-  const partidosPorFecha =
-    new Map<
-      string,
-      PartidoPortada[]
-    >();
+function ColumnaDia({
+  dia,
+  referencia,
+}: {
+  dia: DiaPartidosPortada;
+  referencia: boolean;
+}) {
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <header
+        className="relative overflow-hidden rounded-xl border border-white/55 px-4 py-3 text-center shadow-sm"
+        style={{
+          background: referencia
+            ? "linear-gradient(110deg,#003650,#0069A5)"
+            : "linear-gradient(110deg,#002D49,#00476B)",
+        }}
+      >
+        {referencia && (
+          <div className="absolute inset-x-0 top-0 h-1 bg-[#FFD21E]" />
+        )}
 
-  datos.partidos.forEach(
-    (partido) => {
-      const partidosFecha =
-        partidosPorFecha.get(
-          partido.fecha,
-        ) ?? [];
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-sm font-black tracking-wider text-[#FFD21E]">
+            {diaSemana(dia.fecha)}
+          </span>
 
-      partidosFecha.push(
-        partido,
-      );
+          {dia.esHoy && (
+            <span className="rounded bg-[#FFD21E] px-1.5 py-0.5 text-[9px] font-black text-[#003650]">
+              HOY
+            </span>
+          )}
+        </div>
 
-      partidosPorFecha.set(
-        partido.fecha,
-        partidosFecha,
-      );
-    },
+        <div className="mt-1 flex items-baseline justify-center gap-1.5 text-white">
+          <span className="text-3xl font-black leading-none">
+            {numeroDia(dia.fecha)}
+          </span>
+          <span className="text-sm font-bold">
+            {mesCorto(dia.fecha)}
+          </span>
+        </div>
+
+        <p className="mt-1 text-[11px] font-semibold text-white/75">
+          {dia.partidos.length}{" "}
+          {dia.partidos.length === 1 ? "partido" : "partidos"}
+        </p>
+      </header>
+
+      <div className="flex flex-col gap-3">
+        {dia.partidos.map((partido) => (
+          <PartidoTarjeta
+            key={partido.id}
+            partido={partido}
+          />
+        ))}
+      </div>
+    </div>
   );
-
-  if (
-    !partidosPorFecha.has(
-      datos.fechaActual,
-    )
-  ) {
-    partidosPorFecha.set(
-      datos.fechaActual,
-      [],
-    );
-  }
-
-  return Array.from(
-    partidosPorFecha.entries(),
-  )
-    .sort(
-      (
-        [fechaA],
-        [fechaB],
-      ) =>
-        fechaA.localeCompare(
-          fechaB,
-        ),
-    )
-    .map(
-      (
-        [
-          fecha,
-          partidos,
-        ],
-      ) => ({
-        fecha,
-
-        esHoy:
-          fecha ===
-          datos.fechaActual,
-
-        partidos:
-          [...partidos].sort(
-            (
-              partidoA,
-              partidoB,
-            ) =>
-              (
-                partidoA.hora ??
-                "23:59"
-              ).localeCompare(
-                partidoB.hora ??
-                  "23:59",
-              ),
-          ),
-      }),
-    );
 }
 
 export default function PartidosPortada({
@@ -702,541 +515,290 @@ export default function PartidosPortada({
   mostrarCabecera = true,
   tituloId = "partidos-portada-titulo",
 }: Propiedades) {
-  const dias =
-    useMemo(
-      () =>
-        construirDias(
-          datos,
-        ),
-      [datos],
-    );
+  const dias = useMemo(() => construirDias(datos), [datos]);
 
-  const [
-    fechaSeleccionada,
-    setFechaSeleccionada,
-  ] =
-    useState(
-      datos.fechaActual,
-    );
+  const referencia = useMemo(
+    () => fechaReferencia(dias, datos.fechaActual),
+    [dias, datos.fechaActual],
+  );
 
-  const [
-    puedeDesplazarIzquierda,
-    setPuedeDesplazarIzquierda,
-  ] =
+  const contenedorRef = useRef<HTMLDivElement | null>(null);
+  const columnaReferenciaRef = useRef<HTMLDivElement | null>(null);
+
+  const [puedeIzquierda, setPuedeIzquierda] = useState(false);
+  const [puedeDerecha, setPuedeDerecha] = useState(false);
+  const [hayDesbordamiento, setHayDesbordamiento] =
     useState(false);
 
-  const [
-    puedeDesplazarDerecha,
-    setPuedeDesplazarDerecha,
-  ] =
-    useState(false);
+  const actualizarScroll = useCallback(() => {
+    const contenedor = contenedorRef.current;
+    if (!contenedor) return;
 
-  const contenedorDiasRef =
-    useRef<HTMLDivElement | null>(
-      null,
+    const maximo = Math.max(
+      0,
+      contenedor.scrollWidth - contenedor.clientWidth,
     );
 
-  const botonesDiasRef =
-    useRef<
-      Map<
-        string,
-        HTMLButtonElement
-      >
-    >(
-      new Map(),
-    );
-
-  const diaSeleccionado =
-    dias.find(
-      (dia) =>
-        dia.fecha ===
-        fechaSeleccionada,
-    ) ??
-    dias[0] ??
-    null;
-
-  const actualizarEstadoScroll =
-    useCallback(
-      () => {
-        const contenedor =
-          contenedorDiasRef.current;
-
-        if (!contenedor) {
-          return;
-        }
-
-        const margen = 2;
-
-        setPuedeDesplazarIzquierda(
-          contenedor.scrollLeft >
-            margen,
-        );
-
-        setPuedeDesplazarDerecha(
-          contenedor.scrollLeft +
-            contenedor.clientWidth <
-            contenedor.scrollWidth -
-              margen,
-        );
-      },
-      [],
-    );
+    setHayDesbordamiento(maximo > 2);
+    setPuedeIzquierda(contenedor.scrollLeft > 2);
+    setPuedeDerecha(contenedor.scrollLeft < maximo - 2);
+  }, []);
 
   const centrarDia = useCallback(
-    (
-      fecha: string,
-      comportamiento:
-        ScrollBehavior =
-          "smooth",
-    ) => {
-      const boton =
-        botonesDiasRef.current.get(
-          fecha,
-        );
+    (behavior: ScrollBehavior = "instant") => {
+      const contenedor = contenedorRef.current;
+      const columna = columnaReferenciaRef.current;
 
-      boton?.scrollIntoView({
-        behavior:
-          comportamiento,
+      if (!contenedor || !columna) return;
 
-        block:
-          "nearest",
-
-        inline:
-          "center",
-      });
-    },
-    [],
-  );
-
-  const desplazarMenu = (
-    direccion:
-      | "izquierda"
-      | "derecha",
-  ) => {
-    const contenedor =
-      contenedorDiasRef.current;
-
-    if (!contenedor) {
-      return;
-    }
-
-    const distancia =
-      Math.max(
-        220,
-        contenedor.clientWidth *
-          0.65,
+      const maximo = Math.max(
+        0,
+        contenedor.scrollWidth - contenedor.clientWidth,
       );
 
-    contenedor.scrollBy({
-      left:
-        direccion ===
-        "derecha"
-          ? distancia
-          : -distancia,
-
-      behavior:
-        "smooth",
-    });
-  };
-
-  useEffect(
-    () => {
-      if (
-        !dias.some(
-          (dia) =>
-            dia.fecha ===
-            fechaSeleccionada,
-        )
-      ) {
-        setFechaSeleccionada(
-          datos.fechaActual,
-        );
-      }
-    },
-    [
-      datos.fechaActual,
-      dias,
-      fechaSeleccionada,
-    ],
-  );
-
-  useEffect(
-    () => {
-      const identificador =
-        window.requestAnimationFrame(
-          () => {
-            centrarDia(
-              fechaSeleccionada,
-              "auto",
-            );
-
-            actualizarEstadoScroll();
-          },
-        );
-
-      return () => {
-        window.cancelAnimationFrame(
-          identificador,
-        );
-      };
-    },
-    [
-      actualizarEstadoScroll,
-      centrarDia,
-      fechaSeleccionada,
-    ],
-  );
-
-  useEffect(
-    () => {
-      const contenedor =
-        contenedorDiasRef.current;
-
-      if (!contenedor) {
+      if (maximo <= 2) {
+        contenedor.scrollLeft = 0;
+        actualizarScroll();
         return;
       }
 
-      actualizarEstadoScroll();
+      const rectContenedor =
+        contenedor.getBoundingClientRect();
+      const rectColumna =
+        columna.getBoundingClientRect();
 
-      contenedor.addEventListener(
-        "scroll",
-        actualizarEstadoScroll,
-        {
-          passive: true,
-        },
+      const centroColumna =
+        rectColumna.left +
+        rectColumna.width / 2 -
+        rectContenedor.left +
+        contenedor.scrollLeft;
+
+      const destino = Math.max(
+        0,
+        Math.min(
+          maximo,
+          centroColumna - contenedor.clientWidth / 2,
+        ),
       );
 
-      window.addEventListener(
-        "resize",
-        actualizarEstadoScroll,
-      );
+      contenedor.scrollTo({
+        left: destino,
+        behavior,
+      });
 
-      return () => {
-        contenedor.removeEventListener(
-          "scroll",
-          actualizarEstadoScroll,
-        );
-
-        window.removeEventListener(
-          "resize",
-          actualizarEstadoScroll,
-        );
-      };
+      actualizarScroll();
     },
-    [
-      actualizarEstadoScroll,
-    ],
+    [actualizarScroll],
   );
+
+  const desplazar = (direccion: -1 | 1) => {
+    const contenedor = contenedorRef.current;
+    if (!contenedor) return;
+
+    contenedor.scrollBy({
+      left:
+        direccion *
+        Math.max(300, contenedor.clientWidth * 0.75),
+      behavior: "smooth",
+    });
+  };
+
+  useLayoutEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      centrarDia("instant");
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [centrarDia, referencia]);
+
+  useEffect(() => {
+    const contenedor = contenedorRef.current;
+    if (!contenedor) return;
+
+    const observer = new ResizeObserver(() => {
+      actualizarScroll();
+      centrarDia("instant");
+    });
+
+    observer.observe(contenedor);
+
+    const contenido = contenedor.firstElementChild;
+    if (contenido) observer.observe(contenido);
+
+    contenedor.addEventListener("scroll", actualizarScroll, {
+      passive: true,
+    });
+
+    actualizarScroll();
+
+    return () => {
+      observer.disconnect();
+      contenedor.removeEventListener(
+        "scroll",
+        actualizarScroll,
+      );
+    };
+  }, [actualizarScroll, centrarDia]);
+
+  const totalPartidos = datos.partidos.length;
 
   return (
     <section
-      className="relative overflow-hidden bg-surface-container-lowest py-10 sm:py-14"
-      aria-labelledby="partidos-portada-titulo"
+      className="relative overflow-hidden py-7 sm:py-10"
+      aria-labelledby={tituloId}
+      style={{
+        background:
+          "linear-gradient(118deg,#37AAF0 0%,#65C4F4 35%,#32A9EF 75%,#68C7F5 100%)",
+      }}
     >
-      <div className="mx-auto w-full max-w-6xl px-4 sm:px-6">
-        {/* <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-on-primary shadow-sm">
-                <IconoCalendario />
+      {/* Fondo inspirado en las publicaciones */}
+      <div
+        className="pointer-events-none absolute inset-0 opacity-30"
+        aria-hidden="true"
+        style={{
+          backgroundImage:
+            "repeating-linear-gradient(120deg,transparent 0px,transparent 90px,rgba(255,255,255,.24) 92px,transparent 100px,transparent 195px)",
+        }}
+      />
+
+      <div className="relative z-10 mx-auto w-full max-w-[1600px]">
+        {mostrarCabecera && (
+          <header className="mb-7 flex flex-col items-center gap-4 px-5 text-center sm:mb-9">
+            <img
+              src="/favicon.svg"
+              alt="Escudo del Club Bàsquet Andratx"
+              className="h-20 w-20 object-contain sm:h-24 sm:w-24"
+            />
+
+            <h2
+              id={tituloId}
+              className="text-4xl font-black uppercase italic leading-[0.96] tracking-tighter text-[#002B45] sm:text-6xl"
+            >
+              PARTIDOS
+              <span
+                className="block text-[#FFD21E]"
+                style={{
+                  textShadow: "2px 3px 0 rgba(0,43,69,.3)",
+                }}
+              >
+                DE LA SEMANA
               </span>
+            </h2>
+          </header>
+        )}
 
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-secondary">
-                  Agenda del club
-                </p>
-
-                <h2
-                  id="partidos-portada-titulo"
-                  className="mt-0.5 text-2xl font-black text-on-secondary-fixed sm:text-3xl"
-                >
-                  Próximos partidos
-                </h2>
-              </div>
-            </div>
-
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-on-surface-variant">
-              Consulta los partidos disputados y programados durante el periodo actual.
+        {dias.length === 0 ? (
+          <div className="mx-4 rounded-2xl border border-white/70 bg-[#003650] px-6 py-12 text-center text-white sm:mx-8">
+            <p className="text-xl font-black uppercase">
+              No hay partidos programados
+            </p>
+            <p className="mt-2 text-sm text-white/75">
+              No encontramos partidos para el periodo actual.
             </p>
           </div>
+        ) : (
+          <>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 px-4 sm:px-8">
+              <p className="text-xs font-black uppercase tracking-widest text-[#002B45] sm:text-sm">
+                {totalPartidos}{" "}
+                {totalPartidos === 1 ? "PARTIDO" : "PARTIDOS"}
+                {" · "}
+                {dias.length}{" "}
+                {dias.length === 1 ? "DÍA" : "DÍAS"}
+              </p>
 
+              {hayDesbordamiento && (
+                <p className="text-xs font-bold text-[#003650]/80">
+                  Desliza para ver más días ↔
+                </p>
+              )}
+            </div>
+
+            <div className="relative">
+              <div
+                className="pointer-events-none absolute inset-y-0 left-0 z-20 w-14 transition-opacity duration-200 sm:w-24"
+                style={{
+                  opacity: puedeIzquierda ? 1 : 0,
+                  background:
+                    "linear-gradient(to right,#48B9F4 0%,rgba(72,185,244,.8) 35%,transparent 100%)",
+                }}
+                aria-hidden="true"
+              />
+
+              <div
+                className="pointer-events-none absolute inset-y-0 right-0 z-20 w-14 transition-opacity duration-200 sm:w-24"
+                style={{
+                  opacity: puedeDerecha ? 1 : 0,
+                  background:
+                    "linear-gradient(to left,#48B9F4 0%,rgba(72,185,244,.8) 35%,transparent 100%)",
+                }}
+                aria-hidden="true"
+              />
+
+              {puedeIzquierda && (
+                <button
+                  type="button"
+                  onClick={() => desplazar(-1)}
+                  aria-label="Ver días anteriores"
+                  className="absolute left-2 top-11 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-[#003650] text-white shadow-lg transition-transform hover:scale-110 sm:left-4"
+                >
+                  <IconoFlecha direccion="izquierda" />
+                </button>
+              )}
+
+              {puedeDerecha && (
+                <button
+                  type="button"
+                  onClick={() => desplazar(1)}
+                  aria-label="Ver días posteriores"
+                  className="absolute right-2 top-11 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-white/60 bg-[#003650] text-white shadow-lg transition-transform hover:scale-110 sm:right-4"
+                >
+                  <IconoFlecha direccion="derecha" />
+                </button>
+              )}
+
+              <div
+                ref={contenedorRef}
+                className="overflow-x-auto overscroll-x-contain px-4 pb-5 sm:px-8 [&::-webkit-scrollbar]:hidden"
+                style={{
+                  scrollbarWidth: "none",
+                  WebkitOverflowScrolling: "touch",
+                }}
+                role="region"
+                aria-label="Partidos de la semana organizados por días"
+                tabIndex={0}
+              >
+                <div className="flex min-w-full w-max items-start justify-center gap-4">
+                  {dias.map((dia) => (
+                    <div
+                      key={dia.fecha}
+                      ref={
+                        dia.fecha === referencia
+                          ? columnaReferenciaRef
+                          : undefined
+                      }
+                      className="flex w-[360px] shrink-0 max-sm:w-[330px]"
+                    >
+                      <ColumnaDia
+                        dia={dia}
+                        referencia={dia.fecha === referencia}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        <div className="mt-5 flex justify-center px-4">
           <a
             href="/calendario"
-            className="inline-flex min-h-11 w-fit items-center justify-center rounded-xl border border-secondary px-4 py-2 text-sm font-bold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border-2 border-[#003650] bg-[#003650] px-6 py-2.5 text-sm font-black uppercase tracking-wide text-white shadow-md transition-all hover:bg-[#FFD21E] hover:text-[#003650]"
           >
-            Ver calendario completo
+            Ver calendario completo ↗
           </a>
-        </header> */}
-
-        <div className="relative mt-7 border-y border-outline-variant/60">
-          {puedeDesplazarIzquierda && (
-            <button
-              type="button"
-              onClick={() =>
-                desplazarMenu(
-                  "izquierda",
-                )
-              }
-              className="absolute left-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface shadow-md transition-colors hover:bg-primary hover:text-on-primary"
-              aria-label="Ver días anteriores"
-            >
-              <IconoFlecha
-                direccion="izquierda"
-              />
-            </button>
-          )}
-
-          <div
-            ref={
-              contenedorDiasRef
-            }
-            role="tablist"
-            aria-label="Días con partidos"
-            className="flex snap-x snap-mandatory gap-1 overflow-x-auto px-[calc(50%-4rem)] py-2 scrollbar-none [&::-webkit-scrollbar]:hidden"
-          >
-            {dias.map(
-              (dia) => {
-                const seleccionado =
-                  dia.fecha ===
-                  diaSeleccionado
-                    ?.fecha;
-
-                return (
-                  <button
-                    key={
-                      dia.fecha
-                    }
-                    ref={(
-                      elemento,
-                    ) => {
-                      if (
-                        elemento
-                      ) {
-                        botonesDiasRef.current.set(
-                          dia.fecha,
-                          elemento,
-                        );
-                      } else {
-                        botonesDiasRef.current.delete(
-                          dia.fecha,
-                        );
-                      }
-                    }}
-                    type="button"
-                    role="tab"
-                    aria-selected={
-                      seleccionado
-                    }
-                    aria-controls="contenido-dia-partidos"
-                    onClick={() => {
-                      setFechaSeleccionada(
-                        dia.fecha,
-                      );
-
-                      centrarDia(
-                        dia.fecha,
-                      );
-                    }}
-                    className={`relative flex w-32 shrink-0 snap-center flex-col items-center justify-center rounded-xl px-3 py-3 text-center transition-colors ${
-                      seleccionado
-                        ? "bg-secondary text-on-secondary shadow-sm"
-                        : "text-on-surface hover:bg-surface-container-low"
-                    }`}
-                  >
-                    <span
-                      className={`text-[0.65rem] font-black uppercase tracking-[0.14em] ${
-                        seleccionado
-                          ? "text-primary-fixed"
-                          : "text-on-surface-variant"
-                      }`}
-                    >
-                      {dia.esHoy
-                        ? "Hoy"
-                        : formatearDiaCorto(
-                            dia.fecha,
-                          )}
-                    </span>
-
-                    <span className="mt-0.5 text-xl font-black leading-none">
-                      {formatearNumeroDia(
-                        dia.fecha,
-                      )}
-                    </span>
-
-                    <span
-                      className={`mt-1 text-xs font-semibold ${
-                        seleccionado
-                          ? "text-on-secondary/80"
-                          : "text-on-surface-variant"
-                      }`}
-                    >
-                      {formatearMesCorto(
-                        dia.fecha,
-                      )}
-                    </span>
-
-                    <span
-                      className={`mt-1.5 text-[0.65rem] font-bold ${
-                        seleccionado
-                          ? "text-primary-fixed"
-                          : dia.partidos
-                                .length >
-                              0
-                            ? "text-secondary"
-                            : "text-outline"
-                      }`}
-                    >
-                      {dia.partidos
-                        .length === 0
-                        ? "Sin partidos"
-                        : `${dia.partidos.length} ${
-                            dia.partidos
-                              .length ===
-                            1
-                              ? "partido"
-                              : "partidos"
-                          }`}
-                    </span>
-                  </button>
-                );
-              },
-            )}
-          </div>
-
-          <div
-            className={`pointer-events-none absolute inset-y-0 left-0 z-20 w-14 bg-linear-to-r from-surface-container-lowest via-surface-container-lowest/85 to-transparent transition-opacity ${
-              puedeDesplazarIzquierda
-                ? "opacity-100"
-                : "opacity-0"
-            }`}
-            style={{
-              boxShadow:
-                "inset 18px 0 18px -20px rgba(3, 42, 85, 0.8)",
-            }}
-            aria-hidden="true"
-          />
-
-          <div
-            className={`pointer-events-none absolute inset-y-0 right-0 z-20 w-14 bg-linear-to-l from-surface-container-lowest via-surface-container-lowest/85 to-transparent transition-opacity ${
-              puedeDesplazarDerecha
-                ? "opacity-100"
-                : "opacity-0"
-            }`}
-            style={{
-              boxShadow:
-                "inset -18px 0 18px -20px rgba(3, 42, 85, 0.8)",
-            }}
-            aria-hidden="true"
-          />
-
-          {puedeDesplazarDerecha && (
-            <button
-              type="button"
-              onClick={() =>
-                desplazarMenu(
-                  "derecha",
-                )
-              }
-              className="absolute right-1 top-1/2 z-30 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface shadow-md transition-colors hover:bg-primary hover:text-on-primary"
-              aria-label="Ver días posteriores"
-            >
-              <IconoFlecha
-                direccion="derecha"
-              />
-            </button>
-          )}
         </div>
-
-        {diaSeleccionado && (
-          <div
-            id="contenido-dia-partidos"
-            role="tabpanel"
-            className="mx-auto mt-7 max-w-4xl"
-          >
-            <header className="flex flex-wrap items-end justify-between gap-2 border-b border-outline-variant pb-4">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.15em] text-secondary">
-                  {diaSeleccionado
-                    .esHoy
-                    ? "Partidos de hoy"
-                    : "Partidos del día"}
-                </p>
-
-                <h3 className="mt-1 text-xl font-black text-on-secondary-fixed sm:text-2xl">
-                  {formatearDiaSemana(
-                    diaSeleccionado
-                      .fecha,
-                  )}
-                  {", "}
-                  {formatearNumeroDia(
-                    diaSeleccionado
-                      .fecha,
-                  )}
-                  {" de "}
-                  {formatearMesCorto(
-                    diaSeleccionado
-                      .fecha,
-                  )}
-                </h3>
-              </div>
-
-              {diaSeleccionado
-                .partidos.length >
-                0 && (
-                <span className="text-sm font-semibold text-on-surface-variant">
-                  {
-                    diaSeleccionado
-                      .partidos
-                      .length
-                  }{" "}
-                  {diaSeleccionado
-                    .partidos
-                    .length === 1
-                    ? "partido"
-                    : "partidos"}
-                </span>
-              )}
-            </header>
-
-            {diaSeleccionado
-              .partidos.length >
-            0 ? (
-              <div className="divide-y divide-outline-variant/80">
-                {diaSeleccionado.partidos.map(
-                  (
-                    partido,
-                  ) => (
-                    <PartidoFila
-                      key={
-                        partido.id
-                      }
-                      partido={
-                        partido
-                      }
-                    />
-                  ),
-                )}
-              </div>
-            ) : (
-              <div className="py-12 text-center sm:py-16">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-surface-container-low text-outline">
-                  <IconoCalendario />
-                </span>
-
-                <h3 className="mt-4 text-lg font-black text-on-surface">
-                  {diaSeleccionado
-                    .esHoy
-                    ? "Hoy no hay partidos"
-                    : "No hay partidos este día"}
-                </h3>
-
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-on-surface-variant">
-                  Utiliza el selector superior para consultar los partidos de los días anteriores o posteriores.
-                </p>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </section>
   );
