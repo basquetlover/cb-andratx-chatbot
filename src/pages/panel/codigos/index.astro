@@ -1,0 +1,709 @@
+---
+/*
+ * CLUB BÀSQUET ANDRATX
+ *
+ * Archivo 24/27
+ * Ruta: /panel/codigos
+ *
+ * Utiliza el layout REAL del proyecto:
+ * @layouts/LayoutPanel.astro
+ *
+ * El layout ya incorpora:
+ *
+ * - HTML, HEAD y BODY
+ * - CSS global y tipografías
+ * - HeaderPanel
+ * - MenuLateralPanel
+ * - MenuMobilePanel
+ * - SistemaNotificaciones
+ * - Control de sesión
+ *
+ * Esta ruta:
+ *
+ * - Comprueba la sesión.
+ * - Comprueba codigos.ver.
+ * - Obtiene los permisos específicos.
+ * - Monta una única aplicación React.
+ * - Integra los componentes 17-23.
+ *
+ * La autorización definitiva de cada
+ * operación permanece en las API.
+ */
+
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import {
+  obtenerUsuarioSesion,
+  type UsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+import { PERMISOS_CODIGOS } from "@servicios/backend/codigos/seguridadCodigos";
+
+export const prerender = false;
+
+// ================================================
+// PROTEGER LA RESPUESTA
+// ================================================
+
+Astro.response.headers.set("Cache-Control", "private, no-store, max-age=0");
+
+Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+
+// ================================================
+// OBTENER SESIÓN
+// ================================================
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect("/panel/iniciar-sesion", 302);
+}
+
+let sesion: UsuarioSesion | null = null;
+
+try {
+  sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error("Error verificando la sesión en /panel/codigos:", error);
+
+  return new Response("No se ha podido verificar la sesión.", {
+    status: 500,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+if (!sesion) {
+  Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+    path: "/",
+  });
+
+  return Astro.redirect("/panel/iniciar-sesion", 302);
+}
+
+// ================================================
+// VERIFICAR PERMISOS
+// ================================================
+
+const permisosRequeridos = [
+  PERMISOS_CODIGOS.ver,
+  PERMISOS_CODIGOS.crear,
+  PERMISOS_CODIGOS.editar,
+  PERMISOS_CODIGOS.eliminar,
+  PERMISOS_CODIGOS.escanear,
+  PERMISOS_CODIGOS.premios,
+  PERMISOS_CODIGOS.canjear,
+  PERMISOS_CODIGOS.imprimir,
+] as const;
+
+let permisosComprobados: boolean[];
+
+try {
+  permisosComprobados = await Promise.all(
+    permisosRequeridos.map((permiso) =>
+      comprobarPermisoUsuario(sesion.acceso, permiso),
+    ),
+  );
+} catch (error) {
+  console.error("Error verificando los permisos del módulo de códigos:", error);
+
+  return new Response("No se han podido comprobar los permisos.", {
+    status: 500,
+    headers: {
+      "Content-Type": "text/plain; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
+const [
+  puedeVer,
+  puedeCrear,
+  puedeEditar,
+  puedeEliminar,
+  puedeEscanear,
+  puedeConsultarPremios,
+  puedeCanjear,
+  puedeImprimir,
+] = permisosComprobados;
+
+if (!puedeVer) {
+  return Astro.redirect("/panel/acceso-denegado?desde=%2Fpanel%2Fcodigos", 302);
+}
+
+// ================================================
+// PERMISOS DE PRESENTACIÓN
+// ================================================
+
+/*
+ * Se transmiten exclusivamente
+ * valores booleanos.
+ *
+ * No se expone la sesión ni
+ * ninguna credencial privada.
+ */
+
+const permisosCliente = {
+  ver: puedeVer,
+  crear: puedeCrear,
+  editar: puedeEditar,
+  eliminar: puedeEliminar,
+  escanear: puedeEscanear,
+  premios: puedeConsultarPremios,
+  canjear: puedeCanjear,
+  imprimir: puedeImprimir,
+};
+---
+
+<LayoutPanel
+  title="Códigos y boletos"
+  description="Gestiona campañas, lotes, boletos, ventas, premios y canjes del club."
+  volverA="/panel"
+  textoVolver="Volver al panel"
+  anchoCompleto
+>
+  <!-- ======================================= -->
+  <!-- CONTENEDOR DE LA APLICACIÓN -->
+  <!-- ======================================= -->
+
+  <div
+    id="cba-panel-codigos-root"
+    data-permisos={JSON.stringify(permisosCliente)}
+    class="w-full min-w-0"
+  >
+    <!-- Estado previo al montaje -->
+
+    <div
+      class="space-y-5"
+      role="status"
+      aria-label="Cargando el panel de códigos"
+    >
+      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        {
+          Array.from({ length: 8 }, (_, indice) => (
+            <div
+              class="h-24 animate-pulse rounded-2xl bg-surface-container-high"
+              aria-hidden="true"
+            />
+          ))
+        }
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        {
+          Array.from({ length: 4 }, (_, indice) => (
+            <div
+              class="h-32 animate-pulse rounded-2xl bg-surface-container-high"
+              aria-hidden="true"
+            />
+          ))
+        }
+      </div>
+
+      <p class="text-center text-sm text-on-surface-variant">
+        Cargando Códigos y boletos...
+      </p>
+    </div>
+  </div>
+
+  <noscript>
+    <div
+      class="mt-4 rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 text-sm text-on-surface"
+    >
+      El panel necesita JavaScript para funcionar. Actívalo en el navegador y
+      vuelve a cargar la página.
+    </div>
+  </noscript>
+</LayoutPanel>
+
+<!-- ========================================= -->
+<!-- AJUSTES PARA ENCAJAR EN LAYOUTPANEL -->
+<!-- ========================================= -->
+
+<style is:global>
+  /*
+   * El layout ya aporta el MAIN,
+   * fondo y espaciados generales.
+   *
+   * El componente React 17/27
+   * tenía su propio contenedor
+   * de página completa.
+   *
+   * Neutralizamos aquí su
+   * presentación exterior para
+   * evitar márgenes duplicados.
+   */
+
+  #cba-panel-codigos-root > main {
+    min-height: 0;
+    padding: 0;
+    background: transparent;
+  }
+
+  #cba-panel-codigos-root > main > div {
+    max-width: none;
+  }
+
+  /*
+   * LayoutPanel ya muestra
+   * HeaderPanel con el título,
+   * descripción y navegación.
+   *
+   * No duplicamos esa cabecera
+   * con el encabezado propio
+   * de PanelCodigos.
+   */
+
+  #cba-panel-codigos-root > main > div > header:first-child {
+    display: none;
+  }
+
+  /*
+   * Se mantiene visible
+   * la navegación de las ocho
+   * secciones del módulo.
+   */
+
+  #cba-panel-codigos-root {
+    width: 100%;
+    min-width: 0;
+  }
+
+  @media print {
+    /*
+     * La vista de impresión
+     * controlada por el archivo
+     * 23/27 gestiona el documento.
+     */
+
+    #cba-panel-codigos-root {
+      box-shadow: none;
+    }
+  }
+</style>
+
+<!-- ========================================= -->
+<!-- MONTAJE DE LA APLICACIÓN REACT -->
+<!-- ========================================= -->
+
+<script>
+  import { createElement, useCallback, useState, type ReactNode } from "react";
+
+  import { createRoot } from "react-dom/client";
+
+  import PanelCodigos, {
+    type SeccionPanelCodigos,
+  } from "../../../components/panel/codigos/PanelCodigos";
+
+  import ArticulosCodigosPanel from "../../../components/panel/codigos/ArticulosCodigosPanel";
+
+  import CampanasCodigosPanel from "../../../components/panel/codigos/CampanasCodigosPanel";
+
+  import GeneradorLotesCodigosPanel from "../../../components/panel/codigos/GeneradorLotesCodigosPanel";
+
+  import BoletosCodigosPanel from "../../../components/panel/codigos/BoletosCodigosPanel";
+
+  import EscanerCodigosPanel from "../../../components/panel/codigos/EscanerCodigosPanel";
+
+  import EstadisticasImpresionCodigosPanel from "../../../components/panel/codigos/EstadisticasImpresionCodigosPanel";
+
+  // ==========================================
+  // TIPOS
+  // ==========================================
+
+  interface PermisosModulo {
+    ver: boolean;
+    crear: boolean;
+    editar: boolean;
+    eliminar: boolean;
+    escanear: boolean;
+    premios: boolean;
+    canjear: boolean;
+    imprimir: boolean;
+  }
+
+  // ==========================================
+  // VALIDAR PERMISOS RECIBIDOS
+  // ==========================================
+
+  function leerPermisos(contenedor: HTMLElement): PermisosModulo {
+    const contenido = contenedor.dataset.permisos;
+
+    if (!contenido) {
+      throw new Error("No se ha recibido la configuración de permisos.");
+    }
+
+    const datos: unknown = JSON.parse(contenido);
+
+    if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
+      throw new Error("La configuración de permisos no es válida.");
+    }
+
+    const objeto = datos as Record<string, unknown>;
+
+    /*
+     * Solo true concede visibilidad.
+     *
+     * Los permisos reales siguen
+     * verificándose en las API.
+     */
+
+    return {
+      ver: objeto.ver === true,
+
+      crear: objeto.crear === true,
+
+      editar: objeto.editar === true,
+
+      eliminar: objeto.eliminar === true,
+
+      escanear: objeto.escanear === true,
+
+      premios: objeto.premios === true,
+
+      canjear: objeto.canjear === true,
+
+      imprimir: objeto.imprimir === true,
+    };
+  }
+
+  // ==========================================
+  // PANTALLA DE ACCESO RESTRINGIDO
+  // ==========================================
+
+  function AccesoRestringido({
+    titulo,
+    descripcion,
+  }: {
+    titulo: string;
+    descripcion: string;
+  }) {
+    return createElement(
+      "section",
+      {
+        role: "alert",
+
+        className:
+          "rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-6 shadow-sm sm:p-8",
+      },
+
+      createElement(
+        "h2",
+        {
+          className: "text-lg font-bold text-on-surface",
+        },
+        titulo,
+      ),
+
+      createElement(
+        "p",
+        {
+          className: "mt-3 max-w-xl text-sm leading-6 text-on-surface-variant",
+        },
+        descripcion,
+      ),
+    );
+  }
+
+  // ==========================================
+  // CREAR APLICACIÓN DEL MÓDULO
+  // ==========================================
+
+  function crearAplicacion(permisos: PermisosModulo) {
+    /*
+     * Es necesario montar todos los
+     * componentes bajo una misma
+     * raíz React.
+     *
+     * Astro no puede serializar
+     * una función React en una
+     * propiedad client:load.
+     *
+     * PanelCodigos utiliza
+     * renderSeccion como función.
+     */
+
+    function AplicacionCodigos() {
+      const [seccion, setSeccion] = useState<SeccionPanelCodigos>("inicio");
+
+      const [revisionResumen, setRevisionResumen] = useState(0);
+
+      // ======================================
+      // CAMBIAR DE SECCIÓN
+      // ======================================
+
+      const cambiarSeccion = useCallback((siguiente: SeccionPanelCodigos) => {
+        setSeccion(siguiente);
+
+        /*
+         * Al regresar al resumen
+         * actualizamos las cifras
+         * que consulta PanelCodigos.
+         */
+
+        if (siguiente === "inicio") {
+          setRevisionResumen((anterior) => anterior + 1);
+        }
+      }, []);
+
+      // ======================================
+      // COMPONENTES DE CADA SECCIÓN
+      // ======================================
+
+      const renderSeccion = (actual: SeccionPanelCodigos): ReactNode => {
+        switch (actual) {
+          // ==================================
+          // RESUMEN GENERAL
+          // ==================================
+
+          case "inicio":
+            return null;
+
+          // ==================================
+          // CAMPAÑAS
+          // ==================================
+
+          case "campanas":
+            return createElement(CampanasCodigosPanel, {
+              permisos: {
+                crear: permisos.crear,
+
+                editar: permisos.editar,
+              },
+            });
+
+          // ==================================
+          // ARTÍCULOS
+          // ==================================
+
+          case "articulos":
+            return createElement(ArticulosCodigosPanel, {
+              permisos: {
+                crear: permisos.crear,
+
+                editar: permisos.editar,
+
+                eliminar: permisos.eliminar,
+              },
+            });
+
+          // ==================================
+          // GENERACIÓN DE LOTES
+          // ==================================
+
+          case "lotes":
+            if (!permisos.crear) {
+              /*
+               * PanelCodigos dispone
+               * de una vista básica
+               * para consultar lotes.
+               */
+
+              return null;
+            }
+
+            return createElement(GeneradorLotesCodigosPanel, {
+              permisos: {
+                crear: true,
+              },
+            });
+
+          // ==================================
+          // BOLETOS
+          // ==================================
+
+          case "boletos":
+            return createElement(BoletosCodigosPanel, {
+              permisos: {
+                editar: permisos.editar,
+
+                eliminar: permisos.eliminar,
+              },
+            });
+
+          // ==================================
+          // ESTADÍSTICAS
+          // ==================================
+
+          case "estadisticas":
+            if (!permisos.premios) {
+              return createElement(AccesoRestringido, {
+                titulo: "Estadísticas protegidas",
+
+                descripcion:
+                  "Necesitas el permiso codigos.premios para consultar la información agregada sobre premios.",
+              });
+            }
+
+            return createElement(EstadisticasImpresionCodigosPanel, {
+              vistaInicial: "estadisticas",
+
+              permisos: {
+                ver: true,
+
+                premios: permisos.premios,
+
+                imprimir: permisos.imprimir,
+              },
+            });
+
+          // ==================================
+          // ESCÁNER
+          // ==================================
+
+          case "escaner":
+            if (!permisos.escanear) {
+              return createElement(AccesoRestringido, {
+                titulo: "Escáner restringido",
+
+                descripcion:
+                  "Necesitas el permiso codigos.escanear para acceder a los lectores de boletos.",
+              });
+            }
+
+            return createElement(EscanerCodigosPanel, {
+              modoInicial: permisos.editar ? "venta" : "consulta",
+
+              permisos: {
+                ver: true,
+
+                escanear: permisos.escanear,
+
+                editar: permisos.editar,
+
+                premios: permisos.premios,
+
+                canjear: permisos.canjear,
+              },
+            });
+
+          // ==================================
+          // IMPRESIÓN
+          // ==================================
+
+          case "impresion":
+            if (!permisos.imprimir) {
+              return createElement(AccesoRestringido, {
+                titulo: "Impresión restringida",
+
+                descripcion:
+                  "Necesitas el permiso codigos.imprimir para acceder a la preparación de impresión de boletos.",
+              });
+            }
+
+            return createElement(EstadisticasImpresionCodigosPanel, {
+              vistaInicial: "impresion",
+
+              permisos: {
+                ver: true,
+
+                premios: permisos.premios,
+
+                imprimir: true,
+              },
+            });
+
+          default:
+            return null;
+        }
+      };
+
+      // ======================================
+      // PANEL PRINCIPAL
+      // ======================================
+
+      return createElement(PanelCodigos, {
+        key: revisionResumen,
+
+        seccionInicial: seccion,
+
+        onSeccionChange: cambiarSeccion,
+
+        renderSeccion,
+      });
+    }
+
+    return AplicacionCodigos;
+  }
+
+  // ==========================================
+  // MONTAJE DE REACT
+  // ==========================================
+
+  let raiz: ReturnType<typeof createRoot> | null = null;
+
+  let contenedorMontado: HTMLElement | null = null;
+
+  function montarPanel() {
+    const contenedor = document.getElementById("cba-panel-codigos-root");
+
+    if (!contenedor || contenedor === contenedorMontado) {
+      return;
+    }
+
+    try {
+      const permisos = leerPermisos(contenedor);
+
+      if (!permisos.ver) {
+        throw new Error("No hay permiso de lectura.");
+      }
+
+      const Aplicacion = crearAplicacion(permisos);
+
+      raiz = createRoot(contenedor);
+
+      contenedorMontado = contenedor;
+
+      raiz.render(createElement(Aplicacion));
+    } catch (error) {
+      console.error("Error iniciando Códigos y boletos:", error);
+
+      contenedor.replaceChildren();
+
+      const aviso = document.createElement("div");
+
+      aviso.setAttribute("role", "alert");
+
+      aviso.className =
+        "rounded-2xl border border-error/30 bg-error-container p-6 text-sm text-on-error-container";
+
+      aviso.textContent =
+        "No se ha podido iniciar Códigos y boletos. Comprueba tu sesión, tus permisos o vuelve a cargar la página.";
+
+      contenedor.appendChild(aviso);
+    }
+  }
+
+  // ==========================================
+  // DESMONTAR ANTES DE NAVEGACIÓN ASTRO
+  // ==========================================
+
+  document.addEventListener("astro:before-swap", () => {
+    if (raiz) {
+      raiz.unmount();
+      raiz = null;
+    }
+
+    contenedorMontado = null;
+  });
+
+  // ==========================================
+  // INICIAR
+  // ==========================================
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", montarPanel, {
+      once: true,
+    });
+  } else {
+    montarPanel();
+  }
+
+  document.addEventListener("astro:page-load", montarPanel);
+</script>

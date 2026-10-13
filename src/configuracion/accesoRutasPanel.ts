@@ -46,6 +46,11 @@ export const reglasAccesoPanel: ReglaAccesoPanel[] = [
     coincidencia: "prefijo",
   },
   {
+    ruta: "/panel/codigos",
+    permiso: "codigos.ver",
+    coincidencia: "prefijo",
+  },
+  {
     ruta: "/panel/configuracion",
     permiso: "configuracion.ver",
     coincidencia: "prefijo",

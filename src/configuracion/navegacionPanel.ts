@@ -105,6 +105,17 @@ export const navegacionPanel: EnlacePanel[] = [
     orden: 7,
   },
   {
+    id: "codigos",
+    nombre: "Códigos",
+    descripcion: "Gestionar códigos de descuento y promociones",
+    enlace: "/panel/codigos",
+    icono: "codigos",
+    permiso: "codigos.ver",
+    estado: "activo",
+    seccion: "administracion",
+    orden: 7,
+  },
+  {
     id: "configuracion",
     nombre: "Configuración",
     nombreCorto: "Ajustes",
@@ -114,7 +125,7 @@ export const navegacionPanel: EnlacePanel[] = [
     permiso: "configuracion.ver",
     estado: "proximamente",
     seccion: "administracion",
-    orden: 8,
+    orden: 9,
   },
   {
     id: "perfil",
@@ -125,7 +136,7 @@ export const navegacionPanel: EnlacePanel[] = [
     icono: "perfil",
     estado: "proximamente",
     seccion: "cuenta",
-    orden: 9,
+    orden: 10,
   },
   {
     id: "web",
@@ -136,7 +147,7 @@ export const navegacionPanel: EnlacePanel[] = [
     icono: "web",
     estado: "activo",
     seccion: "cuenta",
-    orden: 10,
+    orden: 11,
   },
 ];
 

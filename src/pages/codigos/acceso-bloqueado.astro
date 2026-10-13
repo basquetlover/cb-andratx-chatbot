@@ -1,0 +1,311 @@
+---
+/*
+ * CLUB BÀSQUET ANDRATX
+ *
+ * Archivo 27/27
+ *
+ * Ruta pública:
+ * /codigos/acceso-bloqueado
+ *
+ * Página informativa para accesos
+ * a códigos que no pueden
+ * consultarse públicamente.
+ *
+ * SEGURIDAD
+ *
+ * - No recibe tokens QR.
+ * - No consulta Supabase.
+ * - No muestra datos de boletos.
+ * - No revela premios.
+ * - No confirma si un código existe.
+ * - No registra ventas ni canjes.
+ * - No guarda datos en el navegador.
+ *
+ * El servidor que resuelva los QR
+ * deberá decidir cuándo redirigir
+ * a esta página.
+ */
+
+import Layout from "@layouts/Layout.astro";
+
+export const prerender = false;
+
+// ================================================
+// CABECERAS DE SEGURIDAD
+// ================================================
+
+Astro.response.headers.set("Cache-Control", "private, no-store, max-age=0");
+
+Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
+
+Astro.response.headers.set("Referrer-Policy", "no-referrer");
+
+Astro.response.headers.set("X-Content-Type-Options", "nosniff");
+
+// ================================================
+// CONTENIDO PÚBLICO
+// ================================================
+
+const titulo = "Acceso restringido";
+
+const descripcion =
+  "La consulta pública de este contenido no está disponible. Contacta con el personal autorizado del Club Bàsquet Andratx para obtener información.";
+---
+
+<Layout title={titulo} description={descripcion} noIndex menu menuMobile>
+  <section
+    class="relative isolate flex min-h-[calc(100dvh-12rem)] w-full items-center justify-center overflow-hidden bg-background px-4 py-10 sm:px-6 sm:py-16 lg:px-8"
+    aria-labelledby="titulo-acceso-restringido"
+  >
+    <!-- ELEMENTOS DECORATIVOS -->
+
+    <div
+      class="pointer-events-none absolute -left-24 top-12 h-72 w-72 rounded-full bg-primary/5 blur-3xl"
+      aria-hidden="true"
+    >
+    </div>
+
+    <div
+      class="pointer-events-none absolute -right-20 bottom-12 h-80 w-80 rounded-full bg-tertiary/10 blur-3xl"
+      aria-hidden="true"
+    >
+    </div>
+
+    <!-- CONTENIDO -->
+
+    <div
+      class="relative z-10 w-full max-w-3xl overflow-hidden rounded-3xl border border-outline-variant/60 bg-surface-container-lowest shadow-[0_20px_65px_rgba(3,42,85,0.10)]"
+    >
+      <!-- FRANJA CLUB -->
+
+      <div class="flex h-2 w-full overflow-hidden" aria-hidden="true">
+        <div class="h-full w-2/3 bg-[#032A55]"></div>
+
+        <div class="h-full w-1/3 bg-[#F2C94C]"></div>
+      </div>
+
+      <!-- CABECERA -->
+
+      <div
+        class="border-b border-outline-variant/60 bg-surface-container-low px-5 pb-8 pt-9 text-center sm:px-10 sm:pb-10 sm:pt-12"
+      >
+        <!-- ESCUDO ORIGINAL -->
+
+        <div
+          class="mx-auto flex h-24 w-24 items-center justify-center rounded-3xl border border-outline-variant/40 bg-surface-container-lowest p-3 shadow-sm sm:h-28 sm:w-28"
+        >
+          <img
+            src="/favicon.png"
+            alt="Escudo del Club Bàsquet Andratx"
+            width="112"
+            height="112"
+            class="h-full w-full object-contain"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
+
+        <!-- IDENTIFICACIÓN -->
+
+        <p
+          class="mt-6 text-xs font-bold uppercase tracking-[0.18em] text-secondary sm:text-sm"
+        >
+          Club Bàsquet Andratx
+        </p>
+
+        <!-- ICONO DE BLOQUEO -->
+
+        <div
+          class="mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container"
+        >
+          <span
+            class="inline-block h-8 w-8 bg-current mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/candado.svg'); -webkit-mask-image: url('/iconos/panel/candado.svg');"
+            aria-hidden="true"></span>
+        </div>
+
+        <!-- TÍTULO -->
+
+        <h1
+          id="titulo-acceso-restringido"
+          class="mt-6 text-3xl font-extrabold tracking-tight text-on-tertiary-fixed sm:text-4xl"
+        >
+          Acceso restringido
+        </h1>
+
+        <p
+          class="mx-auto mt-4 max-w-xl text-sm leading-7 text-on-surface-variant sm:text-base"
+        >
+          La información a la que intentas acceder no está disponible para
+          consulta pública.
+        </p>
+      </div>
+
+      <!-- INFORMACIÓN -->
+
+      <div class="space-y-6 px-5 py-8 sm:px-10 sm:py-10">
+        <!-- AVISO PRINCIPAL -->
+
+        <div
+          class="flex items-start gap-4 rounded-2xl border border-outline-variant/60 bg-surface-container-low p-4 sm:p-5"
+        >
+          <div
+            class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-container text-on-primary-container"
+          >
+            <span
+              class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/seguridad.svg'); -webkit-mask-image: url('/iconos/panel/seguridad.svg');"
+              aria-hidden="true"></span>
+          </div>
+
+          <div class="min-w-0">
+            <h2 class="text-base font-bold text-on-surface">
+              Contenido de acceso limitado
+            </h2>
+
+            <p class="mt-2 text-sm leading-7 text-on-surface-variant">
+              Para proteger la información de los códigos y boletos del club,
+              determinadas consultas y operaciones solo pueden realizarse
+              mediante el sistema de gestión autorizado.
+            </p>
+          </div>
+        </div>
+
+        <!-- INFORMACIÓN DEL BOLETO -->
+
+        <div class="grid gap-4 sm:grid-cols-2">
+          <!-- TARJETA 1 -->
+
+          <article
+            class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5"
+          >
+            <div
+              class="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-container text-primary"
+            >
+              <span
+                class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat"
+                style="mask-image: url('/iconos/panel/qr.svg'); -webkit-mask-image: url('/iconos/panel/qr.svg');"
+                aria-hidden="true"></span>
+            </div>
+
+            <h3 class="mt-4 text-sm font-bold text-on-surface">
+              ¿Tienes un boleto?
+            </h3>
+
+            <p class="mt-2 text-sm leading-6 text-on-surface-variant">
+              Conserva tu boleto o código original y preséntalo al personal
+              autorizado del club para que pueda comprobarlo.
+            </p>
+          </article>
+
+          <!-- TARJETA 2 -->
+
+          <article
+            class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5"
+          >
+            <div
+              class="flex h-11 w-11 items-center justify-center rounded-xl bg-surface-container text-primary"
+            >
+              <span
+                class="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat"
+                style="mask-image: url('/iconos/panel/usuarios.svg'); -webkit-mask-image: url('/iconos/panel/usuarios.svg');"
+                aria-hidden="true"></span>
+            </div>
+
+            <h3 class="mt-4 text-sm font-bold text-on-surface">
+              ¿Eres personal del club?
+            </h3>
+
+            <p class="mt-2 text-sm leading-6 text-on-surface-variant">
+              Accede al panel de administración con tu cuenta autorizada y
+              utiliza la sección de Códigos y boletos.
+            </p>
+          </article>
+        </div>
+
+        <!-- AVISO SOBRE PREMIOS -->
+
+        <div
+          class="flex items-start gap-3 rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3"
+        >
+          <span
+            class="mt-0.5 inline-block h-5 w-5 shrink-0 bg-current text-on-surface-variant mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/informacion.svg'); -webkit-mask-image: url('/iconos/panel/informacion.svg');"
+            aria-hidden="true"></span>
+
+          <p class="text-xs leading-6 text-on-surface-variant">
+            Esta página no comprueba si un boleto es válido, ha sido vendido,
+            contiene un premio o ya ha sido canjeado. Tampoco permite registrar
+            ni confirmar entregas.
+          </p>
+        </div>
+
+        <!-- ACCIONES -->
+
+        <div
+          class="flex flex-col gap-3 border-t border-outline-variant/60 pt-6 sm:flex-row sm:items-center sm:justify-center"
+        >
+          <!-- VOLVER AL INICIO -->
+
+          <a
+            href="/"
+            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-on-primary shadow-sm transition-all duration-200 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-5 w-5"
+              aria-hidden="true"
+            >
+              <path d="m15 18-6-6 6-6"></path>
+            </svg>
+
+            Volver al inicio
+          </a>
+
+          <!-- PERSONAL AUTORIZADO -->
+
+          <a
+            href="/panel/codigos"
+            class="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-outline-variant bg-surface-container-lowest px-6 py-3 text-sm font-bold text-primary transition-colors duration-200 hover:bg-surface-container focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+          >
+            Acceso para personal autorizado
+
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="h-4 w-4"
+              aria-hidden="true"
+            >
+              <path d="M5 12h14M13 6l6 6-6 6"></path>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- PIE -->
+
+      <footer
+        class="border-t border-outline-variant/60 bg-surface-container-low px-5 py-4 text-center sm:px-8"
+      >
+        <p class="text-xs font-semibold text-on-surface-variant">
+          Club Bàsquet Andratx
+        </p>
+
+        <p class="mt-1 text-[11px] text-on-surface-variant">
+          #sentimentblaugroc · #fentbasquetdesde1985
+        </p>
+      </footer>
+    </div>
+  </section>
+</Layout>
