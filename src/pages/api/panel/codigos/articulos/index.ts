@@ -4,8 +4,8 @@ import type {
 } from "astro";
 
 import {
-  createClient,
-} from "@supabase/supabase-js";
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
 
 import type {
   ArticuloCodigosPanel,
@@ -41,6 +41,14 @@ import {
  *
  * GET  -> codigos.ver
  * POST -> codigos.crear
+ *
+ * Utiliza la conexión Supabase
+ * existente en el proyecto:
+ *
+ * @servicios/supabase/servidor
+ *
+ * No requiere variables nuevas
+ * ni modifica la configuración .env.
  *
  * Esta API no consulta ni devuelve
  * los premios asignados a los boletos.
@@ -107,53 +115,22 @@ class ErrorSolicitudArticulo
 }
 
 // ================================================
-// CLIENTE PRIVADO DE SUPABASE
+// CLIENTE SUPABASE DEL PROYECTO
 // ================================================
 
 function obtenerClientePrivado() {
   /*
-   * Se utiliza la clave privada porque
-   * este módulo trabaja con tablas
-   * protegidas mediante RLS.
+   * Reutilizamos el cliente del servidor
+   * existente en el repositorio.
    *
-   * La clave nunca se devuelve al cliente.
+   * Las comprobaciones de sesión y
+   * permisos se realizan previamente.
+   *
+   * Las operaciones siguen sujetas
+   * a las políticas RLS de Supabase.
    */
 
-  const supabaseUrl:
-    string | undefined =
-    import.meta.env.SUPABASE_URL;
-
-  const clavePrivada:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_SERVICE_ROLE_KEY;
-
-  const clavePublica:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_ANON_KEY;
-
-  if (
-    !supabaseUrl ||
-    !clavePrivada ||
-    clavePrivada === clavePublica
-  ) {
-    throw new Error(
-      "No se ha configurado correctamente el acceso privado a Supabase.",
-    );
-  }
-
-  return createClient(
-    supabaseUrl,
-    clavePrivada,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    },
-  );
+  return supabaseServidor;
 }
 
 // ================================================

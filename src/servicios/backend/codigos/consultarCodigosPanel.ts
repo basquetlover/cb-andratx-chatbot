@@ -1,8 +1,11 @@
 
-import {
-  createClient,
-  type SupabaseClient,
+import type {
+  SupabaseClient,
 } from "@supabase/supabase-js";
+
+import {
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
 
 import type {
   UsuarioSesion,
@@ -55,6 +58,16 @@ import type {
  *
  * Las consultas relacionadas con premios
  * requieren autorización específica.
+ *
+ * CONEXIÓN SUPABASE:
+ *
+ * Este servicio reutiliza exclusivamente
+ * el cliente del proyecto:
+ *
+ * @servicios/supabase/servidor
+ *
+ * No crea conexiones adicionales
+ * ni exige variables nuevas en .env.
  */
 
 // ================================================
@@ -186,54 +199,28 @@ export class ErrorConsultarCodigosPanel
 }
 
 // ================================================
-// CLIENTE PRIVADO DE SUPABASE
+// CLIENTE SUPABASE EXISTENTE
 // ================================================
 
 function obtenerClienteCodigos():
   SupabaseClient {
-  const supabaseUrl:
-    string | undefined =
-    import.meta.env.SUPABASE_URL;
-
-  const clavePrivada:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_SERVICE_ROLE_KEY;
-
-  const clavePublica:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_ANON_KEY;
-
-  if (
-    !supabaseUrl ||
-    !clavePrivada ||
-    clavePrivada === clavePublica
-  ) {
-    throw new ErrorConsultarCodigosPanel(
-      "No se ha configurado correctamente el acceso privado de Supabase.",
-    );
-  }
-
   /*
-   * Este cliente solamente puede
-   * utilizarse desde el servidor.
+   * Reutilizar exclusivamente
+   * la conexión Supabase existente
+   * del proyecto.
    *
-   * Nunca debe importarse en
-   * componentes React del navegador.
+   * No se crea un cliente nuevo.
+   * No se requiere service_role.
+   *
+   * Las comprobaciones de sesión
+   * y permisos continúan siendo
+   * obligatorias en el servicio.
+   *
+   * Las consultas siguen sujetas
+   * a las políticas RLS.
    */
 
-  return createClient(
-    supabaseUrl,
-    clavePrivada,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    },
-  );
+  return supabaseServidor;
 }
 
 // ================================================

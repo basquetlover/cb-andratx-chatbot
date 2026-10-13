@@ -8,8 +8,8 @@ import {
 } from "node:crypto";
 
 import {
-  createClient,
-} from "@supabase/supabase-js";
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
 
 import type {
   CampanaCodigosPanel,
@@ -44,8 +44,17 @@ import {
  * POST -> codigos.crear
  *
  * Las campañas comienzan en borrador.
- * La activación se implementará en
+ * La activación se implementa en
  * la API de detalle de campaña.
+ *
+ * CONEXIÓN:
+ *
+ * Utiliza exclusivamente el cliente
+ * existente en:
+ *
+ * @servicios/supabase/servidor
+ *
+ * No requiere cambios en .env.
  */
 
 export const prerender = false;
@@ -166,53 +175,26 @@ class ErrorCampanasCodigos
 }
 
 // ================================================
-// CLIENTE PRIVADO DE SUPABASE
+// CLIENTE SUPABASE DEL PROYECTO
 // ================================================
 
 function obtenerClientePrivado() {
-  const supabaseUrl:
-    string | undefined =
-    import.meta.env.SUPABASE_URL;
-
-  const clavePrivada:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_SERVICE_ROLE_KEY;
-
-  const clavePublica:
-    string | undefined =
-    import.meta.env
-      .SUPABASE_ANON_KEY;
-
-  if (
-    !supabaseUrl ||
-    !clavePrivada ||
-    clavePrivada === clavePublica
-  ) {
-    throw new ErrorCampanasCodigos(
-      "No se ha configurado el acceso privado a Supabase.",
-      500,
-    );
-  }
-
   /*
-   * Cliente exclusivo del servidor.
+   * Reutilizamos el cliente existente
+   * de Supabase en el servidor.
    *
-   * Nunca se utiliza desde React
-   * ni se envía su clave al navegador.
+   * No se crea ninguna conexión nueva.
+   *
+   * La autenticación y los permisos
+   * se verifican antes de acceder
+   * a las operaciones.
+   *
+   * Las consultas y escrituras
+   * siguen sujetas a las políticas
+   * RLS configuradas en Supabase.
    */
 
-  return createClient(
-    supabaseUrl,
-    clavePrivada,
-    {
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    },
-  );
+  return supabaseServidor;
 }
 
 // ================================================
