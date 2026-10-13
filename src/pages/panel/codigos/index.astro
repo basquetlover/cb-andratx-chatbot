@@ -1,41 +1,7 @@
 ---
-/*
- * CLUB BÀSQUET ANDRATX
- *
- * Archivo 24/27
- * Ruta: /panel/codigos
- *
- * Utiliza el layout REAL del proyecto:
- * @layouts/LayoutPanel.astro
- *
- * El layout ya incorpora:
- *
- * - HTML, HEAD y BODY
- * - CSS global y tipografías
- * - HeaderPanel
- * - MenuLateralPanel
- * - MenuMobilePanel
- * - SistemaNotificaciones
- * - Control de sesión
- *
- * Esta ruta:
- *
- * - Comprueba la sesión.
- * - Comprueba codigos.ver.
- * - Obtiene los permisos específicos.
- * - Monta una única aplicación React.
- * - Integra los componentes 17-23.
- *
- * La autorización definitiva de cada
- * operación permanece en las API.
- */
-
 import LayoutPanel from "@layouts/LayoutPanel.astro";
 
-import {
-  obtenerUsuarioSesion,
-  type UsuarioSesion,
-} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
 
 import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
 
@@ -43,18 +9,35 @@ import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
 
 import { PERMISOS_CODIGOS } from "@servicios/backend/codigos/seguridadCodigos";
 
-export const prerender = false;
+import { supabaseServidor } from "@servicios/supabase/servidor";
 
-// ================================================
-// PROTEGER LA RESPUESTA
-// ================================================
+/*
+ * CLUB BÀSQUET ANDRATX
+ *
+ * Sistema simplificado de rasca y gana
+ * Frontend — Fase 1, archivo 1
+ *
+ * Ruta: /panel/codigos
+ *
+ * Página Astro SSR.
+ *
+ * - Reutiliza LayoutPanel.
+ * - Reutiliza sesión y permisos.
+ * - Reutiliza supabaseServidor.
+ * - Lista las campañas existentes.
+ * - Filtra y pagina desde el servidor.
+ * - No utiliza React.
+ * - No genera ni descifra códigos QR.
+ */
+
+export const prerender = false;
 
 Astro.response.headers.set("Cache-Control", "private, no-store, max-age=0");
 
 Astro.response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive");
 
 // ================================================
-// OBTENER SESIÓN
+// SESIÓN Y AUTORIZACIÓN
 // ================================================
 
 const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
@@ -63,18 +46,18 @@ if (!tokenSesion) {
   return Astro.redirect("/panel/iniciar-sesion", 302);
 }
 
-let sesion: UsuarioSesion | null = null;
+let sesion;
 
 try {
   sesion = await obtenerUsuarioSesion(tokenSesion);
 } catch (error) {
-  console.error("Error verificando la sesión en /panel/codigos:", error);
+  console.error("Error comprobando sesión en /panel/codigos:", error);
 
-  return new Response("No se ha podido verificar la sesión.", {
+  return new Response("No se ha podido comprobar la sesión.", {
     status: 500,
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
+      "Content-Type": "text/plain; charset=utf-8",
     },
   });
 }
@@ -87,623 +70,554 @@ if (!sesion) {
   return Astro.redirect("/panel/iniciar-sesion", 302);
 }
 
-// ================================================
-// VERIFICAR PERMISOS
-// ================================================
-
-const permisosRequeridos = [
-  PERMISOS_CODIGOS.ver,
-  PERMISOS_CODIGOS.crear,
-  PERMISOS_CODIGOS.editar,
-  PERMISOS_CODIGOS.eliminar,
-  PERMISOS_CODIGOS.escanear,
-  PERMISOS_CODIGOS.premios,
-  PERMISOS_CODIGOS.canjear,
-  PERMISOS_CODIGOS.imprimir,
-] as const;
-
-let permisosComprobados: boolean[];
+let puedeVer = false;
 
 try {
-  permisosComprobados = await Promise.all(
-    permisosRequeridos.map((permiso) =>
-      comprobarPermisoUsuario(sesion.acceso, permiso),
-    ),
-  );
+  puedeVer = await comprobarPermisoUsuario(sesion.acceso, PERMISOS_CODIGOS.ver);
 } catch (error) {
-  console.error("Error verificando los permisos del módulo de códigos:", error);
+  console.error("Error comprobando permisos de códigos:", error);
 
   return new Response("No se han podido comprobar los permisos.", {
     status: 500,
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
       "Cache-Control": "no-store",
     },
   });
 }
 
-const [
-  puedeVer,
-  puedeCrear,
-  puedeEditar,
-  puedeEliminar,
-  puedeEscanear,
-  puedeConsultarPremios,
-  puedeCanjear,
-  puedeImprimir,
-] = permisosComprobados;
-
 if (!puedeVer) {
-  return Astro.redirect("/panel/acceso-denegado?desde=%2Fpanel%2Fcodigos", 302);
+  return Astro.redirect("/panel/acceso-denegado", 302);
 }
 
 // ================================================
-// PERMISOS DE PRESENTACIÓN
+// TIPOS
 // ================================================
 
-/*
- * Se transmiten exclusivamente
- * valores booleanos.
- *
- * No se expone la sesión ni
- * ninguna credencial privada.
- */
+type EstadoCampana = "borrador" | "activa" | "finalizada";
 
-const permisosCliente = {
-  ver: puedeVer,
-  crear: puedeCrear,
-  editar: puedeEditar,
-  eliminar: puedeEliminar,
-  escanear: puedeEscanear,
-  premios: puedeConsultarPremios,
-  canjear: puedeCanjear,
-  imprimir: puedeImprimir,
-};
+type FiltroEstado = EstadoCampana | "todos";
+
+interface FilaCampana {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+
+  estado: EstadoCampana;
+
+  estado_ventas: "abiertas" | "cerradas";
+
+  estado_canjes: "abiertos" | "cerrados";
+
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  created_at: string;
+}
+
+// ================================================
+// CONFIGURACIÓN
+// ================================================
+
+const LIMITE_PAGINA = 12;
+
+const ESTADOS: {
+  valor: FiltroEstado;
+  nombre: string;
+}[] = [
+  {
+    valor: "todos",
+    nombre: "Todas las campañas",
+  },
+  {
+    valor: "activa",
+    nombre: "Activas",
+  },
+  {
+    valor: "borrador",
+    nombre: "Borradores",
+  },
+  {
+    valor: "finalizada",
+    nombre: "Finalizadas",
+  },
+];
+
+// ================================================
+// LEER FILTROS
+// ================================================
+
+const parametros = Astro.url.searchParams;
+
+const estadoRecibido = parametros.get("estado") ?? "todos";
+
+const estado: FiltroEstado = ESTADOS.some(
+  (opcion) => opcion.valor === estadoRecibido,
+)
+  ? (estadoRecibido as FiltroEstado)
+  : "todos";
+
+const busqueda = (parametros.get("busqueda") ?? "").trim();
+
+const paginaRecibida = Number(parametros.get("pagina") ?? "1");
+
+const pagina =
+  Number.isSafeInteger(paginaRecibida) &&
+  paginaRecibida >= 1 &&
+  paginaRecibida <= 10000
+    ? paginaRecibida
+    : 1;
+
+const busquedaInvalida =
+  busqueda.length > 120 || /[%_\\\u0000-\u001F\u007F]/.test(busqueda);
+
+// ================================================
+// CONSULTAR CAMPAÑAS
+// ================================================
+
+let campanas: FilaCampana[] = [];
+
+let total = 0;
+
+let errorCarga: string | null = null;
+
+if (busquedaInvalida) {
+  errorCarga =
+    "La búsqueda contiene caracteres no permitidos o es demasiado larga.";
+} else {
+  try {
+    const desde = (pagina - 1) * LIMITE_PAGINA;
+
+    const hasta = desde + LIMITE_PAGINA - 1;
+
+    /*
+     * Se utiliza el mismo cliente
+     * Supabase existente en las API
+     * del módulo.
+     *
+     * El navegador nunca recibe
+     * claves ni conexiones privadas.
+     */
+
+    let consulta = supabaseServidor.from("codigos_campanas").select(
+      `
+            id,
+            nombre,
+            descripcion,
+            estado,
+            estado_ventas,
+            estado_canjes,
+            fecha_inicio,
+            fecha_fin,
+            created_at
+          `,
+      {
+        count: "exact",
+      },
+    );
+
+    if (estado !== "todos") {
+      consulta = consulta.eq("estado", estado);
+    }
+
+    if (busqueda) {
+      consulta = consulta.ilike("nombre", `%${busqueda}%`);
+    }
+
+    const { data, error, count } = await consulta
+      .order("created_at", {
+        ascending: false,
+      })
+      .order("id", {
+        ascending: false,
+      })
+      .range(desde, hasta);
+
+    if (error) {
+      throw error;
+    }
+
+    campanas = (data ?? []) as FilaCampana[];
+
+    total = count ?? 0;
+  } catch (error) {
+    console.error("Error cargando las campañas:", error);
+
+    errorCarga = "No se han podido cargar las campañas. Vuelve a intentarlo.";
+  }
+}
+
+const totalPaginas = total > 0 ? Math.ceil(total / LIMITE_PAGINA) : 0;
+
+// ================================================
+// FUNCIONES DE PRESENTACIÓN
+// ================================================
+
+function formatearFecha(valor: string | null): string {
+  if (!valor) {
+    return "Sin definir";
+  }
+
+  const fecha = new Date(valor);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return "Sin definir";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(fecha);
+}
+
+function nombreEstado(estado: EstadoCampana): string {
+  switch (estado) {
+    case "borrador":
+      return "Borrador";
+
+    case "activa":
+      return "Activa";
+
+    case "finalizada":
+      return "Finalizada";
+  }
+}
+
+function urlPagina(numero: number): string {
+  const valores = new URLSearchParams();
+
+  if (estado !== "todos") {
+    valores.set("estado", estado);
+  }
+
+  if (busqueda) {
+    valores.set("busqueda", busqueda);
+  }
+
+  valores.set("pagina", String(numero));
+
+  return `/panel/codigos?${valores.toString()}`;
+}
 ---
 
 <LayoutPanel
   title="Códigos y boletos"
-  description="Gestiona campañas, lotes, boletos, ventas, premios y canjes del club."
+  description="Gestiona las campañas de rasca y gana del Club Bàsquet Andratx."
   volverA="/panel"
   textoVolver="Volver al panel"
   anchoCompleto
 >
-  <!-- ======================================= -->
-  <!-- CONTENEDOR DE LA APLICACIÓN -->
-  <!-- ======================================= -->
+  <div class="space-y-6">
+    <!-- CABECERA -->
 
-  <div
-    id="cba-panel-codigos-root"
-    data-permisos={JSON.stringify(permisosCliente)}
-    class="w-full min-w-0"
-  >
-    <!-- Estado previo al montaje -->
-
-    <div
-      class="space-y-5"
-      role="status"
-      aria-label="Cargando el panel de códigos"
+    <section
+      class="flex flex-wrap items-center justify-between gap-5 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-7"
     >
-      <div class="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
-        {
-          Array.from({ length: 8 }, (_, indice) => (
-            <div
-              class="h-24 animate-pulse rounded-2xl bg-surface-container-high"
-              aria-hidden="true"
-            />
-          ))
-        }
+      <div class="flex min-w-0 items-center gap-4">
+        <span
+          class="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#032A55] text-[#F2C94C]"
+        >
+          <span
+            class="h-7 w-7 bg-current mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/codigos.svg'); -webkit-mask-image: url('/iconos/panel/codigos.svg');"
+            aria-hidden="true"></span>
+        </span>
+
+        <div class="min-w-0">
+          <h1
+            class="text-xl font-bold tracking-tight text-on-surface sm:text-2xl"
+          >
+            Campañas
+          </h1>
+
+          <p class="mt-1 text-sm leading-6 text-on-surface-variant">
+            Selecciona una campaña para gestionar sus premios, boletos y canjes.
+          </p>
+        </div>
       </div>
 
-      <div class="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {
-          Array.from({ length: 4 }, (_, indice) => (
-            <div
-              class="h-32 animate-pulse rounded-2xl bg-surface-container-high"
-              aria-hidden="true"
-            />
-          ))
-        }
-      </div>
+      <span
+        class="inline-flex items-center gap-2 rounded-xl bg-surface-container px-4 py-3 text-sm font-semibold text-on-surface"
+      >
+        <span
+          class="h-5 w-5 bg-current mask-center mask-contain mask-no-repeat"
+          style="mask-image: url('/iconos/panel/calendario.svg'); -webkit-mask-image: url('/iconos/panel/calendario.svg');"
+          aria-hidden="true"></span>
 
-      <p class="text-center text-sm text-on-surface-variant">
-        Cargando Códigos y boletos...
-      </p>
-    </div>
+        {total} campañas
+      </span>
+    </section>
+
+    <!-- FILTROS -->
+
+    <section
+      class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 shadow-sm sm:p-5"
+      aria-labelledby="titulo-filtros-campanas"
+    >
+      <h2
+        id="titulo-filtros-campanas"
+        class="mb-4 text-base font-bold text-on-surface"
+      >
+        Buscar campañas
+      </h2>
+
+      <form
+        method="GET"
+        action="/panel/codigos"
+        class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_220px_auto]"
+      >
+        <div>
+          <label
+            for="buscar-campana"
+            class="mb-2 block text-xs font-semibold text-on-surface-variant"
+          >
+            Nombre de la campaña
+          </label>
+
+          <input
+            id="buscar-campana"
+            type="search"
+            name="busqueda"
+            value={busqueda}
+            maxlength="120"
+            placeholder="Buscar por nombre..."
+            class="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface outline-none transition-colors focus:border-primary focus:ring-2 focus:ring-primary/15"
+          />
+        </div>
+
+        <div>
+          <label
+            for="estado-campana"
+            class="mb-2 block text-xs font-semibold text-on-surface-variant"
+          >
+            Estado
+          </label>
+
+          <select
+            id="estado-campana"
+            name="estado"
+            class="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-4 py-2.5 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
+          >
+            {
+              ESTADOS.map((opcion) => (
+                <option value={opcion.valor} selected={opcion.valor === estado}>
+                  {opcion.nombre}
+                </option>
+              ))
+            }
+          </select>
+        </div>
+
+        <div class="flex items-end gap-2">
+          <button
+            type="submit"
+            class="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary transition-opacity hover:opacity-90"
+          >
+            <span
+              class="h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
+              style="mask-image: url('/iconos/panel/buscar.svg'); -webkit-mask-image: url('/iconos/panel/buscar.svg');"
+              aria-hidden="true"></span>
+
+            Buscar
+          </button>
+
+          <a
+            href="/panel/codigos"
+            class="inline-flex min-h-11 items-center justify-center rounded-xl border border-outline-variant px-4 py-2.5 text-sm font-semibold text-on-surface transition-colors hover:bg-surface-container"
+          >
+            Limpiar
+          </a>
+        </div>
+      </form>
+    </section>
+
+    <!-- RESULTADOS -->
+
+    {
+      errorCarga ? (
+        <section
+          role="alert"
+          class="rounded-2xl border border-error/30 bg-error-container p-6 text-on-error-container"
+        >
+          <h2 class="text-base font-bold">Error al consultar las campañas</h2>
+
+          <p class="mt-2 text-sm leading-6">{errorCarga}</p>
+
+          <a
+            href="/panel/codigos"
+            class="mt-4 inline-flex rounded-xl bg-error px-4 py-2.5 text-sm font-semibold text-on-error"
+          >
+            Volver a intentarlo
+          </a>
+        </section>
+      ) : (
+        <section class="space-y-4" aria-labelledby="titulo-listado-campanas">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2
+              id="titulo-listado-campanas"
+              class="text-base font-bold text-on-surface sm:text-lg"
+            >
+              Campañas disponibles
+            </h2>
+
+            <p class="text-xs text-on-surface-variant">{total} resultados</p>
+          </div>
+
+          {campanas.length === 0 ? (
+            <div class="flex min-h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-8 text-center">
+              <span class="flex h-16 w-16 items-center justify-center rounded-2xl bg-primary-container text-on-primary-container">
+                <span
+                  class="h-8 w-8 bg-current mask-center mask-contain mask-no-repeat"
+                  style="mask-image: url('/iconos/panel/calendario.svg'); -webkit-mask-image: url('/iconos/panel/calendario.svg');"
+                  aria-hidden="true"
+                />
+              </span>
+
+              <h3 class="mt-5 text-base font-bold text-on-surface">
+                No hay campañas para mostrar
+              </h3>
+
+              <p class="mt-2 max-w-md text-sm leading-6 text-on-surface-variant">
+                No se han encontrado campañas con los filtros seleccionados.
+              </p>
+
+              <a
+                href="/panel/codigos"
+                class="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-semibold text-on-primary"
+              >
+                Ver todas las campañas
+              </a>
+            </div>
+          ) : (
+            <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {campanas.map((campana) => (
+                <article class="group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm transition-all hover:border-primary/40 hover:shadow-md">
+                  <div class="flex flex-1 flex-col p-5">
+                    <div class="flex items-start justify-between gap-3">
+                      <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-container text-on-primary-container">
+                        <span
+                          class="h-6 w-6 bg-current mask-center mask-contain mask-no-repeat"
+                          style="mask-image: url('/iconos/panel/calendario.svg'); -webkit-mask-image: url('/iconos/panel/calendario.svg');"
+                          aria-hidden="true"
+                        />
+                      </span>
+
+                      <span
+                        class:list={[
+                          "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
+                          campana.estado === "activa"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : campana.estado === "borrador"
+                              ? "bg-amber-50 text-amber-800"
+                              : "bg-surface-container text-on-surface-variant",
+                        ]}
+                      >
+                        {nombreEstado(campana.estado)}
+                      </span>
+                    </div>
+
+                    <h3 class="mt-5 line-clamp-2 text-lg font-bold text-on-surface">
+                      {campana.nombre}
+                    </h3>
+
+                    <p class="mt-2 line-clamp-3 min-h-12 text-sm leading-6 text-on-surface-variant">
+                      {campana.descripcion || "Sin descripción."}
+                    </p>
+
+                    <div class="mt-5 grid grid-cols-2 gap-3 rounded-xl bg-surface-container-low p-3">
+                      <div>
+                        <p class="text-xs text-on-surface-variant">Ventas</p>
+
+                        <p class="mt-1 text-sm font-semibold capitalize text-on-surface">
+                          {campana.estado_ventas}
+                        </p>
+                      </div>
+
+                      <div>
+                        <p class="text-xs text-on-surface-variant">Canjes</p>
+
+                        <p class="mt-1 text-sm font-semibold capitalize text-on-surface">
+                          {campana.estado_canjes}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div class="mt-4 grid grid-cols-2 gap-3">
+                      <div>
+                        <p class="text-xs text-on-surface-variant">Inicio</p>
+
+                        <p class="mt-1 text-xs font-semibold text-on-surface">
+                          {formatearFecha(campana.fecha_inicio)}
+                        </p>
+                      </div>
+
+                      <div class="text-right">
+                        <p class="text-xs text-on-surface-variant">Fin</p>
+
+                        <p class="mt-1 text-xs font-semibold text-on-surface">
+                          {formatearFecha(campana.fecha_fin)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <a
+                    href={`/panel/codigos/campanas/${encodeURIComponent(campana.id)}`}
+                    class="flex min-h-12 items-center justify-between gap-3 border-t border-outline-variant/60 px-5 py-3 text-sm font-bold text-primary transition-colors hover:bg-primary-container/40 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-primary"
+                  >
+                    Gestionar campaña
+                    <span
+                      class="h-5 w-5 bg-current mask-center mask-contain mask-no-repeat"
+                      style="mask-image: url('/iconos/panel/siguiente.svg'); -webkit-mask-image: url('/iconos/panel/siguiente.svg');"
+                      aria-hidden="true"
+                    />
+                  </a>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+      )
+    }
+
+    <!-- PAGINACIÓN -->
+
+    {
+      !errorCarga && totalPaginas > 1 && (
+        <nav
+          class="flex flex-wrap items-center justify-center gap-4 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4"
+          aria-label="Paginación de campañas"
+        >
+          {pagina > 1 ? (
+            <a
+              href={urlPagina(pagina - 1)}
+              class="inline-flex min-h-10 items-center justify-center rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface hover:bg-surface-container"
+            >
+              Anterior
+            </a>
+          ) : (
+            <span class="inline-flex min-h-10 items-center rounded-xl border border-outline-variant px-4 py-2 text-sm opacity-40">
+              Anterior
+            </span>
+          )}
+
+          <span class="text-sm font-semibold text-on-surface">
+            Página {pagina} de {totalPaginas}
+          </span>
+
+          {pagina < totalPaginas ? (
+            <a
+              href={urlPagina(pagina + 1)}
+              class="inline-flex min-h-10 items-center justify-center rounded-xl border border-outline-variant px-4 py-2 text-sm font-semibold text-on-surface hover:bg-surface-container"
+            >
+              Siguiente
+            </a>
+          ) : (
+            <span class="inline-flex min-h-10 items-center rounded-xl border border-outline-variant px-4 py-2 text-sm opacity-40">
+              Siguiente
+            </span>
+          )}
+        </nav>
+      )
+    }
   </div>
-
-  <noscript>
-    <div
-      class="mt-4 rounded-2xl border border-outline-variant bg-surface-container-lowest p-5 text-sm text-on-surface"
-    >
-      El panel necesita JavaScript para funcionar. Actívalo en el navegador y
-      vuelve a cargar la página.
-    </div>
-  </noscript>
 </LayoutPanel>
-
-<!-- ========================================= -->
-<!-- AJUSTES PARA ENCAJAR EN LAYOUTPANEL -->
-<!-- ========================================= -->
-
-<style is:global>
-  /*
-   * El layout ya aporta el MAIN,
-   * fondo y espaciados generales.
-   *
-   * El componente React 17/27
-   * tenía su propio contenedor
-   * de página completa.
-   *
-   * Neutralizamos aquí su
-   * presentación exterior para
-   * evitar márgenes duplicados.
-   */
-
-  #cba-panel-codigos-root > main {
-    min-height: 0;
-    padding: 0;
-    background: transparent;
-  }
-
-  #cba-panel-codigos-root > main > div {
-    max-width: none;
-  }
-
-  /*
-   * LayoutPanel ya muestra
-   * HeaderPanel con el título,
-   * descripción y navegación.
-   *
-   * No duplicamos esa cabecera
-   * con el encabezado propio
-   * de PanelCodigos.
-   */
-
-  #cba-panel-codigos-root > main > div > header:first-child {
-    display: none;
-  }
-
-  /*
-   * Se mantiene visible
-   * la navegación de las ocho
-   * secciones del módulo.
-   */
-
-  #cba-panel-codigos-root {
-    width: 100%;
-    min-width: 0;
-  }
-
-  @media print {
-    /*
-     * La vista de impresión
-     * controlada por el archivo
-     * 23/27 gestiona el documento.
-     */
-
-    #cba-panel-codigos-root {
-      box-shadow: none;
-    }
-  }
-</style>
-
-<!-- ========================================= -->
-<!-- MONTAJE DE LA APLICACIÓN REACT -->
-<!-- ========================================= -->
-
-<script>
-  import { createElement, useCallback, useState, type ReactNode } from "react";
-
-  import { createRoot } from "react-dom/client";
-
-  import PanelCodigos, {
-    type SeccionPanelCodigos,
-  } from "../../../components/panel/codigos/PanelCodigos";
-
-  import ArticulosCodigosPanel from "../../../components/panel/codigos/ArticulosCodigosPanel";
-
-  import CampanasCodigosPanel from "../../../components/panel/codigos/CampanasCodigosPanel";
-
-  import GeneradorLotesCodigosPanel from "../../../components/panel/codigos/GeneradorLotesCodigosPanel";
-
-  import BoletosCodigosPanel from "../../../components/panel/codigos/BoletosCodigosPanel";
-
-  import EscanerCodigosPanel from "../../../components/panel/codigos/EscanerCodigosPanel";
-
-  import EstadisticasImpresionCodigosPanel from "../../../components/panel/codigos/EstadisticasImpresionCodigosPanel";
-
-  // ==========================================
-  // TIPOS
-  // ==========================================
-
-  interface PermisosModulo {
-    ver: boolean;
-    crear: boolean;
-    editar: boolean;
-    eliminar: boolean;
-    escanear: boolean;
-    premios: boolean;
-    canjear: boolean;
-    imprimir: boolean;
-  }
-
-  // ==========================================
-  // VALIDAR PERMISOS RECIBIDOS
-  // ==========================================
-
-  function leerPermisos(contenedor: HTMLElement): PermisosModulo {
-    const contenido = contenedor.dataset.permisos;
-
-    if (!contenido) {
-      throw new Error("No se ha recibido la configuración de permisos.");
-    }
-
-    const datos: unknown = JSON.parse(contenido);
-
-    if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
-      throw new Error("La configuración de permisos no es válida.");
-    }
-
-    const objeto = datos as Record<string, unknown>;
-
-    /*
-     * Solo true concede visibilidad.
-     *
-     * Los permisos reales siguen
-     * verificándose en las API.
-     */
-
-    return {
-      ver: objeto.ver === true,
-
-      crear: objeto.crear === true,
-
-      editar: objeto.editar === true,
-
-      eliminar: objeto.eliminar === true,
-
-      escanear: objeto.escanear === true,
-
-      premios: objeto.premios === true,
-
-      canjear: objeto.canjear === true,
-
-      imprimir: objeto.imprimir === true,
-    };
-  }
-
-  // ==========================================
-  // PANTALLA DE ACCESO RESTRINGIDO
-  // ==========================================
-
-  function AccesoRestringido({
-    titulo,
-    descripcion,
-  }: {
-    titulo: string;
-    descripcion: string;
-  }) {
-    return createElement(
-      "section",
-      {
-        role: "alert",
-
-        className:
-          "rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-6 shadow-sm sm:p-8",
-      },
-
-      createElement(
-        "h2",
-        {
-          className: "text-lg font-bold text-on-surface",
-        },
-        titulo,
-      ),
-
-      createElement(
-        "p",
-        {
-          className: "mt-3 max-w-xl text-sm leading-6 text-on-surface-variant",
-        },
-        descripcion,
-      ),
-    );
-  }
-
-  // ==========================================
-  // CREAR APLICACIÓN DEL MÓDULO
-  // ==========================================
-
-  function crearAplicacion(permisos: PermisosModulo) {
-    /*
-     * Es necesario montar todos los
-     * componentes bajo una misma
-     * raíz React.
-     *
-     * Astro no puede serializar
-     * una función React en una
-     * propiedad client:load.
-     *
-     * PanelCodigos utiliza
-     * renderSeccion como función.
-     */
-
-    function AplicacionCodigos() {
-      const [seccion, setSeccion] = useState<SeccionPanelCodigos>("inicio");
-
-      const [revisionResumen, setRevisionResumen] = useState(0);
-
-      // ======================================
-      // CAMBIAR DE SECCIÓN
-      // ======================================
-
-      const cambiarSeccion = useCallback((siguiente: SeccionPanelCodigos) => {
-        setSeccion(siguiente);
-
-        /*
-         * Al regresar al resumen
-         * actualizamos las cifras
-         * que consulta PanelCodigos.
-         */
-
-        if (siguiente === "inicio") {
-          setRevisionResumen((anterior) => anterior + 1);
-        }
-      }, []);
-
-      // ======================================
-      // COMPONENTES DE CADA SECCIÓN
-      // ======================================
-
-      const renderSeccion = (actual: SeccionPanelCodigos): ReactNode => {
-        switch (actual) {
-          // ==================================
-          // RESUMEN GENERAL
-          // ==================================
-
-          case "inicio":
-            return null;
-
-          // ==================================
-          // CAMPAÑAS
-          // ==================================
-
-          case "campanas":
-            return createElement(CampanasCodigosPanel, {
-              permisos: {
-                crear: permisos.crear,
-
-                editar: permisos.editar,
-              },
-            });
-
-          // ==================================
-          // ARTÍCULOS
-          // ==================================
-
-          case "articulos":
-            return createElement(ArticulosCodigosPanel, {
-              permisos: {
-                crear: permisos.crear,
-
-                editar: permisos.editar,
-
-                eliminar: permisos.eliminar,
-              },
-            });
-
-          // ==================================
-          // GENERACIÓN DE LOTES
-          // ==================================
-
-          case "lotes":
-            if (!permisos.crear) {
-              /*
-               * PanelCodigos dispone
-               * de una vista básica
-               * para consultar lotes.
-               */
-
-              return null;
-            }
-
-            return createElement(GeneradorLotesCodigosPanel, {
-              permisos: {
-                crear: true,
-              },
-            });
-
-          // ==================================
-          // BOLETOS
-          // ==================================
-
-          case "boletos":
-            return createElement(BoletosCodigosPanel, {
-              permisos: {
-                editar: permisos.editar,
-
-                eliminar: permisos.eliminar,
-              },
-            });
-
-          // ==================================
-          // ESTADÍSTICAS
-          // ==================================
-
-          case "estadisticas":
-            if (!permisos.premios) {
-              return createElement(AccesoRestringido, {
-                titulo: "Estadísticas protegidas",
-
-                descripcion:
-                  "Necesitas el permiso codigos.premios para consultar la información agregada sobre premios.",
-              });
-            }
-
-            return createElement(EstadisticasImpresionCodigosPanel, {
-              vistaInicial: "estadisticas",
-
-              permisos: {
-                ver: true,
-
-                premios: permisos.premios,
-
-                imprimir: permisos.imprimir,
-              },
-            });
-
-          // ==================================
-          // ESCÁNER
-          // ==================================
-
-          case "escaner":
-            if (!permisos.escanear) {
-              return createElement(AccesoRestringido, {
-                titulo: "Escáner restringido",
-
-                descripcion:
-                  "Necesitas el permiso codigos.escanear para acceder a los lectores de boletos.",
-              });
-            }
-
-            return createElement(EscanerCodigosPanel, {
-              modoInicial: permisos.editar ? "venta" : "consulta",
-
-              permisos: {
-                ver: true,
-
-                escanear: permisos.escanear,
-
-                editar: permisos.editar,
-
-                premios: permisos.premios,
-
-                canjear: permisos.canjear,
-              },
-            });
-
-          // ==================================
-          // IMPRESIÓN
-          // ==================================
-
-          case "impresion":
-            if (!permisos.imprimir) {
-              return createElement(AccesoRestringido, {
-                titulo: "Impresión restringida",
-
-                descripcion:
-                  "Necesitas el permiso codigos.imprimir para acceder a la preparación de impresión de boletos.",
-              });
-            }
-
-            return createElement(EstadisticasImpresionCodigosPanel, {
-              vistaInicial: "impresion",
-
-              permisos: {
-                ver: true,
-
-                premios: permisos.premios,
-
-                imprimir: true,
-              },
-            });
-
-          default:
-            return null;
-        }
-      };
-
-      // ======================================
-      // PANEL PRINCIPAL
-      // ======================================
-
-      return createElement(PanelCodigos, {
-        key: revisionResumen,
-
-        seccionInicial: seccion,
-
-        onSeccionChange: cambiarSeccion,
-
-        renderSeccion,
-      });
-    }
-
-    return AplicacionCodigos;
-  }
-
-  // ==========================================
-  // MONTAJE DE REACT
-  // ==========================================
-
-  let raiz: ReturnType<typeof createRoot> | null = null;
-
-  let contenedorMontado: HTMLElement | null = null;
-
-  function montarPanel() {
-    const contenedor = document.getElementById("cba-panel-codigos-root");
-
-    if (!contenedor || contenedor === contenedorMontado) {
-      return;
-    }
-
-    try {
-      const permisos = leerPermisos(contenedor);
-
-      if (!permisos.ver) {
-        throw new Error("No hay permiso de lectura.");
-      }
-
-      const Aplicacion = crearAplicacion(permisos);
-
-      raiz = createRoot(contenedor);
-
-      contenedorMontado = contenedor;
-
-      raiz.render(createElement(Aplicacion));
-    } catch (error) {
-      console.error("Error iniciando Códigos y boletos:", error);
-
-      contenedor.replaceChildren();
-
-      const aviso = document.createElement("div");
-
-      aviso.setAttribute("role", "alert");
-
-      aviso.className =
-        "rounded-2xl border border-error/30 bg-error-container p-6 text-sm text-on-error-container";
-
-      aviso.textContent =
-        "No se ha podido iniciar Códigos y boletos. Comprueba tu sesión, tus permisos o vuelve a cargar la página.";
-
-      contenedor.appendChild(aviso);
-    }
-  }
-
-  // ==========================================
-  // DESMONTAR ANTES DE NAVEGACIÓN ASTRO
-  // ==========================================
-
-  document.addEventListener("astro:before-swap", () => {
-    if (raiz) {
-      raiz.unmount();
-      raiz = null;
-    }
-
-    contenedorMontado = null;
-  });
-
-  // ==========================================
-  // INICIAR
-  // ==========================================
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", montarPanel, {
-      once: true,
-    });
-  } else {
-    montarPanel();
-  }
-
-  document.addEventListener("astro:page-load", montarPanel);
-</script>

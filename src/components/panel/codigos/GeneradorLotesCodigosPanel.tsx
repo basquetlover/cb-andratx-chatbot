@@ -12,24 +12,17 @@ import {
  * C.B. ANDRATX
  * Generador visual de lotes.
  *
- * Archivo 20/27.
+ * FASE 1 — ARCHIVO 1/2
  *
- * Funcionalidades:
+ * Permite generar boletos para:
+ * - Campañas en borrador.
+ * - Campañas activas.
  *
- * - Seleccionar campaña.
- * - Consultar artículos activos.
- * - Añadir diferentes premios.
- * - Configurar cantidades.
- * - Añadir boletos sin premio.
- * - Calcular totales y porcentajes.
- * - Comprobar límites.
- * - Generar lotes mediante API.
- * - Mantener clave de idempotencia.
- * - Consultar lotes recientes.
+ * En ambos casos, las ventas
+ * deben permanecer abiertas.
  *
- * No genera códigos en el navegador.
- * No descifra resultados.
- * No revela premios individuales.
+ * La validación definitiva
+ * se realiza en el backend.
  */
 
 export interface GeneradorLotesCodigosPanelProps {
@@ -47,7 +40,15 @@ export interface GeneradorLotesCodigosPanelProps {
 interface Campana {
   id: string;
   nombre: string;
-  estado: "borrador" | "activa" | "finalizada";
+
+  estado:
+    | "borrador"
+    | "activa"
+    | "finalizada";
+
+  estadoVentas:
+    | "abiertas"
+    | "cerradas";
 }
 
 interface Articulo {
@@ -110,7 +111,9 @@ interface PremioSeleccionado {
 
 interface LineaGeneracion {
   articuloId: string | null;
-  tipoResultado: "premio" | "sin_premio";
+  tipoResultado:
+    | "premio"
+    | "sin_premio";
   cantidad: number;
 }
 
@@ -449,15 +452,6 @@ function obtenerEstadoLote(
 }
 
 function generarClaveOperacion(): string {
-  /*
-   * Necesitamos una clave UUID
-   * para identificar el intento.
-   *
-   * Si el servidor responde con
-   * un error incierto, conservaremos
-   * exactamente esta clave.
-   */
-
   if (
     typeof crypto === "undefined" ||
     typeof crypto.randomUUID !== "function"
@@ -766,12 +760,8 @@ export default function GeneradorLotesCodigosPanel({
     useState(false);
 
   /*
-   * Esta referencia conserva una copia
-   * exacta de la petición enviada.
-   *
-   * Si se pierde la respuesta, un
-   * reintento reutilizará el mismo
-   * contenido y la misma clave UUID.
+   * Conserva una copia exacta de la petición
+   * para evitar duplicaciones por reintentos.
    */
 
   const intentoRef =
@@ -947,26 +937,33 @@ export default function GeneradorLotesCodigosPanel({
   ]);
 
   // ============================================
-  // CAMPAÑAS QUE ADMITEN PREPARACIÓN
+  // CAMPAÑAS DISPONIBLES
   // ============================================
 
   const campanasDisponibles =
     useMemo(() => {
       /*
-       * La preparación de lotes se
-       * presenta únicamente durante
-       * el estado borrador.
+       * Tanto borrador como activa
+       * admiten lotes adicionales,
+       * siempre que las ventas
+       * estén abiertas.
        *
-       * Así evitamos añadir nuevos
-       * premios a una campaña ya
-       * puesta en circulación.
+       * No admitir:
+       * - Campañas finalizadas.
+       * - Campañas con ventas cerradas.
        */
 
       return campanas
         .filter(
           (campana) =>
-            campana.estado ===
-            "borrador",
+            (
+              campana.estado ===
+                "borrador" ||
+              campana.estado ===
+                "activa"
+            ) &&
+            campana.estadoVentas ===
+              "abiertas",
         )
         .sort(
           (a, b) =>
@@ -1130,7 +1127,7 @@ export default function GeneradorLotesCodigosPanel({
 
       if (!campanaId) {
         errores.push(
-          "Selecciona una campaña en borrador.",
+          "Selecciona una campaña en borrador o activa con las ventas abiertas.",
         );
       } else if (
         !campanasDisponibles.some(
@@ -1140,7 +1137,7 @@ export default function GeneradorLotesCodigosPanel({
         )
       ) {
         errores.push(
-          "La campaña seleccionada no está disponible para preparar lotes.",
+          "La campaña seleccionada no permite generar nuevos lotes. Comprueba su estado y que las ventas estén abiertas.",
         );
       }
 
@@ -1371,12 +1368,6 @@ export default function GeneradorLotesCodigosPanel({
     const lineas:
       LineaGeneracion[] = [];
 
-    /*
-     * Cada artículo seleccionado
-     * se transforma en una línea
-     * de resultados premiados.
-     */
-
     for (
       const premio of premios
     ) {
@@ -1394,11 +1385,6 @@ export default function GeneradorLotesCodigosPanel({
       });
     }
 
-    /*
-     * Los boletos sin premio usan
-     * articuloId = null.
-     */
-
     if (
       calculos.sinPremio > 0
     ) {
@@ -1415,15 +1401,6 @@ export default function GeneradorLotesCodigosPanel({
 
     return {
       campanaId,
-
-      /*
-       * La gestión de plantillas
-       * tendrá su propia interfaz.
-       *
-       * Hasta entonces utilizamos
-       * el valor nulo previsto
-       * en el contrato de la API.
-       */
 
       plantillaId: null,
 
@@ -1457,12 +1434,6 @@ export default function GeneradorLotesCodigosPanel({
     ) {
       return;
     }
-
-    /*
-     * Si se está reintentando una
-     * respuesta incierta utilizamos
-     * exactamente la solicitud anterior.
-     */
 
     if (
       !intentoIncierto &&
@@ -1519,15 +1490,6 @@ export default function GeneradorLotesCodigosPanel({
           },
         );
 
-      /*
-       * La API ha confirmado el
-       * resultado de la generación.
-       *
-       * Dejamos el formulario bloqueado
-       * para evitar otro envío mediante
-       * doble clic o pulsando Intro.
-       */
-
       setGeneracionCompletada(
         resultado,
       );
@@ -1555,13 +1517,10 @@ export default function GeneradorLotesCodigosPanel({
           : 0;
 
       /*
-       * Si recibimos un error 500,
-       * 409 o perdemos la conexión,
-       * no sabemos con certeza si
-       * la creación se ha completado.
-       *
-       * Bloqueamos las modificaciones
-       * y conservamos el intento.
+       * Los errores de resultado incierto
+       * conservan la clave de idempotencia
+       * para evitar generar otro lote
+       * por accidente.
        */
 
       const incierto =
@@ -1611,16 +1570,6 @@ export default function GeneradorLotesCodigosPanel({
     ) {
       return;
     }
-
-    /*
-     * Descartar una clave incierta
-     * puede llevar a crear un lote
-     * adicional si el anterior
-     * realmente se había generado.
-     *
-     * Por ello requerimos una
-     * confirmación explícita.
-     */
 
     const confirmadoDescarte =
       window.confirm(
@@ -1901,6 +1850,10 @@ export default function GeneradorLotesCodigosPanel({
                       value={campana.id}
                     >
                       {campana.nombre}
+                      {" — "}
+                      {campana.estado === "activa"
+                        ? "Activa"
+                        : "Borrador"}
                     </option>
                   ),
                 )}
@@ -1909,11 +1862,22 @@ export default function GeneradorLotesCodigosPanel({
               {!cargandoCatalogos &&
                 campanasDisponibles.length === 0 && (
                   <p className="text-xs text-amber-700">
-                    No hay campañas en borrador.
-                    Crea una campaña antes de
-                    generar sus boletos.
+                    No hay campañas disponibles.
+                    Debes tener una campaña
+                    en borrador o activa
+                    con las ventas abiertas.
                   </p>
                 )}
+
+              {campanasDisponibles.length > 0 && (
+                <p className="text-xs leading-5 text-slate-500">
+                  Puedes generar varios lotes
+                  para una misma campaña,
+                  incluso después de activarla,
+                  mientras sus ventas
+                  permanezcan abiertas.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">

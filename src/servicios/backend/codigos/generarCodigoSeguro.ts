@@ -11,6 +11,8 @@ import {
  * C.B. ANDRATX
  * Generación segura de códigos y tokens QR.
  *
+ * FASE 1 — ARCHIVO 2/2
+ *
  * Cada código dispone de:
  *
  * 1. Un identificador visible aleatorio.
@@ -18,11 +20,22 @@ import {
  * 3. Un hash SHA-256 del token.
  * 4. Una URL que se imprimirá como QR.
  *
- * No se incluye información del premio
- * en ninguno de estos identificadores.
+ * El premio NO se incluye:
  *
- * Este servicio debe ejecutarse únicamente
- * en el backend del club.
+ * - En el código visible.
+ * - En el token QR.
+ * - En la URL.
+ *
+ * Este servicio debe ejecutarse
+ * únicamente en el backend del club.
+ *
+ * Los QR nuevos utilizan la página
+ * pública existente:
+ *
+ * /codigos/acceso-bloqueado
+ *
+ * Se mantiene la compatibilidad de
+ * lectura con los QR anteriores.
  */
 
 // ================================================
@@ -32,20 +45,42 @@ import {
 const DOMINIO_CBA =
   "https://cbandratx.es";
 
+/*
+ * Ruta pública oficial.
+ *
+ * Esta página ya existe y utiliza
+ * el layout público del proyecto.
+ */
+
 const RUTA_QR_PROTEGIDO =
+  "/codigos/acceso-bloqueado";
+
+/*
+ * Ruta utilizada anteriormente.
+ *
+ * Se conserva exclusivamente
+ * para reconocer QR ya generados
+ * por el escáner autorizado.
+ *
+ * Los QR nuevos siempre utilizarán
+ * RUTA_QR_PROTEGIDO.
+ */
+
+const RUTA_QR_ANTERIOR =
   "/codigos/bloqueado";
+
+/*
+ * El alfabeto excluye caracteres
+ * visualmente ambiguos:
+ *
+ * I, O, 0 y 1.
+ *
+ * Contiene 32 caracteres.
+ * Cada carácter representa 5 bits.
+ */
 
 const ALFABETO_CODIGO =
   "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-
-/*
- * Se excluyen los caracteres visualmente
- * ambiguos I, O, 0 y 1.
- *
- * El alfabeto contiene 32 caracteres,
- * por lo que cada carácter representa
- * 5 bits de aleatoriedad.
- */
 
 const LONGITUD_CODIGO_ALEATORIO =
   16;
@@ -65,41 +100,58 @@ const EXPRESION_CODIGO_VISIBLE =
 
 export interface CodigoSeguroGenerado {
   /*
-   * Identificador impreso bajo el QR.
+   * Identificador visible.
+   *
+   * Se imprimirá debajo del QR.
    *
    * Ejemplo:
+   *
    * CBA-RG-K7M2-Q9RP-V4X8-B6TN
+   *
+   * No contiene información
+   * sobre el premio.
    */
+
   codigoVisible: string;
 
   /*
    * Token secreto del QR.
    *
-   * Solo debe utilizarse temporalmente
-   * durante la generación y el cifrado.
+   * Se genera aleatoriamente.
    *
-   * Nunca debe almacenarse en claro.
+   * Durante la generación se
+   * utiliza temporalmente en claro.
+   *
+   * El sistema debe almacenarlo
+   * únicamente cifrado.
    */
+
   tokenQr: string;
 
   /*
    * Hash SHA-256 del token.
    *
-   * Se guardará en:
+   * Se guarda en:
+   *
    * codigos.qr_token_hash
    */
+
   tokenQrHash: string;
 
   /*
-   * Contenido que se convertirá en QR.
+   * Contenido completo del QR.
    *
-   * No contiene el premio.
+   * Es una URL del club cuyo fragmento
+   * contiene el token.
+   *
+   * Nunca incluye el premio.
    */
+
   contenidoQr: string;
 }
 
 // ================================================
-// FUNCIONES AUXILIARES
+// OBTENER PREFIJO
 // ================================================
 
 function obtenerPrefijoCodigo(
@@ -119,6 +171,10 @@ function obtenerPrefijoCodigo(
   }
 }
 
+// ================================================
+// GENERACIÓN ALEATORIA SEGURA
+// ================================================
+
 function generarBytesAleatorios(
   cantidad: number,
 ): Uint8Array {
@@ -133,8 +189,8 @@ function generarBytesAleatorios(
   }
 
   /*
-   * Crypto utiliza un generador
-   * criptográficamente seguro.
+   * Utilizamos el generador
+   * criptográfico de Web Crypto.
    *
    * No utilizamos Math.random().
    */
@@ -146,6 +202,10 @@ function generarBytesAleatorios(
 
   return bytes;
 }
+
+// ================================================
+// CONVERSIÓN BASE64URL
+// ================================================
 
 function convertirBase64Url(
   bytes: Uint8Array,
@@ -163,16 +223,21 @@ function convertirBase64Url(
     .replaceAll("=", "");
 }
 
+// ================================================
+// FORMATEAR CÓDIGO VISIBLE
+// ================================================
+
 function separarCodigoEnBloques(
   codigo: string,
 ): string {
-  return codigo
-    .match(/.{1,4}/g)
-    ?.join("-") ?? codigo;
+  return (
+    codigo.match(/.{1,4}/g)?.join("-") ??
+    codigo
+  );
 }
 
 // ================================================
-// GENERACIÓN DEL CÓDIGO VISIBLE
+// GENERAR CÓDIGO VISIBLE
 // ================================================
 
 export function generarCodigoVisible(
@@ -182,18 +247,17 @@ export function generarCodigoVisible(
     obtenerPrefijoCodigo(tipo);
 
   /*
-   * Se generan 16 bytes aleatorios.
+   * Generamos 16 bytes aleatorios.
    *
-   * Cada byte aporta sus 5 bits menos
-   * significativos para seleccionar
-   * un carácter del alfabeto.
+   * De cada byte utilizamos sus
+   * cinco bits menos significativos.
    *
    * Resultado:
    *
-   * 16 caracteres x 5 bits = 80 bits.
+   * 16 caracteres de un alfabeto
+   * de 32 símbolos.
    *
-   * La distribución es uniforme porque
-   * el alfabeto tiene 32 caracteres.
+   * Entropía: 80 bits.
    */
 
   const bytes =
@@ -216,13 +280,11 @@ export function generarCodigoVisible(
       codigoAleatorio,
     );
 
-  return (
-    `${prefijo}-${codigoFormateado}`
-  );
+  return `${prefijo}-${codigoFormateado}`;
 }
 
 // ================================================
-// NORMALIZACIÓN DEL CÓDIGO VISIBLE
+// NORMALIZAR CÓDIGO VISIBLE
 // ================================================
 
 export function normalizarCodigoVisible(
@@ -233,6 +295,10 @@ export function normalizarCodigoVisible(
     .toUpperCase()
     .replace(/\s+/g, "");
 }
+
+// ================================================
+// VALIDAR CÓDIGO VISIBLE
+// ================================================
 
 export function esCodigoVisibleValido(
   codigo: string,
@@ -248,17 +314,24 @@ export function esCodigoVisibleValido(
 }
 
 // ================================================
-// GENERACIÓN DEL TOKEN QR
+// GENERAR TOKEN QR
 // ================================================
 
 export function generarTokenQr(): string {
   /*
-   * Token aleatorio de 32 bytes.
+   * Se generan 32 bytes aleatorios.
    *
-   * 32 bytes = 256 bits de entropía.
+   * 32 bytes = 256 bits.
    *
-   * La conversión Base64URL produce
+   * Base64URL sin relleno produce
    * una cadena de 43 caracteres.
+   *
+   * El token es independiente:
+   *
+   * - Del identificador visible.
+   * - Del lote.
+   * - De la campaña.
+   * - Del resultado premiado.
    */
 
   const bytesToken =
@@ -271,6 +344,10 @@ export function generarTokenQr(): string {
   );
 }
 
+// ================================================
+// VALIDAR TOKEN QR
+// ================================================
+
 export function esTokenQrValido(
   token: unknown,
 ): token is string {
@@ -281,7 +358,7 @@ export function esTokenQrValido(
 }
 
 // ================================================
-// HASH DEL TOKEN QR
+// CALCULAR HASH DEL TOKEN QR
 // ================================================
 
 export async function calcularHashTokenQr(
@@ -294,11 +371,10 @@ export async function calcularHashTokenQr(
   }
 
   /*
-   * Reutilizamos la función SHA-256
-   * que ya existe en el repositorio
-   * para las sesiones de usuarios.
+   * Reutilizamos el servicio SHA-256
+   * que ya existe en el proyecto.
    *
-   * Devuelve 64 caracteres hexadecimales.
+   * No creamos otro sistema de hash.
    */
 
   return calcularHashToken(
@@ -320,22 +396,35 @@ export function construirContenidoQr(
   }
 
   /*
-   * El QR abre una página del club.
+   * La URL pública utiliza:
    *
-   * El token va en el fragmento de URL:
+   * https://cbandratx.es
+   *
+   * Y la ruta:
+   *
+   * /codigos/acceso-bloqueado
+   *
+   * El token se añade al fragmento:
    *
    * #t=TOKEN
    *
-   * Los fragmentos no se envían al
-   * servidor en la petición HTTP.
+   * El fragmento no forma parte
+   * de la petición HTTP.
    *
-   * Por tanto, al abrir la URL con
-   * una cámara externa se cargará
-   * solamente la página de bloqueo.
+   * Por tanto, el servidor recibe
+   * una solicitud de la página
+   * pública sin el token.
    *
-   * El lector oficial podrá extraer
-   * el token y enviarlo a una API
-   * privada mediante POST.
+   * El escáner oficial sí podrá
+   * extraer el token desde el
+   * contenido QR completo.
+   *
+   * La comprobación real del código
+   * deberá realizarse desde
+   * la API privada del club.
+   *
+   * No se añade ningún dato
+   * del premio a esta URL.
    */
 
   const url =
@@ -359,12 +448,46 @@ export function construirContenidoQr(
 }
 
 // ================================================
-// EXTRAER TOKEN DESDE UNA LECTURA
+// COMPROBAR RUTA QR PERMITIDA
+// ================================================
+
+function esRutaQrPermitida(
+  ruta: string,
+): boolean {
+  /*
+   * Los QR nuevos utilizan
+   * acceso-bloqueado.
+   *
+   * Los QR generados anteriormente
+   * pueden seguir utilizando
+   * bloqueado.
+   *
+   * Ambas rutas son reconocidas
+   * por el escáner.
+   *
+   * No se admiten rutas arbitrarias.
+   */
+
+  return (
+    ruta === RUTA_QR_PROTEGIDO ||
+    ruta === RUTA_QR_ANTERIOR
+  );
+}
+
+// ================================================
+// EXTRAER TOKEN QR
 // ================================================
 
 export function extraerTokenQr(
   contenidoLeido: string,
 ): string | null {
+  /*
+   * Limitar el tamaño de las lecturas.
+   *
+   * El escáner no debe procesar
+   * contenidos arbitrariamente grandes.
+   */
+
   if (
     typeof contenidoLeido !== "string" ||
     contenidoLeido.length > 2048
@@ -380,10 +503,11 @@ export function extraerTokenQr(
   }
 
   /*
-   * Se admite el token directamente.
+   * El lector puede enviar
+   * directamente el token.
    *
-   * Esto facilita utilizar lectores
-   * internos que ya lo hayan extraído.
+   * Se admite siempre que cumpla
+   * el formato esperado.
    */
 
   if (esTokenQrValido(contenido)) {
@@ -391,8 +515,13 @@ export function extraerTokenQr(
   }
 
   /*
-   * Se admite la URL oficial del club,
-   * pero no direcciones de terceros.
+   * También se admite una URL.
+   *
+   * Pero debe pertenecer
+   * exactamente al dominio
+   * oficial del club.
+   *
+   * No se admiten dominios externos.
    */
 
   let url: URL;
@@ -406,11 +535,35 @@ export function extraerTokenQr(
   const origenPermitido =
     new URL(DOMINIO_CBA).origin;
 
+  /*
+   * Se comprueba:
+   *
+   * - Dominio oficial.
+   * - Protocolo HTTPS.
+   * - Ruta permitida.
+   * - Ausencia de query string.
+   *
+   * La ruta antigua se acepta
+   * solamente por compatibilidad.
+   */
+
   if (
     url.origin !== origenPermitido ||
-    url.pathname !== RUTA_QR_PROTEGIDO ||
+    url.protocol !== "https:" ||
+    !esRutaQrPermitida(
+      url.pathname,
+    ) ||
     url.search.length > 0
   ) {
+    return null;
+  }
+
+  /*
+   * El token debe encontrarse
+   * únicamente en el fragmento.
+   */
+
+  if (!url.hash) {
     return null;
   }
 
@@ -420,9 +573,15 @@ export function extraerTokenQr(
     );
 
   /*
-   * Solo admitimos un parámetro t.
-   * No aceptamos tokens duplicados
-   * ni parámetros adicionales.
+   * Únicamente se admite:
+   *
+   * #t=TOKEN
+   *
+   * Se rechazan:
+   *
+   * - Tokens repetidos.
+   * - Parámetros adicionales.
+   * - Tokens sin formato válido.
    */
 
   if (
@@ -445,18 +604,21 @@ export function extraerTokenQr(
 }
 
 // ================================================
-// GENERACIÓN COMPLETA DE IDENTIFICADORES
+// GENERACIÓN COMPLETA
 // ================================================
 
 export async function generarCodigoSeguro(
   tipo: TipoCodigoPanel = "rasca_gana",
 ): Promise<CodigoSeguroGenerado> {
   /*
-   * El identificador visible y el token
-   * se generan de manera independiente.
+   * Los identificadores se generan
+   * independientemente.
    *
-   * Ninguno depende del artículo,
-   * premio, posición ni número de lote.
+   * El identificador visible
+   * no permite calcular el token.
+   *
+   * El token tampoco permite
+   * descubrir el premio asociado.
    */
 
   const codigoVisible =
@@ -465,10 +627,21 @@ export async function generarCodigoSeguro(
   const tokenQr =
     generarTokenQr();
 
+  /*
+   * Solo almacenaremos el hash
+   * y la versión cifrada del token
+   * mediante el servicio de lotes.
+   */
+
   const tokenQrHash =
     await calcularHashTokenQr(
       tokenQr,
     );
+
+  /*
+   * La URL contendrá exclusivamente
+   * el token secreto y la ruta pública.
+   */
 
   const contenidoQr =
     construirContenidoQr(
