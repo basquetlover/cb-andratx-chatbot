@@ -1,0 +1,141 @@
+---
+import ListadoDesignaciones from "@components/panel/designaciones/ListadoDesignaciones";
+
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import { obtenerListadoDesignaciones } from "@servicios/backend/designaciones/obtenerListadoDesignaciones";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+export const prerender = false;
+
+const RUTA_ACTUAL = "/panel/designaciones";
+
+// --------------------------------------------------
+// SESIÓN
+// --------------------------------------------------
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(RUTA_ACTUAL)}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error("[DESIGNACIONES] Error comprobando la sesión:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=sesion");
+}
+
+if (!sesion) {
+  Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+    path: "/",
+  });
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(RUTA_ACTUAL)}`,
+  );
+}
+
+// --------------------------------------------------
+// PERMISOS
+// --------------------------------------------------
+
+let puedeVer = false;
+let puedeCrear = false;
+let puedeEditar = false;
+
+try {
+  [puedeVer, puedeCrear, puedeEditar] = await Promise.all([
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.ver"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.crear"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.editar"),
+  ]);
+} catch (error) {
+  console.error("[DESIGNACIONES] Error comprobando permisos:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=permisos");
+}
+
+if (!puedeVer) {
+  return Astro.redirect("/panel/acceso-denegado");
+}
+
+// --------------------------------------------------
+// DATOS INICIALES
+// --------------------------------------------------
+
+const semanaSolicitada = Astro.url.searchParams.get("semana");
+
+let resultadoInicial: Awaited<
+  ReturnType<typeof obtenerListadoDesignaciones>
+> | null = null;
+
+let errorCarga: string | null = null;
+
+try {
+  resultadoInicial = await obtenerListadoDesignaciones({
+    semana: semanaSolicitada,
+  });
+} catch (error) {
+  console.error("[DESIGNACIONES] Error cargando partidos:", error);
+
+  errorCarga = "No se han podido cargar los partidos y designaciones.";
+}
+---
+
+<LayoutPanel
+  title="Designaciones"
+  description="Gestiona los partidos, árbitros y oficiales de mesa del C.B. Andratx."
+  volverA="/panel"
+  textoVolver="Volver al panel"
+  anchoCompleto
+>
+  {
+    resultadoInicial ? (
+      <ListadoDesignaciones
+        client:load
+        resultadoInicial={resultadoInicial}
+        puedeCrear={puedeCrear}
+        puedeEditar={puedeEditar}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm">
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-error mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <h2 class="mt-4 text-xl font-bold">
+            No se han podido cargar las designaciones
+          </h2>
+
+          <p class="mt-2 text-sm">
+            {errorCarga ?? "Ha ocurrido un problema al consultar los partidos."}
+          </p>
+
+          <a
+            href="/panel/designaciones"
+            class="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+          >
+            Volver a intentarlo
+          </a>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

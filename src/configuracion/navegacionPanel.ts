@@ -104,6 +104,17 @@ export const navegacionPanel: EnlacePanel[] = [
     seccion: "principal",
     orden: 7,
   },
+  {
+    id: "designaciones",
+    nombre: "Designaciones",
+    descripcion: "Gestionar designaciones y asignaciones",
+    enlace: "/panel/designaciones",
+    icono: "designaciones",
+    permiso: "designaciones.ver",
+    estado: "activo",
+    seccion: "administracion",
+    orden: 7,
+  },
   // {
   //   id: "codigos",
   //   nombre: "Códigos",

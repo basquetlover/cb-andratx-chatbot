@@ -1,0 +1,280 @@
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import EditorPartidoDesignacion from "@components/panel/designaciones/partidos/EditorPartidoDesignacion";
+
+import {
+  ErrorDetallePartidoDesignacion,
+  obtenerDetallePartidoDesignacion,
+} from "@servicios/backend/designaciones/obtenerDetallePartidoDesignacion";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+import type { ResultadoDetallePartidoDesignacion } from "@servicios/backend/designaciones/obtenerDetallePartidoDesignacion";
+
+export const prerender = false;
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const RUTA_BASE = "/panel/designaciones";
+
+const REGEX_FECHA = /^\d{4}-\d{2}-\d{2}$/;
+
+// ======================================================
+// PARÁMETROS DE LA URL
+// ======================================================
+
+const identificadorPartido =
+  Astro.url.searchParams.get("idPartido")?.trim() ?? "";
+
+const fechaReferencia = Astro.url.searchParams.get("fecha")?.trim() ?? null;
+
+const parametrosRuta = new URLSearchParams();
+
+if (identificadorPartido) {
+  parametrosRuta.set("idPartido", identificadorPartido);
+}
+
+if (fechaReferencia) {
+  parametrosRuta.set("fecha", fechaReferencia);
+}
+
+const rutaActual =
+  parametrosRuta.size > 0
+    ? `${RUTA_BASE}/partido?${parametrosRuta.toString()}`
+    : `${RUTA_BASE}/partido`;
+
+// ======================================================
+// VALIDACIÓN DE FECHA
+// ======================================================
+
+function fechaValida(valor: string): boolean {
+  if (!REGEX_FECHA.test(valor)) {
+    return false;
+  }
+
+  const fecha = new Date(`${valor}T12:00:00Z`);
+
+  return (
+    !Number.isNaN(fecha.getTime()) && fecha.toISOString().slice(0, 10) === valor
+  );
+}
+
+// ======================================================
+// VALIDACIÓN DE SESIÓN
+// ======================================================
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(rutaActual)}`,
+  );
+}
+
+let sesion;
+
+try {
+  sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error("[DESIGNACIONES] Error verificando la sesión:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=sesion");
+}
+
+if (!sesion) {
+  Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+    path: "/",
+  });
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(rutaActual)}`,
+  );
+}
+
+// ======================================================
+// PERMISOS
+// ======================================================
+
+let puedeVer = false;
+let puedeCrear = false;
+let puedeEditar = false;
+let puedeEliminar = false;
+
+try {
+  [puedeVer, puedeCrear, puedeEditar, puedeEliminar] = await Promise.all([
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.ver"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.crear"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.editar"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.eliminar"),
+  ]);
+} catch (error) {
+  console.error("[DESIGNACIONES] Error verificando permisos:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=permisos");
+}
+
+if (!puedeVer) {
+  return Astro.redirect("/panel/acceso-denegado");
+}
+
+// ======================================================
+// CONSULTAR PARTIDO
+// ======================================================
+
+let resultadoInicial: ResultadoDetallePartidoDesignacion | null = null;
+
+let errorCarga: string | null = null;
+
+let estadoError = 200;
+
+if (!identificadorPartido) {
+  errorCarga = "No se ha indicado ningún partido.";
+
+  estadoError = 400;
+} else if (fechaReferencia && !fechaValida(fechaReferencia)) {
+  errorCarga = "La fecha indicada no tiene un formato válido.";
+
+  estadoError = 400;
+} else {
+  try {
+    resultadoInicial = await obtenerDetallePartidoDesignacion(
+      identificadorPartido,
+      fechaReferencia,
+    );
+  } catch (error) {
+    console.error("[DESIGNACIONES] Error cargando el partido:", {
+      identificadorPartido,
+      fechaReferencia,
+      error,
+    });
+
+    if (error instanceof ErrorDetallePartidoDesignacion) {
+      errorCarga = error.message;
+      estadoError = error.status;
+    } else {
+      errorCarga = "Ha ocurrido un error al cargar la información del partido.";
+
+      estadoError = 500;
+    }
+  }
+}
+
+// ======================================================
+// PERMISO PARA MODIFICAR
+// ======================================================
+
+// Un partido FBIB sin guardar necesita
+// permisos de crear y editar.
+//
+// Los partidos ya guardados requieren
+// permiso de edición.
+
+const puedeModificarPartido = resultadoInicial?.partido.guardado
+  ? puedeEditar
+  : puedeCrear && puedeEditar;
+
+// ======================================================
+// RESPUESTA HTTP
+// ======================================================
+
+if (errorCarga) {
+  Astro.response.status = estadoError;
+}
+
+// ======================================================
+// DATOS PARA LAYOUT
+// ======================================================
+
+const partido = resultadoInicial?.partido;
+
+const tituloPagina = partido
+  ? `${partido.equipoLocal} - ${partido.equipoVisitante}`
+  : errorCarga
+    ? "Error al cargar el partido"
+    : "Partido";
+
+const descripcionPagina = partido
+  ? `Designaciones del partido ${partido.numeroPartido}.`
+  : "Consulta y gestión de designaciones.";
+
+const fechaRegreso =
+  partido?.fecha && fechaValida(partido.fecha)
+    ? partido.fecha
+    : fechaReferencia && fechaValida(fechaReferencia)
+      ? fechaReferencia
+      : null;
+
+const rutaRegreso = fechaRegreso
+  ? `${RUTA_BASE}?semana=${encodeURIComponent(fechaRegreso)}`
+  : RUTA_BASE;
+---
+
+<LayoutPanel
+  title={tituloPagina}
+  description={descripcionPagina}
+  volverA={rutaRegreso}
+  textoVolver="Volver a designaciones"
+  anchoCompleto
+>
+  {
+    resultadoInicial ? (
+      <EditorPartidoDesignacion
+        client:load
+        resultadoInicial={resultadoInicial}
+        puedeEditar={puedeModificarPartido}
+        puedeEliminar={puedeEliminar}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div
+          class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8"
+          role="alert"
+        >
+          <span
+            class="mx-auto inline-block h-14 w-14 bg-error mask-center mask-contain mask-no-repeat"
+            style="mask-image: url('/iconos/panel/error.svg'); -webkit-mask-image: url('/iconos/panel/error.svg');"
+            aria-hidden="true"
+          />
+
+          <p class="mt-4 text-sm font-bold uppercase tracking-wide">
+            Error {estadoError}
+          </p>
+
+          <h2 class="mt-2 text-xl font-bold">
+            No se ha podido cargar el partido
+          </h2>
+
+          <p class="mt-3 text-sm leading-relaxed">
+            {errorCarga ?? "El partido solicitado no está disponible."}
+          </p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={rutaActual}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-3 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+            >
+              Volver a intentarlo
+            </a>
+
+            <a
+              href={RUTA_BASE}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-3 text-sm font-bold text-on-error transition-opacity hover:opacity-90"
+            >
+              Volver a designaciones
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>
