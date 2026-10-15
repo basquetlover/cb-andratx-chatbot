@@ -1,0 +1,427 @@
+
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import EstadisticasDesignacionesPanel from "@components/panel/designaciones/estadisticas/EstadisticasDesignacionesPanel";
+
+import {
+  obtenerEstadisticasDesignaciones,
+  ErrorEstadisticasDesignaciones,
+} from "@servicios/backend/designaciones/obtenerEstadisticasDesignaciones";
+
+import type {
+  ResultadoEstadisticasDesignaciones,
+} from "@servicios/backend/designaciones/obtenerEstadisticasDesignaciones";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+import {
+  supabaseServidor,
+} from "@servicios/supabase/servidor";
+
+export const prerender = false;
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const RUTA_ACTUAL =
+  "/panel/designaciones/estadisticas";
+
+const RUTA_BASE =
+  "/panel/designaciones";
+
+const REGEX_UUID =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// ======================================================
+// TIPOS
+// ======================================================
+
+interface TemporadaDisponible {
+  id: string;
+  nombre: string;
+  activa: boolean;
+}
+
+interface FilaTemporada {
+  id: string;
+  nombre: string | null;
+  activa: boolean | null;
+}
+
+// ======================================================
+// SESIÓN
+// ======================================================
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      RUTA_ACTUAL + Astro.url.search,
+    )}`,
+  );
+}
+
+let sesion: Awaited<
+  ReturnType<typeof obtenerUsuarioSesion>
+>;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES ESTADÍSTICAS] Error comprobando sesión:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      RUTA_ACTUAL + Astro.url.search,
+    )}`,
+  );
+}
+
+// ======================================================
+// PERMISOS
+// ======================================================
+
+let puedeVer = false;
+
+try {
+  puedeVer =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "designaciones.ver",
+    );
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES ESTADÍSTICAS] Error comprobando permisos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+
+// ======================================================
+// TEMPORADA SOLICITADA
+// ======================================================
+
+const temporadaParametro =
+  Astro.url.searchParams
+    .get("temporada")
+    ?.trim() ?? null;
+
+const temporadaSolicitada =
+  temporadaParametro &&
+  REGEX_UUID.test(temporadaParametro)
+    ? temporadaParametro
+    : null;
+
+const temporadaInvalida =
+  Boolean(temporadaParametro) &&
+  !temporadaSolicitada;
+
+// ======================================================
+// CARGAR TEMPORADAS
+// ======================================================
+
+let temporadas: TemporadaDisponible[] = [];
+
+let errorCarga: string | null = null;
+
+let estadoError = 200;
+
+if (temporadaInvalida) {
+  errorCarga =
+    "El identificador de temporada no es válido.";
+
+  estadoError = 400;
+} else {
+  try {
+    const { data, error } = await supabaseServidor
+      .from("temporadas")
+      .select("id, nombre, activa")
+      .order("nombre", {
+        ascending: false,
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    temporadas = ((data ?? []) as FilaTemporada[])
+      .map((temporada) => ({
+        id: temporada.id,
+        nombre:
+          temporada.nombre?.trim() ||
+          "Temporada sin nombre",
+        activa:
+          temporada.activa === true,
+      }));
+  } catch (error) {
+    console.error(
+      "[DESIGNACIONES ESTADÍSTICAS] Error consultando temporadas:",
+      error,
+    );
+
+    errorCarga =
+      "No se han podido consultar las temporadas.";
+
+    estadoError = 500;
+  }
+}
+
+// ======================================================
+// CARGAR ESTADÍSTICAS
+// ======================================================
+
+let resultadoInicial:
+  ResultadoEstadisticasDesignaciones | null = null;
+
+if (!errorCarga) {
+  try {
+    resultadoInicial =
+      await obtenerEstadisticasDesignaciones(
+        temporadaSolicitada,
+      );
+  } catch (error) {
+    console.error(
+      "[DESIGNACIONES ESTADÍSTICAS] Error cargando estadísticas:",
+      error,
+    );
+
+    if (
+      error instanceof
+      ErrorEstadisticasDesignaciones
+    ) {
+      errorCarga =
+        error.status >= 500
+          ? "No se han podido calcular las estadísticas."
+          : error.message;
+
+      estadoError = error.status;
+    } else {
+      errorCarga =
+        "Ha ocurrido un error al calcular las estadísticas.";
+
+      estadoError = 500;
+    }
+  }
+}
+
+// ======================================================
+// RESPUESTA HTTP
+// ======================================================
+
+if (errorCarga) {
+  Astro.response.status = estadoError;
+}
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "private, no-store",
+);
+---
+
+<LayoutPanel
+  title="Estadísticas de arbitraje"
+  description="Consulta la actividad de árbitros y oficiales de mesa del C.B. Andratx."
+  volverA={RUTA_BASE}
+  textoVolver="Volver a designaciones"
+  anchoCompleto
+>
+  {
+    resultadoInicial ? (
+      <div class="space-y-6">
+        <!-- ENCABEZADO -->
+
+        <section
+          class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6"
+        >
+          <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 class="text-xl font-extrabold text-on-surface sm:text-2xl">
+                Estadísticas de arbitraje
+              </h2>
+
+              <p class="mt-2 text-sm text-on-surface-variant">
+                Actividad registrada de árbitros y oficiales de mesa durante la temporada.
+              </p>
+            </div>
+
+            <form
+              method="get"
+              action={RUTA_ACTUAL}
+              class="flex flex-wrap items-end gap-3"
+            >
+              <label class="block">
+                <span
+                  class="mb-1.5 block text-xs font-bold uppercase tracking-wide text-on-surface-variant"
+                >
+                  Temporada
+                </span>
+
+                <select
+                  name="temporada"
+                  class="min-h-11 min-w-48 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none focus:border-primary"
+                >
+                  {
+                    temporadas.map((temporada) => (
+                      <option
+                        value={temporada.id}
+                        selected={
+                          temporada.id ===
+                          resultadoInicial.temporada.id
+                        }
+                      >
+                        {temporada.nombre}
+                        {temporada.activa ? " · Actual" : ""}
+                      </option>
+                    ))
+                  }
+                </select>
+              </label>
+
+              <button
+                type="submit"
+                class="min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary transition-opacity hover:opacity-90"
+              >
+                Consultar
+              </button>
+            </form>
+          </div>
+
+          <nav
+            aria-label="Apartados de designaciones"
+            class="mt-6 flex flex-wrap gap-2 border-t border-outline-variant/60 pt-4"
+          >
+            <a
+              href={RUTA_BASE}
+              class="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface-variant transition-colors hover:text-primary"
+            >
+              Partidos
+            </a>
+
+            <a
+              href={`${RUTA_BASE}/personal`}
+              class="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface-variant transition-colors hover:text-primary"
+            >
+              Personal
+            </a>
+
+            <a
+              href={RUTA_ACTUAL}
+              aria-current="page"
+              class="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-on-primary"
+            >
+              Estadísticas
+            </a>
+          </nav>
+        </section>
+
+        <!-- AVISOS -->
+
+        {
+          resultadoInicial.avisos.length > 0 && (
+            <section
+              aria-label="Avisos de estadísticas"
+              class="space-y-2"
+            >
+              {
+                resultadoInicial.avisos.map((aviso) => (
+                  <div
+                    class="rounded-xl border border-outline-variant/60 bg-surface-container-low p-4 text-sm text-on-surface-variant"
+                  >
+                    {aviso}
+                  </div>
+                ))
+              }
+            </section>
+          )
+        }
+
+        <!-- ESTADÍSTICAS -->
+
+        <EstadisticasDesignacionesPanel
+          client:load
+          resultadoInicial={resultadoInicial}
+        />
+      </div>
+    ) : (
+      <section
+        class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8"
+      >
+        <div
+          role="alert"
+          class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8"
+        >
+          <h2 class="text-xl font-extrabold">
+            No se han podido cargar las estadísticas
+          </h2>
+
+          <p class="mt-3 text-sm leading-relaxed">
+            {
+              errorCarga ??
+              "No se han podido obtener los datos de arbitraje."
+            }
+          </p>
+
+          <div class="mt-6 flex flex-wrap justify-center gap-3">
+            <a
+              href={RUTA_ACTUAL}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+            >
+              Volver a intentarlo
+            </a>
+
+            <a
+              href={RUTA_BASE}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 text-sm font-bold text-on-error transition-opacity hover:opacity-90"
+            >
+              Volver a designaciones
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

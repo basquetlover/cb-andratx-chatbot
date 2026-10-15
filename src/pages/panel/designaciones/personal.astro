@@ -1,0 +1,176 @@
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import GestionPersonalDesignaciones from "@components/panel/designaciones/personal/GestionPersonalDesignaciones";
+
+import { obtenerListadoPersonalDesignaciones } from "@servicios/backend/designaciones/obtenerListadoPersonalDesignaciones";
+
+import type { ResultadoListadoPersonalDesignaciones } from "@servicios/backend/designaciones/obtenerListadoPersonalDesignaciones";
+
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import { comprobarPermisoUsuario } from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
+// ======================================================
+// C.B. ANDRATX
+// PANEL - PERSONAL DE DESIGNACIONES
+//
+// Ruta: /panel/designaciones/personal
+//
+// - Verifica sesión y permisos.
+// - Obtiene el personal desde el backend.
+// - Renderiza el gestor React.
+// - No contiene lógica de escritura.
+// ======================================================
+
+export const prerender = false;
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const RUTA_ACTUAL = "/panel/designaciones/personal";
+
+const RUTA_DESIGNACIONES = "/panel/designaciones";
+
+// ======================================================
+// VALIDACIÓN DE SESIÓN
+// ======================================================
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(RUTA_ACTUAL)}`,
+  );
+}
+
+let sesion: Awaited<ReturnType<typeof obtenerUsuarioSesion>>;
+
+try {
+  sesion = await obtenerUsuarioSesion(tokenSesion);
+} catch (error) {
+  console.error("[DESIGNACIONES PERSONAL] Error verificando sesión:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=sesion");
+}
+
+if (!sesion) {
+  Astro.cookies.delete(NOMBRE_COOKIE_SESION, {
+    path: "/",
+  });
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(RUTA_ACTUAL)}`,
+  );
+}
+
+// ======================================================
+// PERMISOS
+// ======================================================
+
+let puedeVer = false;
+let puedeCrear = false;
+let puedeEditar = false;
+
+try {
+  [puedeVer, puedeCrear, puedeEditar] = await Promise.all([
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.ver"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.crear"),
+
+    comprobarPermisoUsuario(sesion.acceso, "designaciones.editar"),
+  ]);
+} catch (error) {
+  console.error("[DESIGNACIONES PERSONAL] Error comprobando permisos:", error);
+
+  return Astro.redirect("/panel/acceso-denegado?motivo=permisos");
+}
+
+if (!puedeVer) {
+  return Astro.redirect("/panel/acceso-denegado");
+}
+
+// ======================================================
+// OBTENER PERSONAL
+// ======================================================
+
+let resultadoInicial: ResultadoListadoPersonalDesignaciones | null = null;
+
+let errorCarga: string | null = null;
+
+try {
+  resultadoInicial = await obtenerListadoPersonalDesignaciones({
+    incluirInactivos: true,
+  });
+} catch (error) {
+  console.error("[DESIGNACIONES PERSONAL] Error obteniendo personal:", error);
+
+  errorCarga =
+    "No se ha podido consultar el listado de árbitros y oficiales de mesa.";
+}
+
+// ======================================================
+// RESPUESTA HTTP
+// ======================================================
+
+if (errorCarga) {
+  Astro.response.status = 500;
+  Astro.response.statusText = "Error al cargar el personal";
+}
+
+Astro.response.headers.set("Cache-Control", "private, no-store");
+---
+
+<LayoutPanel
+  title="Personal de arbitraje"
+  description="Gestiona los árbitros y oficiales de mesa del C.B. Andratx."
+  volverA={RUTA_DESIGNACIONES}
+  textoVolver="Volver a designaciones"
+  anchoCompleto
+>
+  {
+    resultadoInicial ? (
+      <GestionPersonalDesignaciones
+        client:load
+        resultadoInicial={resultadoInicial}
+        puedeCrear={puedeCrear}
+        puedeEditar={puedeEditar}
+      />
+    ) : (
+      <section class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8">
+        <div
+          class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8"
+          role="alert"
+        >
+          <h2 class="text-xl font-extrabold">
+            No se ha podido cargar el personal
+          </h2>
+
+          <p class="mt-3 text-sm leading-relaxed">
+            {errorCarga ??
+              "Ha ocurrido un error al consultar los datos del personal."}
+          </p>
+
+          <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <a
+              href={RUTA_ACTUAL}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+            >
+              Volver a intentarlo
+            </a>
+
+            <a
+              href={RUTA_DESIGNACIONES}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 text-sm font-bold text-on-error transition-opacity hover:opacity-90"
+            >
+              Volver a designaciones
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>

@@ -6,6 +6,14 @@ import {
   useState,
 } from "react";
 
+import GeneradorImagenDesignacion from "@components/panel/designaciones/imagen/GeneradorImagenDesignacion";
+
+import type {
+  FuncionDesignacion,
+  FilaDesignacionImagen,
+  DatosImagenDesignacion,
+} from "@components/panel/designaciones/imagen/GeneradorImagenDesignacion";
+
 import type {
   AsignacionDetalleDesignacion,
   DatosPartidoDesignacion,
@@ -17,10 +25,6 @@ import type {
   InstalacionDesignacion,
 } from "@servicios/backend/designaciones/obtenerInstalacionesDesignaciones";
 
-// ======================================================
-// CONFIGURACIÓN
-// ======================================================
-
 const RUTA_API = "/api/panel/designaciones/partido";
 
 const FUNCIONES = [
@@ -31,6 +35,15 @@ const FUNCIONES = [
   { codigo: "OP", nombre: "Operador de RLL", tipo: "mesa" },
   { codigo: "AY", nombre: "Ayudante de anotador", tipo: "mesa" },
 ] as const;
+
+const CODIGOS_FUNCIONES: FuncionDesignacion[] = [
+  "AP",
+  "AX",
+  "AN",
+  "CR",
+  "OP",
+  "AY",
+];
 
 type Apartado = "datos" | "designaciones" | "imagen";
 type TipoMensaje = "error" | "informacion";
@@ -97,19 +110,21 @@ function nuevaAsignacion(): AsignacionFormulario {
 function normalizarHabilitacion(
   valor: string,
 ): "pista" | "mesa" | "ambos" | "otro" {
-  const texto = valor.trim().toLocaleLowerCase("es");
+  const normalizado = valor.trim().toLocaleLowerCase("es");
 
   if (
-    ["ambos", "ambas", "pista y mesa", "mesa y pista"].includes(texto)
+    ["ambos", "ambas", "pista y mesa", "mesa y pista"].includes(
+      normalizado,
+    )
   ) {
     return "ambos";
   }
 
-  if (["pista", "arbitro", "árbitro"].includes(texto)) {
+  if (["pista", "arbitro", "árbitro"].includes(normalizado)) {
     return "pista";
   }
 
-  if (["mesa", "oficial de mesa"].includes(texto)) {
+  if (["mesa", "oficial de mesa"].includes(normalizado)) {
     return "mesa";
   }
 
@@ -164,6 +179,14 @@ function formatoFecha(valor: string): string {
     year: "numeric",
     timeZone: "UTC",
   }).format(new Date(`${valor}T12:00:00Z`));
+}
+
+function esFuncionDesignacion(
+  valor: string,
+): valor is FuncionDesignacion {
+  return CODIGOS_FUNCIONES.includes(
+    valor as FuncionDesignacion,
+  );
 }
 
 // ======================================================
@@ -244,7 +267,7 @@ function SelectorInstalaciones({
           onChange={(evento) =>
             onChange(evento.target.value || null)
           }
-          className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:opacity-60"
+          className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:opacity-60"
         >
           <option value="">Sin instalación asignada</option>
 
@@ -618,6 +641,111 @@ export default function EditorPartidoDesignacion({
       fila.funcionRealizada,
   ).length;
 
+  // ====================================================
+  // DATOS PARA LA IMAGEN
+  // ====================================================
+
+  const instalacionSeleccionada = instalaciones.find(
+    (instalacion) => instalacion.id === partido.instalacionId,
+  );
+
+  const lugarImagen =
+    instalacionSeleccionada?.nombre ||
+    partido.nombreCampoFbib ||
+    "";
+
+  const datosImagen = useMemo<DatosImagenDesignacion>(
+    () => ({
+      // Categoría + grupo, tal como aparece en
+      // la plantilla original de designaciones.
+      //
+      // Ejemplo:
+      // Mini - Preferente-G. C
+
+      grupo:
+        [partido.categoria, partido.grupo]
+          .map((valor) => valor?.trim())
+          .filter(Boolean)
+          .join(" - ") || null,
+
+      jornada:
+        partido.jornada || null,
+
+      fecha:
+        partido.fecha || null,
+
+      hora:
+        partido.hora || null,
+
+      lugar:
+        lugarImagen || null,
+
+      equipoLocal:
+        partido.equipoLocal || null,
+
+      equipoVisitante:
+        partido.equipoVisitante || null,
+
+      numeroPartido:
+        partido.numeroPartido || null,
+
+      fechaGeneracion: null,
+
+      // Estado de cambios sin guardar
+      // del formulario actual.
+      modificado,
+    }),
+    [
+      partido.categoria,
+      partido.grupo,
+      partido.jornada,
+      partido.fecha,
+      partido.hora,
+      partido.equipoLocal,
+      partido.equipoVisitante,
+      partido.numeroPartido,
+      lugarImagen,
+      modificado,
+    ],
+  );
+
+  const designacionesImagen = useMemo<FilaDesignacionImagen[]>(
+    () =>
+      asignaciones.flatMap((asignacion) => {
+        if (
+          !asignacion.personaId ||
+          !esFuncionDesignacion(
+            asignacion.funcionDesignada,
+          )
+        ) {
+          return [];
+        }
+
+        const persona = personal.find(
+          (elemento) =>
+            elemento.id === asignacion.personaId,
+        );
+
+        if (!persona) {
+          return [];
+        }
+
+        return [
+          {
+            funcion: asignacion.funcionDesignada,
+            nombreCompleto: persona.nombreCompleto,
+          },
+        ];
+      }),
+    [asignaciones, personal],
+  );
+
+  const imagenDisponible =
+    partido.guardado &&
+    !modificado &&
+    !guardando &&
+    designacionesImagen.length > 0;
+
   function marcarModificado() {
     setModificado(true);
     setMensaje(null);
@@ -677,8 +805,11 @@ export default function EditorPartidoDesignacion({
   async function guardarCambios() {
     if (!puedeEditar || guardandoRef.current) return;
 
-    if (!partido.fecha || !partido.equipoLocal.trim() ||
-        !partido.equipoVisitante.trim()) {
+    if (
+      !partido.fecha ||
+      !partido.equipoLocal.trim() ||
+      !partido.equipoVisitante.trim()
+    ) {
       setApartado("datos");
       setMensaje({
         tipo: "error",
@@ -773,17 +904,16 @@ export default function EditorPartidoDesignacion({
       const resultado =
         (await respuesta.json()) as RespuestaGuardado;
 
-      if (!respuesta.ok || !resultado.ok ||
-          !resultado.data?.idPartido) {
+      if (
+        !respuesta.ok ||
+        !resultado.ok ||
+        !resultado.data?.idPartido
+      ) {
         throw new Error(
           resultado.error ||
             "No se han podido guardar las designaciones.",
         );
       }
-
-      // Recargar la ficha después del guardado
-      // permite recuperar los UUID reales de las
-      // nuevas asignaciones y evita duplicarlas.
 
       setModificado(false);
 
@@ -927,7 +1057,7 @@ export default function EditorPartidoDesignacion({
         ))}
       </nav>
 
-      {/* DATOS */}
+      {/* DATOS DEL PARTIDO */}
 
       {apartado === "datos" && (
         <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
@@ -1023,7 +1153,7 @@ export default function EditorPartidoDesignacion({
             />
           </div>
 
-          {/* INSTALACIÓN REAL */}
+          {/* INSTALACIÓN */}
 
           <div className="mt-6 border-t border-outline-variant/60 pt-5">
             <h4 className="font-bold text-on-surface">
@@ -1263,25 +1393,92 @@ export default function EditorPartidoDesignacion({
         </section>
       )}
 
-      {/* IMAGEN */}
+      {/* IMAGEN DE DESIGNACIONES */}
 
       {apartado === "imagen" && (
-        <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-6 text-center shadow-sm">
-          <h3 className="text-lg font-bold text-on-surface">
-            Imagen de designaciones
-          </h3>
+        <section className="space-y-4">
+          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
+            <h3 className="text-lg font-bold text-on-surface">
+              Imagen de designaciones
+            </h3>
 
-          <p className="mx-auto mt-3 max-w-lg text-sm text-on-surface-variant">
-            La generación de la imagen se incorporará
-            utilizando los datos del partido y las
-            personas designadas.
-          </p>
-
-          <div className="mx-auto mt-6 flex aspect-[1414/2000] max-w-sm items-center justify-center rounded-xl border border-dashed border-outline-variant bg-surface-container-low">
-            <p className="text-sm text-on-surface-variant">
-              Vista previa pendiente
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Vista previa y descarga de la designación
+              en formato PNG, con la plantilla del C.B. Andratx.
             </p>
           </div>
+
+          {modificado && (
+            <div
+              role="alert"
+              className="rounded-xl border border-error/40 bg-error-container p-4 text-sm text-on-error-container"
+            >
+              Hay cambios sin guardar.
+              Guarda las modificaciones antes de descargar
+              la imagen para evitar publicar una designación
+              que no coincida con los datos registrados.
+            </div>
+          )}
+
+          {!partido.guardado && (
+            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+              Este partido todavía no está guardado en el sistema.
+              Registra primero las designaciones.
+            </div>
+          )}
+
+          {designacionesImagen.length === 0 && (
+            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
+              No hay personas designadas.
+              Añade al menos una designación para generar la imagen.
+            </div>
+          )}
+
+          {imagenDisponible ? (
+            <GeneradorImagenDesignacion
+              datos={datosImagen}
+              designaciones={designacionesImagen}
+              escudoSrc="/favicon.svg"
+              nombreClub="CLUB BÀSQUET ANDRATX"
+              mostrarBotonDescarga
+            />
+          ) : (
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest px-5 py-12 text-center">
+              <h4 className="text-lg font-bold text-on-surface">
+                Imagen no disponible
+              </h4>
+
+              <p className="mx-auto mt-3 max-w-lg text-sm text-on-surface-variant">
+                Para generar el PNG, el partido debe estar
+                guardado y tener al menos una persona designada,
+                sin modificaciones pendientes.
+              </p>
+
+              {modificado && puedeEditar && (
+                <button
+                  type="button"
+                  disabled={guardando}
+                  onClick={guardarCambios}
+                  className="mt-5 min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary disabled:opacity-50"
+                >
+                  {guardando
+                    ? "Guardando..."
+                    : "Guardar cambios"}
+                </button>
+              )}
+
+              {designacionesImagen.length === 0 &&
+                puedeEditar && (
+                  <button
+                    type="button"
+                    onClick={() => setApartado("designaciones")}
+                    className="mt-5 ml-2 min-h-11 rounded-xl border border-primary px-5 text-sm font-bold text-primary"
+                  >
+                    Ir a designaciones
+                  </button>
+                )}
+            </div>
+          )}
         </section>
       )}
     </div>

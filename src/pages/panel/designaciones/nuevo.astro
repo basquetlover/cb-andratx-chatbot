@@ -1,0 +1,355 @@
+
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import FormularioNuevoPartidoCba from "@components/panel/designaciones/partidos/FormularioNuevoPartidoCba";
+
+import {
+  obtenerDatosCreacionPartidoCba,
+  ErrorDatosCreacionPartidoCba,
+} from "@servicios/backend/designaciones/obtenerDatosCreacionPartidoCba";
+
+import type {
+  DatosCreacionPartidoCba,
+} from "@servicios/backend/designaciones/obtenerDatosCreacionPartidoCba";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+// ======================================================
+// C.B. ANDRATX
+// PANEL - CREAR PARTIDO MANUAL
+//
+// Ruta: /panel/designaciones/nuevo
+//
+// La página:
+// - Comprueba la sesión.
+// - Verifica el permiso de creación.
+// - Obtiene datos iniciales del backend.
+// - Renderiza el formulario React.
+// - No realiza escrituras directamente.
+// ======================================================
+
+export const prerender = false;
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const RUTA_ACTUAL =
+  "/panel/designaciones/nuevo";
+
+const RUTA_DESIGNACIONES =
+  "/panel/designaciones";
+
+// ======================================================
+// SESIÓN
+// ======================================================
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      RUTA_ACTUAL,
+    )}`,
+  );
+}
+
+let sesion: Awaited<
+  ReturnType<typeof obtenerUsuarioSesion>
+>;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES CBA] Error comprobando sesión:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      RUTA_ACTUAL,
+    )}`,
+  );
+}
+
+// ======================================================
+// PERMISOS
+// ======================================================
+
+let puedeVer = false;
+let puedeCrear = false;
+
+try {
+  [
+    puedeVer,
+    puedeCrear,
+  ] = await Promise.all([
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "designaciones.ver",
+    ),
+
+    comprobarPermisoUsuario(
+      sesion.acceso,
+      "designaciones.crear",
+    ),
+  ]);
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES CBA] Error comprobando permisos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer || !puedeCrear) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+
+// ======================================================
+// CARGAR DATOS DEL FORMULARIO
+// ======================================================
+
+let datosIniciales:
+  DatosCreacionPartidoCba | null = null;
+
+let errorCarga: string | null = null;
+
+let estadoError = 200;
+
+try {
+  datosIniciales =
+    await obtenerDatosCreacionPartidoCba();
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES CBA] Error preparando la creación:",
+    error,
+  );
+
+  if (
+    error instanceof
+    ErrorDatosCreacionPartidoCba
+  ) {
+    errorCarga = error.message;
+    estadoError = error.status;
+  } else {
+    errorCarga =
+      "No se han podido cargar los datos necesarios para crear el partido.";
+
+    estadoError = 500;
+  }
+}
+
+// ======================================================
+// RESPUESTA HTTP
+// ======================================================
+
+if (errorCarga) {
+  Astro.response.status = estadoError;
+}
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "private, no-store",
+);
+---
+
+<LayoutPanel
+  title="Crear partido CBA"
+  description="Registra un partido manual para gestionar sus designaciones de árbitros y oficiales de mesa."
+  volverA={RUTA_DESIGNACIONES}
+  textoVolver="Volver a designaciones"
+  anchoCompleto
+>
+  {
+    datosIniciales ? (
+      <div class="mx-auto max-w-5xl space-y-5">
+        <!-- INFORMACIÓN DE TEMPORADA -->
+
+        <section
+          class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6"
+        >
+          <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 class="text-xl font-extrabold text-on-surface">
+                Nuevo partido manual
+              </h2>
+
+              <p class="mt-2 text-sm leading-relaxed text-on-surface-variant">
+                Introduce los datos del partido. Una vez guardado,
+                podrás designar árbitros y oficiales de mesa desde
+                su ficha.
+              </p>
+            </div>
+
+            <span
+              class="rounded-xl bg-primary-fixed px-4 py-2 text-sm font-bold text-on-primary-fixed"
+            >
+              Partido CBA
+            </span>
+          </div>
+
+          <div
+            class="mt-5 grid gap-3 border-t border-outline-variant/60 pt-5 sm:grid-cols-2"
+          >
+            <div class="rounded-xl bg-surface-container-low p-4">
+              <p
+                class="text-xs font-bold uppercase tracking-wide text-on-surface-variant"
+              >
+                Temporada activa
+              </p>
+
+              <p class="mt-2 text-base font-extrabold text-on-surface">
+                {datosIniciales.temporada.nombre}
+              </p>
+            </div>
+
+            <div class="rounded-xl bg-surface-container-low p-4">
+              <p
+                class="text-xs font-bold uppercase tracking-wide text-on-surface-variant"
+              >
+                Próximo número orientativo
+              </p>
+
+              <p
+                class="mt-2 text-base font-extrabold tabular-nums text-on-surface"
+              >
+                {datosIniciales.siguienteNumeroOrientativo}
+              </p>
+
+              <p class="mt-1 text-xs text-on-surface-variant">
+                El número definitivo se asigna al guardar.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <!-- AVISOS -->
+
+        {
+          datosIniciales.avisos.length > 0 && (
+            <section
+              aria-label="Información de creación"
+              class="space-y-2"
+            >
+              {datosIniciales.avisos.map((aviso) => (
+                <div
+                  class="rounded-xl border border-outline-variant/60 bg-surface-container-low p-4 text-sm text-on-surface-variant"
+                >
+                  {aviso}
+                </div>
+              ))}
+            </section>
+          )
+        }
+
+        <!-- FORMULARIO -->
+
+        {
+          datosIniciales.equipos.length > 0 ? (
+            <FormularioNuevoPartidoCba
+              client:load
+              datosIniciales={datosIniciales}
+            />
+          ) : (
+            <section
+              role="alert"
+              class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-6 text-center shadow-sm"
+            >
+              <h3 class="text-lg font-extrabold text-on-surface">
+                No hay equipos designables
+              </h3>
+
+              <p
+                class="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-on-surface-variant"
+              >
+                Para crear un partido manual, debe existir al
+                menos un equipo activo y habilitado para
+                designaciones en la temporada actual.
+              </p>
+
+              <a
+                href={RUTA_DESIGNACIONES}
+                class="mt-5 inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 text-sm font-bold text-on-primary transition-opacity hover:opacity-90"
+              >
+                Volver a designaciones
+              </a>
+            </section>
+          )
+        }
+      </div>
+    ) : (
+      <section
+        class="mx-auto flex min-h-[calc(100dvh-15rem)] max-w-xl items-center justify-center py-8"
+      >
+        <div
+          role="alert"
+          class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8"
+        >
+          <h2 class="text-xl font-extrabold">
+            No se puede crear el partido
+          </h2>
+
+          <p class="mt-3 text-sm leading-relaxed">
+            {
+              errorCarga ??
+              "No se han podido obtener los datos del formulario."
+            }
+          </p>
+
+          <div class="mt-6 flex flex-wrap justify-center gap-3">
+            <a
+              href={RUTA_ACTUAL}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+            >
+              Volver a intentarlo
+            </a>
+
+            <a
+              href={RUTA_DESIGNACIONES}
+              class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 text-sm font-bold text-on-error transition-opacity hover:opacity-90"
+            >
+              Volver a designaciones
+            </a>
+          </div>
+        </div>
+      </section>
+    )
+  }
+</LayoutPanel>
