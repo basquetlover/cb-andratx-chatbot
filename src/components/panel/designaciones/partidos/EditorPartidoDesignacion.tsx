@@ -1,17 +1,16 @@
-
 import {
-  useEffect,
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 
 import GeneradorImagenDesignacion from "@components/panel/designaciones/imagen/GeneradorImagenDesignacion";
 
 import type {
-  FuncionDesignacion,
   FilaDesignacionImagen,
   DatosImagenDesignacion,
+  FuncionDesignacion,
 } from "@components/panel/designaciones/imagen/GeneradorImagenDesignacion";
 
 import type {
@@ -25,33 +24,72 @@ import type {
   InstalacionDesignacion,
 } from "@servicios/backend/designaciones/obtenerInstalacionesDesignaciones";
 
-const RUTA_API = "/api/panel/designaciones/partido";
+import {
+  compararPersonalPorCodigo,
+} from "@servicios/backend/designaciones/ordenarPersonalPorCodigo";
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const API = "/api/panel/designaciones/partido";
 
 const FUNCIONES = [
-  { codigo: "AP", nombre: "Árbitro principal", tipo: "pista" },
-  { codigo: "AX", nombre: "Árbitro auxiliar", tipo: "pista" },
-  { codigo: "AN", nombre: "Anotador", tipo: "mesa" },
-  { codigo: "CR", nombre: "Cronometrador", tipo: "mesa" },
-  { codigo: "OP", nombre: "Operador de RLL", tipo: "mesa" },
-  { codigo: "AY", nombre: "Ayudante de anotador", tipo: "mesa" },
+  {
+    codigo: "AP",
+    nombre: "Árbitro principal",
+    tipo: "pista",
+  },
+  {
+    codigo: "AX",
+    nombre: "Árbitro auxiliar",
+    tipo: "pista",
+  },
+  {
+    codigo: "AN",
+    nombre: "Anotador",
+    tipo: "mesa",
+  },
+  {
+    codigo: "CR",
+    nombre: "Cronometrador",
+    tipo: "mesa",
+  },
+  {
+    codigo: "OP",
+    nombre: "Operador de RLL",
+    tipo: "mesa",
+  },
+  {
+    codigo: "AY",
+    nombre: "Ayudante de anotador",
+    tipo: "mesa",
+  },
 ] as const;
 
-const CODIGOS_FUNCIONES: FuncionDesignacion[] = [
-  "AP",
-  "AX",
-  "AN",
-  "CR",
-  "OP",
-  "AY",
-];
+const NIVELES = [
+  "Escuela",
+  "Iniciación",
+  "Auxiliar",
+  "Entrenador",
+  "Técnico",
+  "Responsable",
+] as const;
 
-type Apartado = "datos" | "designaciones" | "imagen";
-type TipoMensaje = "error" | "informacion";
+const CAMPO =
+  "min-h-11 w-full rounded-xl border border-outline-variant " +
+  "bg-surface-container-lowest px-3 py-2 text-sm text-on-surface " +
+  "outline-none focus:border-primary disabled:opacity-60";
 
-interface Mensaje {
-  tipo: TipoMensaje;
-  texto: string;
-}
+type Apartado =
+  | "datos"
+  | "designaciones"
+  | "imagen";
+
+type Estado =
+  | "sin_designar"
+  | "pendiente"
+  | "realizado";
 
 interface Props {
   resultadoInicial: ResultadoDetallePartidoDesignacion;
@@ -83,7 +121,7 @@ interface RespuestaGuardado {
 // UTILIDADES
 // ======================================================
 
-function convertirAsignacion(
+function asignacionInicial(
   asignacion: AsignacionDetalleDesignacion,
 ): AsignacionFormulario {
   return {
@@ -107,70 +145,38 @@ function nuevaAsignacion(): AsignacionFormulario {
   };
 }
 
-function normalizarHabilitacion(
+function esFuncion(
   valor: string,
-): "pista" | "mesa" | "ambos" | "otro" {
-  const normalizado = valor.trim().toLocaleLowerCase("es");
-
-  if (
-    ["ambos", "ambas", "pista y mesa", "mesa y pista"].includes(
-      normalizado,
-    )
-  ) {
-    return "ambos";
-  }
-
-  if (["pista", "arbitro", "árbitro"].includes(normalizado)) {
-    return "pista";
-  }
-
-  if (["mesa", "oficial de mesa"].includes(normalizado)) {
-    return "mesa";
-  }
-
-  return "otro";
-}
-
-function esPreferido(
-  persona: PersonalDisponibleDesignacion,
-  funcion: string,
-): boolean {
-  const configuracion = FUNCIONES.find(
-    (elemento) => elemento.codigo === funcion,
-  );
-
-  if (!configuracion) return true;
-
-  const habilitacion = normalizarHabilitacion(
-    persona.habilitacion,
-  );
-
-  return (
-    habilitacion === "ambos" ||
-    habilitacion === configuracion.tipo
+): valor is FuncionDesignacion {
+  return FUNCIONES.some(
+    (funcion) => funcion.codigo === valor,
   );
 }
 
-function calcularEstado(
+function estadoAsignaciones(
   asignaciones: AsignacionFormulario[],
-): "sin_designar" | "pendiente" | "realizado" {
+): Estado {
   const completas = asignaciones.filter(
     (asignacion) =>
-      asignacion.personaId && asignacion.funcionDesignada,
+      asignacion.personaId &&
+      asignacion.funcionDesignada,
   );
 
-  if (completas.length === 0) return "sin_designar";
+  if (!completas.length) {
+    return "sin_designar";
+  }
 
   return completas.every(
-    (asignacion) => Boolean(asignacion.funcionRealizada),
+    (asignacion) =>
+      Boolean(asignacion.funcionRealizada),
   )
     ? "realizado"
     : "pendiente";
 }
 
-function formatoFecha(valor: string): string {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(valor)) {
-    return valor || "Sin fecha";
+function fechaLegible(fecha: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) {
+    return fecha || "Sin fecha";
   }
 
   return new Intl.DateTimeFormat("es-ES", {
@@ -178,173 +184,58 @@ function formatoFecha(valor: string): string {
     month: "long",
     year: "numeric",
     timeZone: "UTC",
-  }).format(new Date(`${valor}T12:00:00Z`));
-}
-
-function esFuncionDesignacion(
-  valor: string,
-): valor is FuncionDesignacion {
-  return CODIGOS_FUNCIONES.includes(
-    valor as FuncionDesignacion,
+  }).format(
+    new Date(`${fecha}T12:00:00Z`),
   );
 }
 
 // ======================================================
-// CAMPOS DE TEXTO
+// COMPONENTES DE CAMPOS
 // ======================================================
-
-interface CampoProps {
-  titulo: string;
-  valor: string;
-  tipo?: string;
-  disabled?: boolean;
-  onChange: (valor: string) => void;
-}
 
 function Campo({
   titulo,
-  valor,
-  tipo = "text",
-  disabled = false,
-  onChange,
-}: CampoProps) {
+  children,
+}: {
+  titulo: string;
+  children: ReactNode;
+}) {
   return (
-    <label className="block min-w-0">
-      <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+    <label className="block min-w-0 space-y-1.5">
+      <span className="block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
         {titulo}
       </span>
 
-      <input
-        type={tipo}
-        value={valor}
-        disabled={disabled}
-        onChange={(evento) => onChange(evento.target.value)}
-        className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none transition-colors focus:border-primary disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:text-on-surface-variant"
-      />
+      {children}
     </label>
   );
 }
 
-// ======================================================
-// SELECTOR DE INSTALACIONES
-// ======================================================
-
-interface SelectorInstalacionesProps {
-  valor: string | null;
-  instalaciones: InstalacionDesignacion[];
-  disabled: boolean;
-  onChange: (valor: string | null) => void;
-}
-
-function SelectorInstalaciones({
+function Texto({
+  titulo,
   valor,
-  instalaciones,
   disabled,
+  tipo = "text",
   onChange,
-}: SelectorInstalacionesProps) {
-  const seleccionada = instalaciones.find(
-    (instalacion) => instalacion.id === valor,
-  );
-
-  const activas = instalaciones.filter(
-    (instalacion) => instalacion.activa,
-  );
-
-  const inactivas = instalaciones.filter(
-    (instalacion) => !instalacion.activa,
-  );
-
+}: {
+  titulo: string;
+  valor: string;
+  disabled: boolean;
+  tipo?: string;
+  onChange: (valor: string) => void;
+}) {
   return (
-    <div className="space-y-3">
-      <label className="block">
-        <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-          Instalación del club
-        </span>
-
-        <select
-          value={valor ?? ""}
-          disabled={disabled}
-          onChange={(evento) =>
-            onChange(evento.target.value || null)
-          }
-          className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-surface-container-low disabled:opacity-60"
-        >
-          <option value="">Sin instalación asignada</option>
-
-          <optgroup label="Instalaciones activas">
-            {activas.map((instalacion) => (
-              <option
-                key={instalacion.id}
-                value={instalacion.id}
-              >
-                {instalacion.etiqueta}
-              </option>
-            ))}
-          </optgroup>
-
-          {inactivas.length > 0 && (
-            <optgroup label="Instalaciones anteriores">
-              {inactivas.map((instalacion) => (
-                <option
-                  key={instalacion.id}
-                  value={instalacion.id}
-                  disabled={instalacion.id !== valor}
-                >
-                  {instalacion.etiqueta} (inactiva)
-                </option>
-              ))}
-            </optgroup>
-          )}
-        </select>
-      </label>
-
-      {seleccionada ? (
-        <div className="rounded-xl bg-surface-container-low p-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-sm font-bold text-on-surface">
-              {seleccionada.nombre}
-            </p>
-
-            {!seleccionada.activa && (
-              <span className="rounded-md bg-surface-container-high px-2 py-1 text-xs font-bold text-on-surface-variant">
-                Inactiva
-              </span>
-            )}
-          </div>
-
-          {seleccionada.nombreCorto &&
-            seleccionada.nombreCorto !== seleccionada.nombre && (
-              <p className="mt-1 text-xs text-on-surface-variant">
-                {seleccionada.nombreCorto}
-              </p>
-            )}
-
-          {(seleccionada.direccion || seleccionada.localidad) && (
-            <p className="mt-2 text-sm text-on-surface-variant">
-              {[seleccionada.direccion, seleccionada.localidad]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          )}
-        </div>
-      ) : valor ? (
-        <p className="text-sm text-error">
-          La instalación guardada ya no existe en el listado.
-          Selecciona otra antes de guardar.
-        </p>
-      ) : (
-        <p className="text-xs text-on-surface-variant">
-          Selecciona una pista registrada en el club.
-          Si todavía no se ha determinado, puedes dejarla vacía.
-        </p>
-      )}
-
-      {activas.length === 0 && (
-        <p className="text-sm text-on-surface-variant">
-          Actualmente no hay instalaciones activas.
-        </p>
-      )}
-    </div>
+    <Campo titulo={titulo}>
+      <input
+        type={tipo}
+        value={valor}
+        disabled={disabled}
+        onChange={(evento) =>
+          onChange(evento.target.value)
+        }
+        className={CAMPO}
+      />
+    </Campo>
   );
 }
 
@@ -352,25 +243,25 @@ function SelectorInstalaciones({
 // SELECTOR DE FUNCIONES
 // ======================================================
 
-interface SelectorFuncionProps {
-  valor: string;
-  disabled: boolean;
-  permitirVacio?: boolean;
-  onChange: (valor: string) => void;
-}
-
 function SelectorFuncion({
   valor,
   disabled,
   permitirVacio = false,
   onChange,
-}: SelectorFuncionProps) {
+}: {
+  valor: string;
+  disabled: boolean;
+  permitirVacio?: boolean;
+  onChange: (valor: string) => void;
+}) {
   return (
     <select
       value={valor}
       disabled={disabled}
-      onChange={(evento) => onChange(evento.target.value)}
-      className="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 text-sm text-on-surface outline-none focus:border-primary disabled:opacity-60"
+      onChange={(evento) =>
+        onChange(evento.target.value)
+      }
+      className={CAMPO}
     >
       <option value="">
         {permitirVacio
@@ -379,7 +270,10 @@ function SelectorFuncion({
       </option>
 
       {FUNCIONES.map((funcion) => (
-        <option key={funcion.codigo} value={funcion.codigo}>
+        <option
+          key={funcion.codigo}
+          value={funcion.codigo}
+        >
           {funcion.codigo} · {funcion.nombre}
         </option>
       ))}
@@ -388,16 +282,158 @@ function SelectorFuncion({
 }
 
 // ======================================================
-// SELECTOR DE PERSONAL
+// SELECTOR DE NIVEL
 // ======================================================
 
-interface SelectorPersonalProps {
+function SelectorNivel({
+  titulo,
+  valor,
+  disabled,
+  onChange,
+}: {
+  titulo: string;
   valor: string;
-  funcion: string;
-  personal: PersonalDisponibleDesignacion[];
   disabled: boolean;
-  onChange: (id: string) => void;
+  onChange: (valor: string) => void;
+}) {
+  const anterior =
+    valor !== "" &&
+    !NIVELES.some((nivel) => nivel === valor);
+
+  return (
+    <Campo titulo={titulo}>
+      <select
+        value={valor}
+        disabled={disabled}
+        onChange={(evento) =>
+          onChange(evento.target.value)
+        }
+        className={CAMPO}
+      >
+        <option value="">
+          Sin nivel mínimo
+        </option>
+
+        {anterior && (
+          <option value={valor}>
+            {valor} (anterior)
+          </option>
+        )}
+
+        {NIVELES.map((nivel, indice) => (
+          <option key={nivel} value={nivel}>
+            {indice + 1}. {nivel}
+          </option>
+        ))}
+      </select>
+    </Campo>
+  );
 }
+
+// ======================================================
+// SELECTOR DE INSTALACIONES
+// ======================================================
+
+function SelectorInstalacion({
+  valor,
+  instalaciones,
+  disabled,
+  onChange,
+}: {
+  valor: string | null;
+  instalaciones: InstalacionDesignacion[];
+  disabled: boolean;
+  onChange: (valor: string | null) => void;
+}) {
+  const seleccionada = instalaciones.find(
+    (instalacion) =>
+      instalacion.id === valor,
+  );
+
+  return (
+    <div className="space-y-2">
+      <Campo titulo="Instalación del club">
+        <select
+          value={valor ?? ""}
+          disabled={disabled}
+          className={CAMPO}
+          onChange={(evento) =>
+            onChange(evento.target.value || null)
+          }
+        >
+          <option value="">
+            Sin instalación asignada
+          </option>
+
+          <optgroup label="Instalaciones activas">
+            {instalaciones
+              .filter(
+                (instalacion) =>
+                  instalacion.activa,
+              )
+              .map((instalacion) => (
+                <option
+                  key={instalacion.id}
+                  value={instalacion.id}
+                >
+                  {instalacion.etiqueta}
+                </option>
+              ))}
+          </optgroup>
+
+          {instalaciones.some(
+            (instalacion) => !instalacion.activa,
+          ) && (
+            <optgroup label="Instalaciones anteriores">
+              {instalaciones
+                .filter(
+                  (instalacion) =>
+                    !instalacion.activa,
+                )
+                .map((instalacion) => (
+                  <option
+                    key={instalacion.id}
+                    value={instalacion.id}
+                    disabled={
+                      instalacion.id !== valor
+                    }
+                  >
+                    {instalacion.etiqueta} (inactiva)
+                  </option>
+                ))}
+            </optgroup>
+          )}
+        </select>
+      </Campo>
+
+      {seleccionada && (
+        <p className="rounded-xl bg-surface-container-low p-3 text-sm text-on-surface-variant">
+          <strong>{seleccionada.nombre}</strong>
+
+          {seleccionada.direccion &&
+            ` · ${seleccionada.direccion}`}
+
+          {seleccionada.localidad &&
+            ` · ${seleccionada.localidad}`}
+
+          {!seleccionada.activa &&
+            " · Inactiva"}
+        </p>
+      )}
+
+      {valor && !seleccionada && (
+        <p className="text-sm text-error">
+          La instalación seleccionada ya no está
+          disponible.
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ======================================================
+// SELECTOR PERSONAL ORDENADO POR CÓDIGO CBA
+// ======================================================
 
 function SelectorPersonal({
   valor,
@@ -405,194 +441,161 @@ function SelectorPersonal({
   personal,
   disabled,
   onChange,
-}: SelectorPersonalProps) {
-  const [abierto, setAbierto] = useState(false);
+}: {
+  valor: string;
+  funcion: string;
+  personal: PersonalDisponibleDesignacion[];
+  disabled: boolean;
+  onChange: (valor: string) => void;
+}) {
   const [busqueda, setBusqueda] = useState("");
-  const [mostrarOtros, setMostrarOtros] = useState(false);
-
-  const contenedorRef = useRef<HTMLDivElement>(null);
 
   const seleccionada = personal.find(
     (persona) => persona.id === valor,
   );
 
-  const coincidencias = useMemo(() => {
+  const filtrados = useMemo(() => {
     const consulta = busqueda
       .trim()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
       .toLocaleLowerCase("es");
 
     return personal
-      .filter(
-        (persona) =>
-          persona.nombreCompleto
-            .toLocaleLowerCase("es")
-            .includes(consulta) ||
-          persona.codigo.toLocaleLowerCase("es").includes(consulta),
-      )
-      .sort((a, b) =>
-        a.nombreCompleto.localeCompare(
-          b.nombreCompleto,
-          "es",
-        ),
-      );
-  }, [busqueda, personal]);
+      .filter((persona) => {
+        const contenido = [
+          persona.nombreCompleto,
+          persona.codigo,
+        ]
+          .join(" ")
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .toLocaleLowerCase("es");
 
-  const preferidos = coincidencias.filter(
-    (persona) => esPreferido(persona, funcion),
-  );
+        return contenido.includes(consulta);
+      })
+      .sort(compararPersonalPorCodigo);
+  }, [personal, busqueda]);
 
-  const otros = coincidencias.filter(
-    (persona) => !esPreferido(persona, funcion),
-  );
+  const tipo = FUNCIONES.find(
+    (funcionActual) =>
+      funcionActual.codigo === funcion,
+  )?.tipo;
 
-  useEffect(() => {
-    if (!abierto) return;
-
-    function cerrarFuera(evento: PointerEvent) {
-      if (
-        contenedorRef.current &&
-        !contenedorRef.current.contains(evento.target as Node)
-      ) {
-        setAbierto(false);
-      }
-    }
-
-    function cerrarEscape(evento: KeyboardEvent) {
-      if (evento.key === "Escape") setAbierto(false);
-    }
-
-    document.addEventListener("pointerdown", cerrarFuera);
-    document.addEventListener("keydown", cerrarEscape);
-
-    return () => {
-      document.removeEventListener("pointerdown", cerrarFuera);
-      document.removeEventListener("keydown", cerrarEscape);
-    };
-  }, [abierto]);
-
-  function elegir(id: string) {
-    onChange(id);
-    setAbierto(false);
-    setBusqueda("");
-  }
-
-  function pintarPersona(persona: PersonalDisponibleDesignacion) {
-    const nivel =
-      FUNCIONES.find((item) => item.codigo === funcion)?.tipo ===
-      "mesa"
-        ? persona.nivelMesa
-        : persona.nivelPista;
+  function compatible(
+    persona: PersonalDisponibleDesignacion,
+  ): boolean {
+    const habilitacion =
+      persona.habilitacion.toLocaleLowerCase("es");
 
     return (
-      <button
-        key={persona.id}
-        type="button"
-        role="option"
-        aria-selected={persona.id === valor}
-        onClick={() => elegir(persona.id)}
-        className={[
-          "flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left hover:bg-surface-container",
-          persona.id === valor
-            ? "bg-primary-fixed text-on-primary-fixed"
-            : "",
-        ].join(" ")}
-      >
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold">
-            {persona.nombreCompleto}
-          </span>
-
-          <span className="block text-xs text-on-surface-variant">
-            {persona.codigo} · {persona.habilitacion}
-            {nivel ? ` · ${nivel}` : ""}
-            {!persona.activo ? " · Inactivo" : ""}
-          </span>
-        </span>
-
-        {persona.id === valor && (
-          <span className="font-bold text-primary">✓</span>
-        )}
-      </button>
+      !tipo ||
+      habilitacion === "ambos" ||
+      habilitacion === tipo ||
+      habilitacion === "pista y mesa" ||
+      habilitacion === "mesa y pista"
     );
   }
 
+  const activos = filtrados.filter(
+    (persona) => persona.activo,
+  );
+
+  const inactivos = filtrados.filter(
+    (persona) => !persona.activo,
+  );
+
   return (
-    <div ref={contenedorRef} className="relative min-w-0">
-      <button
-        type="button"
+    <div className="space-y-2">
+      <input
+        type="search"
         disabled={disabled}
-        aria-expanded={abierto}
-        aria-haspopup="listbox"
-        onClick={() => setAbierto((actual) => !actual)}
-        className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 text-left text-sm text-on-surface hover:border-primary disabled:opacity-60"
+        className={CAMPO}
+        placeholder="Buscar por nombre o CBA-001"
+        value={busqueda}
+        onChange={(evento) =>
+          setBusqueda(evento.target.value)
+        }
+        aria-label="Buscar árbitro u oficial"
+      />
+
+      <select
+        value={valor}
+        disabled={disabled}
+        onChange={(evento) => {
+          onChange(evento.target.value);
+          setBusqueda("");
+        }}
+        className={CAMPO}
+        aria-label="Seleccionar árbitro u oficial de mesa"
       >
-        <span className="truncate">
-          {seleccionada?.nombreCompleto ??
-            (valor ? "Persona no disponible" : "Seleccionar persona")}
-        </span>
+        <option value="">
+          Seleccionar persona
+        </option>
 
-        <span aria-hidden="true">▾</span>
-      </button>
-
-      {abierto && (
-        <div
-          role="listbox"
-          aria-label="Seleccionar árbitro u oficial"
-          className="absolute left-0 top-full z-30 mt-2 w-full min-w-[260px] rounded-xl border border-outline-variant bg-surface-container-lowest p-3 shadow-xl"
-        >
-          <input
-            autoFocus
-            type="search"
-            value={busqueda}
-            onChange={(evento) => setBusqueda(evento.target.value)}
-            placeholder="Buscar por nombre o código"
-            className="mb-3 min-h-10 w-full rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-sm outline-none focus:border-primary"
-          />
-
-          <div className="max-h-64 space-y-1 overflow-y-auto">
-            {preferidos.map(pintarPersona)}
-
-            {preferidos.length === 0 && (
-              <p className="p-2 text-sm text-on-surface-variant">
-                No hay personas recomendadas.
-              </p>
-            )}
-
-            {mostrarOtros && (
-              <>
-                {otros.length > 0 && (
-                  <p className="mt-3 border-t border-outline-variant px-2 pt-3 text-xs font-bold uppercase text-on-surface-variant">
-                    Otras habilitaciones
-                  </p>
-                )}
-
-                {otros.map(pintarPersona)}
-              </>
-            )}
-          </div>
-
-          {otros.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setMostrarOtros(!mostrarOtros)}
-              className="mt-3 w-full rounded-lg border border-outline-variant px-3 py-2 text-sm font-bold text-primary"
-            >
-              {mostrarOtros
-                ? "Ocultar otros"
-                : `Mostrar otros (${otros.length})`}
-            </button>
+        {seleccionada &&
+          !filtrados.some(
+            (persona) =>
+              persona.id === seleccionada.id,
+          ) && (
+            <option value={seleccionada.id}>
+              {seleccionada.codigo}
+              {" · "}
+              {seleccionada.nombreCompleto}
+            </option>
           )}
 
-          {valor && (
-            <button
-              type="button"
-              onClick={() => elegir("")}
-              className="mt-2 w-full rounded-lg px-3 py-2 text-xs text-on-surface-variant hover:bg-surface-container"
-            >
-              Quitar selección
-            </button>
-          )}
-        </div>
+        {activos.length > 0 && (
+          <optgroup label="ACTIVOS · orden CBA">
+            {activos.map((persona) => (
+              <option
+                key={persona.id}
+                value={persona.id}
+              >
+                {persona.codigo}
+                {" · "}
+                {persona.nombreCompleto}
+                {compatible(persona)
+                  ? ""
+                  : " · Otra habilitación"}
+              </option>
+            ))}
+          </optgroup>
+        )}
+
+        {inactivos.length > 0 && (
+          <optgroup label="INACTIVOS · orden CBA">
+            {inactivos.map((persona) => (
+              <option
+                key={persona.id}
+                value={persona.id}
+              >
+                {persona.codigo}
+                {" · "}
+                {persona.nombreCompleto}
+                {compatible(persona)
+                  ? ""
+                  : " · Otra habilitación"}
+              </option>
+            ))}
+          </optgroup>
+        )}
+      </select>
+
+      {seleccionada && (
+        <p className="text-xs text-on-surface-variant">
+          {seleccionada.habilitacion}
+          {" · "}
+          Nivel{" "}
+          {tipo === "mesa"
+            ? seleccionada.nivelMesa ||
+              "sin asignar"
+            : seleccionada.nivelPista ||
+              "sin asignar"}
+
+          {!seleccionada.activo &&
+            " · Inactivo"}
+        </p>
       )}
     </div>
   );
@@ -605,116 +608,70 @@ function SelectorPersonal({
 export default function EditorPartidoDesignacion({
   resultadoInicial,
   puedeEditar,
-  puedeEliminar,
 }: Props) {
   const [partido, setPartido] =
     useState<DatosPartidoDesignacion>(
       resultadoInicial.partido,
     );
 
-  const [asignaciones, setAsignaciones] = useState<
-    AsignacionFormulario[]
-  >(
-    resultadoInicial.asignaciones.map(convertirAsignacion),
-  );
+  const [asignaciones, setAsignaciones] =
+    useState<AsignacionFormulario[]>(
+      resultadoInicial.asignaciones.map(
+        asignacionInicial,
+      ),
+    );
 
-  const [apartado, setApartado] = useState<Apartado>("datos");
-  const [guardando, setGuardando] = useState(false);
-  const [modificado, setModificado] = useState(false);
-  const [mensaje, setMensaje] = useState<Mensaje | null>(null);
+  const [apartado, setApartado] =
+    useState<Apartado>("datos");
+
+  const [guardando, setGuardando] =
+    useState(false);
+
+  const [modificado, setModificado] =
+    useState(false);
+
+  const [mensaje, setMensaje] = useState<{
+    tipo: "error" | "informacion";
+    texto: string;
+  } | null>(null);
 
   const guardandoRef = useRef(false);
 
   const personal = resultadoInicial.personal;
   const instalaciones = resultadoInicial.instalaciones;
 
-  const estado = calcularEstado(asignaciones);
+  const estado = estadoAsignaciones(asignaciones);
 
-  const totalDesignados = asignaciones.filter(
-    (fila) => fila.personaId && fila.funcionDesignada,
+  const completos = asignaciones.filter(
+    (asignacion) =>
+      asignacion.personaId &&
+      asignacion.funcionDesignada,
+  );
+
+  const realizados = completos.filter(
+    (asignacion) =>
+      asignacion.funcionRealizada,
   ).length;
 
-  const totalRealizados = asignaciones.filter(
-    (fila) =>
-      fila.personaId &&
-      fila.funcionDesignada &&
-      fila.funcionRealizada,
-  ).length;
+  const bloqueado =
+    !puedeEditar || guardando;
 
   // ====================================================
   // DATOS PARA LA IMAGEN
   // ====================================================
 
-  const instalacionSeleccionada = instalaciones.find(
-    (instalacion) => instalacion.id === partido.instalacionId,
-  );
+  // Se mantiene el orden de las funciones
+  // designadas. Solo añadimos el código CBA
+  // al nombre completo.
 
-  const lugarImagen =
-    instalacionSeleccionada?.nombre ||
-    partido.nombreCampoFbib ||
-    "";
-
-  const datosImagen = useMemo<DatosImagenDesignacion>(
-    () => ({
-      // Categoría + grupo, tal como aparece en
-      // la plantilla original de designaciones.
-      //
-      // Ejemplo:
-      // Mini - Preferente-G. C
-
-      grupo:
-        [partido.categoria, partido.grupo]
-          .map((valor) => valor?.trim())
-          .filter(Boolean)
-          .join(" - ") || null,
-
-      jornada:
-        partido.jornada || null,
-
-      fecha:
-        partido.fecha || null,
-
-      hora:
-        partido.hora || null,
-
-      lugar:
-        lugarImagen || null,
-
-      equipoLocal:
-        partido.equipoLocal || null,
-
-      equipoVisitante:
-        partido.equipoVisitante || null,
-
-      numeroPartido:
-        partido.numeroPartido || null,
-
-      fechaGeneracion: null,
-
-      // Estado de cambios sin guardar
-      // del formulario actual.
-      modificado,
-    }),
-    [
-      partido.categoria,
-      partido.grupo,
-      partido.jornada,
-      partido.fecha,
-      partido.hora,
-      partido.equipoLocal,
-      partido.equipoVisitante,
-      partido.numeroPartido,
-      lugarImagen,
-      modificado,
-    ],
-  );
-
-  const designacionesImagen = useMemo<FilaDesignacionImagen[]>(
+  const designacionesImagen = useMemo<
+    FilaDesignacionImagen[]
+  >(
     () =>
       asignaciones.flatMap((asignacion) => {
         if (
           !asignacion.personaId ||
-          !esFuncionDesignacion(
+          !esFuncion(
             asignacion.funcionDesignada,
           )
         ) {
@@ -723,22 +680,96 @@ export default function EditorPartidoDesignacion({
 
         const persona = personal.find(
           (elemento) =>
-            elemento.id === asignacion.personaId,
+            elemento.id ===
+            asignacion.personaId,
         );
 
         if (!persona) {
           return [];
         }
 
+        const codigo = persona.codigo.trim();
+
         return [
           {
-            funcion: asignacion.funcionDesignada,
-            nombreCompleto: persona.nombreCompleto,
+            funcion:
+              asignacion.funcionDesignada,
+
+            nombreCompleto:
+              `${persona.nombreCompleto}` +
+              `${codigo ? ` (${codigo})` : ""}`,
           },
         ];
       }),
-    [asignaciones, personal],
+    [
+      asignaciones,
+      personal,
+    ],
   );
+
+  const instalacion = instalaciones.find(
+    (elemento) =>
+      elemento.id === partido.instalacionId,
+  );
+
+  const lugarImagen =
+    instalacion?.nombre ||
+    partido.nombreCampoFbib ||
+    "";
+
+  const datosImagen =
+    useMemo<DatosImagenDesignacion>(
+      () => ({
+        grupo:
+          [
+            partido.categoria,
+            partido.grupo,
+          ]
+            .map(
+              (valor) =>
+                valor?.trim(),
+            )
+            .filter(Boolean)
+            .join(" - ") || null,
+
+        jornada:
+          partido.jornada || null,
+
+        fecha:
+          partido.fecha || null,
+
+        hora:
+          partido.hora || null,
+
+        lugar:
+          lugarImagen || null,
+
+        equipoLocal:
+          partido.equipoLocal || null,
+
+        equipoVisitante:
+          partido.equipoVisitante || null,
+
+        numeroPartido:
+          partido.numeroPartido || null,
+
+        fechaGeneracion: null,
+
+        modificado,
+      }),
+      [
+        partido.categoria,
+        partido.grupo,
+        partido.jornada,
+        partido.fecha,
+        partido.hora,
+        lugarImagen,
+        partido.equipoLocal,
+        partido.equipoVisitante,
+        partido.numeroPartido,
+        modificado,
+      ],
+    );
 
   const imagenDisponible =
     partido.guardado &&
@@ -746,76 +777,97 @@ export default function EditorPartidoDesignacion({
     !guardando &&
     designacionesImagen.length > 0;
 
-  function marcarModificado() {
-    setModificado(true);
-    setMensaje(null);
-  }
+  // ====================================================
+  // ACTUALIZAR DATOS
+  // ====================================================
 
   function actualizarPartido<
-    K extends keyof DatosPartidoDesignacion,
+    K extends keyof DatosPartidoDesignacion
   >(
     campo: K,
     valor: DatosPartidoDesignacion[K],
   ) {
-    setPartido((actual) => ({
-      ...actual,
+    setPartido((anterior) => ({
+      ...anterior,
       [campo]: valor,
     }));
 
-    marcarModificado();
+    setModificado(true);
+    setMensaje(null);
   }
 
   function actualizarAsignacion(
     clave: string,
     cambios: Partial<AsignacionFormulario>,
   ) {
-    setAsignaciones((actuales) =>
-      actuales.map((fila) =>
-        fila.clave === clave
-          ? { ...fila, ...cambios }
-          : fila,
+    setAsignaciones((anteriores) =>
+      anteriores.map((asignacion) =>
+        asignacion.clave === clave
+          ? { ...asignacion, ...cambios }
+          : asignacion,
       ),
     );
 
-    marcarModificado();
+    setModificado(true);
+    setMensaje(null);
   }
 
   function agregarAsignacion() {
-    setAsignaciones((actuales) => [
-      ...actuales,
+    setAsignaciones((anteriores) => [
+      ...anteriores,
       nuevaAsignacion(),
     ]);
 
     setApartado("designaciones");
-    marcarModificado();
+    setModificado(true);
+    setMensaje(null);
   }
 
   function eliminarAsignacion(clave: string) {
-    setAsignaciones((actuales) =>
-      actuales.filter((fila) => fila.clave !== clave),
+    setAsignaciones((anteriores) =>
+      anteriores.filter(
+        (asignacion) =>
+          asignacion.clave !== clave,
+      ),
     );
 
-    marcarModificado();
+    setModificado(true);
+    setMensaje(null);
+  }
+
+  function avisar(
+    apartadoError: Apartado,
+    texto: string,
+  ) {
+    setApartado(apartadoError);
+
+    setMensaje({
+      tipo: "error",
+      texto,
+    });
   }
 
   // ====================================================
-  // GUARDADO REAL
+  // GUARDAR
   // ====================================================
 
   async function guardarCambios() {
-    if (!puedeEditar || guardandoRef.current) return;
+    if (
+      !puedeEditar ||
+      guardandoRef.current
+    ) {
+      return;
+    }
 
     if (
       !partido.fecha ||
       !partido.equipoLocal.trim() ||
       !partido.equipoVisitante.trim()
     ) {
-      setApartado("datos");
-      setMensaje({
-        tipo: "error",
-        texto:
-          "Debes indicar fecha, equipo local y equipo visitante.",
-      });
+      avisar(
+        "datos",
+        "Debes indicar la fecha, equipo local y equipo visitante.",
+      );
       return;
     }
 
@@ -823,82 +875,103 @@ export default function EditorPartidoDesignacion({
       partido.instalacionId &&
       !instalaciones.some(
         (instalacion) =>
-          instalacion.id === partido.instalacionId,
+          instalacion.id ===
+          partido.instalacionId,
       )
     ) {
-      setApartado("datos");
-      setMensaje({
-        tipo: "error",
-        texto:
-          "La instalación seleccionada no está disponible.",
-      });
+      avisar(
+        "datos",
+        "La instalación seleccionada no está disponible.",
+      );
       return;
     }
 
     const incompleta = asignaciones.findIndex(
-      (fila) => !fila.personaId || !fila.funcionDesignada,
+      (asignacion) =>
+        !asignacion.personaId ||
+        !asignacion.funcionDesignada,
     );
 
     if (incompleta !== -1) {
-      setApartado("designaciones");
-      setMensaje({
-        tipo: "error",
-        texto:
-          `Completa la persona y la función de la designación ${incompleta + 1}.`,
-      });
+      avisar(
+        "designaciones",
+        `Completa la persona y la función de la designación ${incompleta + 1}.`,
+      );
       return;
     }
 
-    if (!partido.guardado && asignaciones.length === 0) {
-      setApartado("designaciones");
-      setMensaje({
-        tipo: "error",
-        texto:
-          "Para guardar por primera vez un partido FBIB debes registrar al menos una designación.",
-      });
+    if (
+      !partido.guardado &&
+      asignaciones.length === 0
+    ) {
+      avisar(
+        "designaciones",
+        "Para guardar por primera vez un partido FBIB debes registrar al menos una designación.",
+      );
       return;
     }
-
-    const contenido = {
-      partido: {
-        id: partido.id,
-        origen: partido.origen,
-        idPartidoFbib: partido.idPartidoFbib,
-        fecha: partido.fecha,
-        hora: partido.hora,
-        equipoLocal: partido.equipoLocal,
-        equipoVisitante: partido.equipoVisitante,
-        categoria: partido.categoria,
-        grupo: partido.grupo,
-        jornada: partido.jornada,
-        competicion: partido.competicion,
-        instalacionId: partido.instalacionId,
-        nivelMinimoPista: partido.nivelMinimoPista,
-        nivelMinimoMesa: partido.nivelMinimoMesa,
-        anotaciones: partido.anotaciones,
-      },
-      asignaciones: asignaciones.map((fila, indice) => ({
-        id: fila.id,
-        personaId: fila.personaId,
-        funcionDesignada: fila.funcionDesignada,
-        funcionRealizada: fila.funcionRealizada,
-        orden: indice,
-        anotaciones: fila.anotaciones,
-      })),
-    };
 
     guardandoRef.current = true;
     setGuardando(true);
     setMensaje(null);
 
     try {
-      const respuesta = await fetch(RUTA_API, {
+      const respuesta = await fetch(API, {
         method: "POST",
         credentials: "same-origin",
+
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(contenido),
+
+        body: JSON.stringify({
+          partido: {
+            id: partido.id,
+            origen: partido.origen,
+            idPartidoFbib: partido.idPartidoFbib,
+
+            fecha: partido.fecha,
+            hora: partido.hora,
+
+            equipoLocal: partido.equipoLocal,
+            equipoVisitante: partido.equipoVisitante,
+
+            categoria: partido.categoria,
+            grupo: partido.grupo,
+            jornada: partido.jornada,
+            competicion: partido.competicion,
+
+            instalacionId: partido.instalacionId,
+
+            nivelMinimoPista:
+              partido.nivelMinimoPista,
+
+            nivelMinimoMesa:
+              partido.nivelMinimoMesa,
+
+            anotaciones: partido.anotaciones,
+          },
+
+          asignaciones: asignaciones.map(
+            (asignacion, orden) => ({
+              id: asignacion.id,
+
+              personaId:
+                asignacion.personaId,
+
+              funcionDesignada:
+                asignacion.funcionDesignada,
+
+              funcionRealizada:
+                asignacion.funcionRealizada,
+
+              orden,
+
+              anotaciones:
+                asignacion.anotaciones,
+            }),
+          ),
+        }),
       });
 
       const resultado =
@@ -918,17 +991,20 @@ export default function EditorPartidoDesignacion({
       setModificado(false);
 
       window.location.assign(
-        `/panel/designaciones/partido?idPartido=${encodeURIComponent(
-          resultado.data.idPartido,
-        )}`,
+        "/panel/designaciones/partido?" +
+          new URLSearchParams({
+            idPartido:
+              resultado.data.idPartido,
+          }).toString(),
       );
-    } catch (error) {
+    } catch (fallo) {
       setMensaje({
         tipo: "error",
+
         texto:
-          error instanceof Error
-            ? error.message
-            : "Se ha producido un error al guardar.",
+          fallo instanceof Error
+            ? fallo.message
+            : "Error al guardar el partido.",
       });
     } finally {
       guardandoRef.current = false;
@@ -936,31 +1012,29 @@ export default function EditorPartidoDesignacion({
     }
   }
 
-  const bloqueado = !puedeEditar || guardando;
-
   // ====================================================
   // INTERFAZ
   // ====================================================
 
   return (
     <div className="space-y-6">
-      {/* ENCABEZADO */}
+      {/* CABECERA */}
 
       <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap gap-2">
-              <span className="rounded-lg bg-primary-fixed px-3 py-1 text-xs font-bold uppercase text-on-primary-fixed">
+          <div>
+            <div className="flex flex-wrap gap-2 text-xs font-bold uppercase">
+              <span className="rounded-lg bg-primary-fixed px-3 py-1 text-on-primary-fixed">
                 {partido.origen}
               </span>
 
-              <span className="rounded-lg bg-surface-container px-3 py-1 text-xs font-semibold text-on-surface-variant">
+              <span className="rounded-lg bg-surface-container px-3 py-1">
                 {partido.guardado
                   ? "Guardado en CBA"
                   : "Sin guardar"}
               </span>
 
-              <span className="rounded-lg bg-surface-container-high px-3 py-1 text-xs font-bold text-on-surface">
+              <span className="rounded-lg bg-surface-container px-3 py-1">
                 {estado === "realizado"
                   ? "Realizado"
                   : estado === "pendiente"
@@ -969,18 +1043,27 @@ export default function EditorPartidoDesignacion({
               </span>
             </div>
 
-            <h2 className="mt-4 text-xl font-extrabold text-on-surface sm:text-2xl">
-              {partido.equipoLocal || "Equipo local"}
-              <span className="mx-2 font-normal text-on-surface-variant">
+            <h2 className="mt-4 text-xl font-extrabold text-on-surface">
+              {partido.equipoLocal ||
+                "Equipo local"}
+              {" "}
+              <span className="font-normal text-on-surface-variant">
                 vs
               </span>
-              {partido.equipoVisitante || "Equipo visitante"}
+              {" "}
+              {partido.equipoVisitante ||
+                "Equipo visitante"}
             </h2>
 
             <p className="mt-2 text-sm text-on-surface-variant">
-              {formatoFecha(partido.fecha)}
-              {partido.hora ? ` · ${partido.hora}` : ""}
-              {" · "}Nº {partido.numeroPartido}
+              {fechaLegible(partido.fecha)}
+
+              {partido.hora
+                ? ` · ${partido.hora}`
+                : ""}
+
+              {" · Nº "}
+              {partido.numeroPartido}
             </p>
           </div>
 
@@ -990,7 +1073,7 @@ export default function EditorPartidoDesignacion({
                 type="button"
                 disabled={guardando}
                 onClick={guardarCambios}
-                className="min-h-11 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary hover:opacity-90 disabled:opacity-50"
+                className="min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary disabled:opacity-50"
               >
                 {guardando
                   ? "Guardando..."
@@ -1009,22 +1092,24 @@ export default function EditorPartidoDesignacion({
 
       {/* AVISOS */}
 
-      {resultadoInicial.avisos.map((aviso, indice) => (
-        <div
-          key={`${indice}-${aviso}`}
-          className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant"
-        >
-          {aviso}
-        </div>
-      ))}
+      {resultadoInicial.avisos.map(
+        (aviso, indice) => (
+          <p
+            key={`${indice}-${aviso}`}
+            className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm"
+          >
+            {aviso}
+          </p>
+        ),
+      )}
 
       {mensaje && (
         <div
           role="alert"
           className={
             mensaje.tipo === "error"
-              ? "rounded-xl border border-error/40 bg-error-container p-4 text-sm font-medium text-on-error-container"
-              : "rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface"
+              ? "rounded-xl bg-error-container p-4 text-sm text-on-error-container"
+              : "rounded-xl bg-surface-container-low p-4 text-sm"
           }
         >
           {mensaje.texto}
@@ -1033,26 +1118,31 @@ export default function EditorPartidoDesignacion({
 
       {/* PESTAÑAS */}
 
-      <nav className="flex flex-wrap gap-2 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-2 shadow-sm">
+      <nav
+        aria-label="Secciones del partido"
+        className="flex flex-wrap gap-2 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-2"
+      >
         {(
           [
             ["datos", "Datos del partido"],
             ["designaciones", "Designaciones"],
             ["imagen", "Imagen"],
           ] as const
-        ).map(([id, nombre]) => (
+        ).map(([id, etiqueta]) => (
           <button
             key={id}
             type="button"
             onClick={() => setApartado(id)}
-            className={[
-              "min-h-11 rounded-xl px-4 py-2 text-sm font-bold transition-colors",
-              apartado === id
-                ? "bg-primary text-on-primary"
-                : "text-on-surface-variant hover:bg-surface-container",
-            ].join(" ")}
+            className={
+              "min-h-11 rounded-xl px-4 py-2 text-sm font-bold " +
+              (
+                apartado === id
+                  ? "bg-primary text-on-primary"
+                  : "text-on-surface-variant hover:bg-surface-container"
+              )
+            }
           >
-            {nombre}
+            {etiqueta}
           </button>
         ))}
       </nav>
@@ -1060,25 +1150,20 @@ export default function EditorPartidoDesignacion({
       {/* DATOS DEL PARTIDO */}
 
       {apartado === "datos" && (
-        <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
-          <h3 className="text-lg font-bold text-on-surface">
+        <section className="space-y-5 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
+          <h3 className="text-lg font-bold">
             Información del partido
           </h3>
 
-          <p className="mt-1 text-sm text-on-surface-variant">
-            Puedes modificar los datos excepto el número
-            de partido y el origen.
-          </p>
-
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-            <Campo
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <Texto
               titulo="Número de partido"
               valor={partido.numeroPartido}
               disabled
               onChange={() => {}}
             />
 
-            <Campo
+            <Texto
               titulo="Fecha"
               tipo="date"
               valor={partido.fecha}
@@ -1088,7 +1173,7 @@ export default function EditorPartidoDesignacion({
               }
             />
 
-            <Campo
+            <Texto
               titulo="Hora"
               tipo="time"
               valor={partido.hora}
@@ -1098,153 +1183,153 @@ export default function EditorPartidoDesignacion({
               }
             />
 
-            <Campo
+            <Texto
               titulo="Equipo local"
               valor={partido.equipoLocal}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("equipoLocal", valor)
+                actualizarPartido(
+                  "equipoLocal",
+                  valor,
+                )
               }
             />
 
-            <Campo
+            <Texto
               titulo="Equipo visitante"
               valor={partido.equipoVisitante}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("equipoVisitante", valor)
+                actualizarPartido(
+                  "equipoVisitante",
+                  valor,
+                )
               }
             />
 
-            <Campo
+            <Texto
               titulo="Categoría"
               valor={partido.categoria}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("categoria", valor)
+                actualizarPartido(
+                  "categoria",
+                  valor,
+                )
               }
             />
 
-            <Campo
+            <Texto
               titulo="Grupo"
               valor={partido.grupo}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("grupo", valor)
+                actualizarPartido(
+                  "grupo",
+                  valor,
+                )
               }
             />
 
-            <Campo
+            <Texto
               titulo="Jornada"
               valor={partido.jornada}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("jornada", valor)
+                actualizarPartido(
+                  "jornada",
+                  valor,
+                )
               }
             />
 
-            <Campo
+            <Texto
               titulo="Competición"
               valor={partido.competicion}
               disabled={bloqueado}
               onChange={(valor) =>
-                actualizarPartido("competicion", valor)
+                actualizarPartido(
+                  "competicion",
+                  valor,
+                )
               }
             />
           </div>
 
           {/* INSTALACIÓN */}
 
-          <div className="mt-6 border-t border-outline-variant/60 pt-5">
-            <h4 className="font-bold text-on-surface">
+          <div className="border-t border-outline-variant/60 pt-5">
+            <h4 className="mb-3 font-bold">
               Instalación
             </h4>
 
-            <p className="mt-1 text-sm text-on-surface-variant">
-              Selecciona una de las instalaciones
-              registradas en el club.
-            </p>
-
             {partido.nombreCampoFbib && (
-              <div className="mt-3 rounded-xl bg-surface-container-low p-3 text-sm text-on-surface-variant">
-                <span className="font-bold">
-                  Campo indicado por FBIB:
-                </span>{" "}
-                {partido.nombreCampoFbib}
+              <p className="mb-3 rounded-xl bg-surface-container-low p-3 text-sm">
+                Campo FBIB: {partido.nombreCampoFbib}
+
                 {partido.codigoPostalFbib
                   ? ` · CP ${partido.codigoPostalFbib}`
                   : ""}
-              </div>
+              </p>
             )}
 
-            <div className="mt-4 max-w-2xl">
-              <SelectorInstalaciones
-                valor={partido.instalacionId}
-                instalaciones={instalaciones}
-                disabled={bloqueado}
-                onChange={(valor) =>
-                  actualizarPartido("instalacionId", valor)
-                }
-              />
-            </div>
+            <SelectorInstalacion
+              valor={partido.instalacionId}
+              instalaciones={instalaciones}
+              disabled={bloqueado}
+              onChange={(valor) =>
+                actualizarPartido(
+                  "instalacionId",
+                  valor,
+                )
+              }
+            />
           </div>
 
           {/* NIVELES */}
 
-          <div className="mt-6 border-t border-outline-variant/60 pt-5">
-            <h4 className="font-bold text-on-surface">
-              Niveles de referencia
-            </h4>
+          <div className="grid gap-4 border-t border-outline-variant/60 pt-5 sm:grid-cols-2">
+            <SelectorNivel
+              titulo="Nivel mínimo de pista"
+              valor={partido.nivelMinimoPista}
+              disabled={bloqueado}
+              onChange={(valor) =>
+                actualizarPartido(
+                  "nivelMinimoPista",
+                  valor,
+                )
+              }
+            />
 
-            <p className="mt-1 text-sm text-on-surface-variant">
-              Estos niveles son orientativos.
-              No bloquearán la selección de personal.
-            </p>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <Campo
-                titulo="Nivel mínimo de pista"
-                valor={partido.nivelMinimoPista}
-                disabled={bloqueado}
-                onChange={(valor) =>
-                  actualizarPartido("nivelMinimoPista", valor)
-                }
-              />
-
-              <Campo
-                titulo="Nivel mínimo de mesa"
-                valor={partido.nivelMinimoMesa}
-                disabled={bloqueado}
-                onChange={(valor) =>
-                  actualizarPartido("nivelMinimoMesa", valor)
-                }
-              />
-            </div>
+            <SelectorNivel
+              titulo="Nivel mínimo de mesa"
+              valor={partido.nivelMinimoMesa}
+              disabled={bloqueado}
+              onChange={(valor) =>
+                actualizarPartido(
+                  "nivelMinimoMesa",
+                  valor,
+                )
+              }
+            />
           </div>
 
           {/* ANOTACIONES */}
 
-          <div className="mt-6 border-t border-outline-variant/60 pt-5">
-            <label className="block">
-              <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                Anotaciones del partido
-              </span>
-
-              <textarea
-                rows={4}
-                value={partido.anotaciones}
-                disabled={bloqueado}
-                onChange={(evento) =>
-                  actualizarPartido(
-                    "anotaciones",
-                    evento.target.value,
-                  )
-                }
-                className="w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-3 text-sm text-on-surface outline-none focus:border-primary disabled:opacity-60"
-                placeholder="Observaciones, incidencias..."
-              />
-            </label>
-          </div>
+          <Campo titulo="Anotaciones del partido">
+            <textarea
+              rows={4}
+              value={partido.anotaciones}
+              disabled={bloqueado}
+              onChange={(evento) =>
+                actualizarPartido(
+                  "anotaciones",
+                  evento.target.value,
+                )
+              }
+              className={CAMPO}
+            />
+          </Campo>
         </section>
       )}
 
@@ -1254,13 +1339,14 @@ export default function EditorPartidoDesignacion({
         <section className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-bold text-on-surface">
+              <h3 className="text-lg font-bold">
                 Árbitros y oficiales de mesa
               </h3>
 
-              <p className="mt-1 text-sm text-on-surface-variant">
-                {totalDesignados} designados ·{" "}
-                {totalRealizados} funciones realizadas
+              <p className="text-sm text-on-surface-variant">
+                {completos.length} designados
+                {" · "}
+                {realizados} funciones realizadas
               </p>
             </div>
 
@@ -1269,142 +1355,141 @@ export default function EditorPartidoDesignacion({
                 type="button"
                 disabled={guardando}
                 onClick={agregarAsignacion}
-                className="min-h-11 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-on-primary disabled:opacity-50"
+                className="min-h-11 rounded-xl bg-primary px-4 text-sm font-bold text-on-primary"
               >
                 + Añadir designación
               </button>
             )}
           </div>
 
-          {asignaciones.length === 0 ? (
-            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest px-5 py-12 text-center">
-              <h4 className="font-bold text-on-surface">
-                Todavía no hay designaciones
-              </h4>
-
-              <p className="mt-2 text-sm text-on-surface-variant">
-                Elige una función y una persona para empezar.
-              </p>
-
-              {puedeEditar && (
-                <button
-                  type="button"
-                  onClick={agregarAsignacion}
-                  disabled={guardando}
-                  className="mt-5 rounded-xl border border-primary px-5 py-2.5 text-sm font-bold text-primary disabled:opacity-50"
-                >
-                  Añadir primera designación
-                </button>
-              )}
+          {asignaciones.length === 0 && (
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-8 text-center text-sm text-on-surface-variant">
+              Todavía no hay designaciones.
             </div>
-          ) : (
-            asignaciones.map((fila, indice) => (
-              <div
-                key={fila.clave}
-                className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm"
-              >
-                <div className="mb-4 flex items-center justify-between">
-                  <h4 className="font-bold text-on-surface">
-                    Designación {indice + 1}
-                  </h4>
+          )}
 
-                  {puedeEditar && (
-                    <button
-                      type="button"
-                      disabled={guardando}
-                      onClick={() => eliminarAsignacion(fila.clave)}
-                      className="rounded-lg px-3 py-2 text-xs font-bold text-error hover:bg-error-container disabled:opacity-50"
-                    >
-                      Eliminar
-                    </button>
-                  )}
-                </div>
+          {asignaciones.map((asignacion, indice) => (
+            <article
+              key={asignacion.clave}
+              className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm"
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h4 className="font-bold">
+                  Designación {indice + 1}
+                </h4>
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <label>
-                    <span className="mb-1.5 block text-xs font-bold uppercase text-on-surface-variant">
-                      Función designada
-                    </span>
+                {puedeEditar && (
+                  <button
+                    type="button"
+                    disabled={guardando}
+                    className="rounded-lg px-3 py-2 text-xs font-bold text-error"
+                    onClick={() =>
+                      eliminarAsignacion(
+                        asignacion.clave,
+                      )
+                    }
+                  >
+                    Eliminar
+                  </button>
+                )}
+              </div>
 
-                    <SelectorFuncion
-                      valor={fila.funcionDesignada}
-                      disabled={bloqueado}
-                      onChange={(valor) =>
-                        actualizarAsignacion(fila.clave, {
-                          funcionDesignada: valor,
-                        })
-                      }
-                    />
-                  </label>
-
-                  <div>
-                    <span className="mb-1.5 block text-xs font-bold uppercase text-on-surface-variant">
-                      Árbitro / oficial de mesa
-                    </span>
-
-                    <SelectorPersonal
-                      valor={fila.personaId}
-                      funcion={fila.funcionDesignada}
-                      personal={personal}
-                      disabled={bloqueado}
-                      onChange={(valor) =>
-                        actualizarAsignacion(fila.clave, {
-                          personaId: valor,
-                        })
-                      }
-                    />
-                  </div>
-
-                  <label>
-                    <span className="mb-1.5 block text-xs font-bold uppercase text-on-surface-variant">
-                      Función realizada
-                    </span>
-
-                    <SelectorFuncion
-                      valor={fila.funcionRealizada ?? ""}
-                      permitirVacio
-                      disabled={bloqueado}
-                      onChange={(valor) =>
-                        actualizarAsignacion(fila.clave, {
-                          funcionRealizada: valor || null,
-                        })
-                      }
-                    />
-
-                    <span className="mt-1 block text-xs text-on-surface-variant">
-                      Se utilizará para las estadísticas.
-                    </span>
-                  </label>
-
-                  <Campo
-                    titulo="Anotaciones"
-                    valor={fila.anotaciones}
+              <div className="grid gap-4 lg:grid-cols-2">
+                <Campo titulo="Función designada">
+                  <SelectorFuncion
+                    valor={
+                      asignacion.funcionDesignada
+                    }
                     disabled={bloqueado}
                     onChange={(valor) =>
-                      actualizarAsignacion(fila.clave, {
-                        anotaciones: valor,
-                      })
+                      actualizarAsignacion(
+                        asignacion.clave,
+                        {
+                          funcionDesignada: valor,
+                        },
+                      )
+                    }
+                  />
+                </Campo>
+
+                <div>
+                  <p className="mb-1.5 text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+                    Árbitro / oficial de mesa
+                  </p>
+
+                  <SelectorPersonal
+                    valor={asignacion.personaId}
+                    funcion={
+                      asignacion.funcionDesignada
+                    }
+                    personal={personal}
+                    disabled={bloqueado}
+                    onChange={(valor) =>
+                      actualizarAsignacion(
+                        asignacion.clave,
+                        {
+                          personaId: valor,
+                        },
+                      )
                     }
                   />
                 </div>
+
+                <Campo titulo="Función realizada">
+                  <SelectorFuncion
+                    valor={
+                      asignacion.funcionRealizada ??
+                      ""
+                    }
+                    permitirVacio
+                    disabled={bloqueado}
+                    onChange={(valor) =>
+                      actualizarAsignacion(
+                        asignacion.clave,
+                        {
+                          funcionRealizada:
+                            valor || null,
+                        },
+                      )
+                    }
+                  />
+
+                  <p className="mt-1 text-xs text-on-surface-variant">
+                    Se utilizará para las estadísticas.
+                  </p>
+                </Campo>
+
+                <Texto
+                  titulo="Anotaciones"
+                  valor={asignacion.anotaciones}
+                  disabled={bloqueado}
+                  onChange={(valor) =>
+                    actualizarAsignacion(
+                      asignacion.clave,
+                      {
+                        anotaciones: valor,
+                      },
+                    )
+                  }
+                />
               </div>
-            ))
-          )}
+            </article>
+          ))}
         </section>
       )}
 
-      {/* IMAGEN DE DESIGNACIONES */}
+      {/* IMAGEN */}
 
       {apartado === "imagen" && (
         <section className="space-y-4">
-          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
-            <h3 className="text-lg font-bold text-on-surface">
+          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5">
+            <h3 className="text-lg font-bold">
               Imagen de designaciones
             </h3>
 
             <p className="mt-2 text-sm text-on-surface-variant">
-              Vista previa y descarga de la designación
-              en formato PNG, con la plantilla del C.B. Andratx.
+              PNG con la plantilla del C.B. Andratx
+              y códigos CBA junto a cada nombre.
             </p>
           </div>
 
@@ -1413,24 +1498,20 @@ export default function EditorPartidoDesignacion({
               role="alert"
               className="rounded-xl border border-error/40 bg-error-container p-4 text-sm text-on-error-container"
             >
-              Hay cambios sin guardar.
-              Guarda las modificaciones antes de descargar
-              la imagen para evitar publicar una designación
-              que no coincida con los datos registrados.
+              Hay cambios sin guardar. Guarda antes
+              de descargar la imagen.
             </div>
           )}
 
           {!partido.guardado && (
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              Este partido todavía no está guardado en el sistema.
-              Registra primero las designaciones.
+            <div className="rounded-xl bg-surface-container-low p-4 text-sm">
+              El partido todavía no está guardado.
             </div>
           )}
 
           {designacionesImagen.length === 0 && (
-            <div className="rounded-xl border border-outline-variant bg-surface-container-low p-4 text-sm text-on-surface-variant">
-              No hay personas designadas.
-              Añade al menos una designación para generar la imagen.
+            <div className="rounded-xl bg-surface-container-low p-4 text-sm">
+              Añade al menos una persona designada.
             </div>
           )}
 
@@ -1443,15 +1524,12 @@ export default function EditorPartidoDesignacion({
               mostrarBotonDescarga
             />
           ) : (
-            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest px-5 py-12 text-center">
-              <h4 className="text-lg font-bold text-on-surface">
-                Imagen no disponible
-              </h4>
-
-              <p className="mx-auto mt-3 max-w-lg text-sm text-on-surface-variant">
-                Para generar el PNG, el partido debe estar
-                guardado y tener al menos una persona designada,
-                sin modificaciones pendientes.
+            <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-lowest p-8 text-center">
+              <p className="text-sm text-on-surface-variant">
+                La imagen estará disponible cuando
+                el partido esté guardado, con
+                designaciones completas y sin
+                cambios pendientes.
               </p>
 
               {modificado && puedeEditar && (
@@ -1459,11 +1537,9 @@ export default function EditorPartidoDesignacion({
                   type="button"
                   disabled={guardando}
                   onClick={guardarCambios}
-                  className="mt-5 min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary disabled:opacity-50"
+                  className="mt-4 min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary"
                 >
-                  {guardando
-                    ? "Guardando..."
-                    : "Guardar cambios"}
+                  Guardar cambios
                 </button>
               )}
 
@@ -1471,8 +1547,10 @@ export default function EditorPartidoDesignacion({
                 puedeEditar && (
                   <button
                     type="button"
-                    onClick={() => setApartado("designaciones")}
-                    className="mt-5 ml-2 min-h-11 rounded-xl border border-primary px-5 text-sm font-bold text-primary"
+                    onClick={() =>
+                      setApartado("designaciones")
+                    }
+                    className="ml-2 mt-4 min-h-11 rounded-xl border border-primary px-5 text-sm font-bold text-primary"
                   >
                     Ir a designaciones
                   </button>

@@ -1,4 +1,3 @@
-
 import {
   useMemo,
   useState,
@@ -11,12 +10,11 @@ import type {
   ResultadoListadoPersonalDesignaciones,
 } from "@servicios/backend/designaciones/obtenerListadoPersonalDesignaciones";
 
-// ======================================================
-// CONFIGURACIÓN
-// ======================================================
+import {
+  compararPersonalPorCodigo,
+} from "@servicios/backend/designaciones/ordenarPersonalPorCodigo";
 
-const API_PERSONAL =
-  "/api/panel/designaciones/personal";
+const API = "/api/panel/designaciones/personal";
 
 const NIVELES = [
   "Escuela",
@@ -27,7 +25,7 @@ const NIVELES = [
   "Responsable",
 ] as const;
 
-const GRUPOS_SUGERIDOS = [
+const GRUPOS_INICIALES = [
   "Iniciación",
   "Premini",
   "Mini",
@@ -38,27 +36,13 @@ const GRUPOS_SUGERIDOS = [
   "+40",
 ];
 
-const CLASE_CAMPO =
+const CAMPO =
   "min-h-11 w-full rounded-xl border border-outline-variant " +
   "bg-surface-container-lowest px-3 py-2 text-sm text-on-surface " +
-  "outline-none focus:border-primary focus:ring-2 " +
-  "focus:ring-primary/15 disabled:opacity-50";
+  "outline-none focus:border-primary disabled:opacity-50";
 
-// ======================================================
-// TIPOS
-// ======================================================
-
-type Nivel = (typeof NIVELES)[number];
-
-type Habilitacion =
-  | "pista"
-  | "mesa"
-  | "ambos";
-
-type FiltroEstado =
-  | "todos"
-  | "activos"
-  | "inactivos";
+type Habilitacion = "pista" | "mesa" | "ambos";
+type EstadoFiltro = "todos" | "activos" | "inactivos";
 
 interface Props {
   resultadoInicial: ResultadoListadoPersonalDesignaciones;
@@ -66,15 +50,12 @@ interface Props {
   puedeEditar: boolean;
 }
 
-interface FormularioPersonal {
+interface Ficha {
   id: string | null;
-
   nombreCompleto: string;
   habilitacion: Habilitacion;
-
   nivelPista: string;
   nivelMesa: string;
-
   grupos: string[];
   activo: boolean;
   anotaciones: string;
@@ -82,13 +63,11 @@ interface FormularioPersonal {
 
 interface RespuestaApi {
   ok: boolean;
-
   data?: {
     personal: PersonalDesignacion;
     creado: boolean;
     mensaje: string;
   } | null;
-
   error?: string | null;
 }
 
@@ -96,7 +75,7 @@ interface RespuestaApi {
 // UTILIDADES
 // ======================================================
 
-function formularioVacio(): FormularioPersonal {
+function vacia(): Ficha {
   return {
     id: null,
     nombreCompleto: "",
@@ -109,6 +88,25 @@ function formularioVacio(): FormularioPersonal {
   };
 }
 
+function desdePersona(
+  persona: PersonalDesignacion,
+): Ficha {
+  return {
+    id: persona.id,
+    nombreCompleto: persona.nombreCompleto,
+    habilitacion:
+      persona.habilitacion === "mesa" ||
+      persona.habilitacion === "ambos"
+        ? persona.habilitacion
+        : "pista",
+    nivelPista: persona.nivelPista ?? "",
+    nivelMesa: persona.nivelMesa ?? "",
+    grupos: [...persona.grupos],
+    activo: persona.activo,
+    anotaciones: persona.anotaciones,
+  };
+}
+
 function normalizar(valor: string): string {
   return valor
     .normalize("NFD")
@@ -116,81 +114,14 @@ function normalizar(valor: string): string {
     .toLocaleLowerCase("es");
 }
 
-function nivelValido(
+function etiquetaHabilitacion(
   valor: string,
-): valor is Nivel {
-  return NIVELES.some(
-    (nivel) => nivel === valor,
-  );
-}
-
-function ordenarPersonal(
-  personal: PersonalDesignacion[],
-): PersonalDesignacion[] {
-  return [...personal].sort((a, b) => {
-    if (a.activo !== b.activo) {
-      return a.activo ? -1 : 1;
-    }
-
-    const comparacion =
-      a.nombreCompleto.localeCompare(
-        b.nombreCompleto,
-        "es",
-        {
-          sensitivity: "base",
-        },
-      );
-
-    return comparacion !== 0
-      ? comparacion
-      : a.id.localeCompare(b.id);
-  });
-}
-
-function nombreHabilitacion(
-  habilitacion: string,
 ): string {
-  switch (habilitacion) {
-    case "pista":
-      return "Árbitro de pista";
-
-    case "mesa":
-      return "Oficial de mesa";
-
-    case "ambos":
-      return "Pista y mesa";
-
-    default:
-      return "Sin definir";
-  }
+  if (valor === "pista") return "Árbitro de pista";
+  if (valor === "mesa") return "Oficial de mesa";
+  if (valor === "ambos") return "Pista y mesa";
+  return "Sin definir";
 }
-
-function convertirFormulario(
-  persona: PersonalDesignacion,
-): FormularioPersonal {
-  return {
-    id: persona.id,
-    nombreCompleto: persona.nombreCompleto,
-
-    habilitacion:
-      persona.habilitacion === "mesa" ||
-      persona.habilitacion === "ambos"
-        ? persona.habilitacion
-        : "pista",
-
-    nivelPista: persona.nivelPista ?? "",
-    nivelMesa: persona.nivelMesa ?? "",
-
-    grupos: [...persona.grupos],
-
-    activo: persona.activo,
-    anotaciones: persona.anotaciones,
-  };
-}
-
-// ======================================================
-// COMPONENTES AUXILIARES
-// ======================================================
 
 function Campo({
   titulo,
@@ -204,79 +135,51 @@ function Campo({
       <span className="block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
         {titulo}
       </span>
-
       {children}
     </label>
   );
 }
 
-function SelectorNivel({
+function Nivel({
   titulo,
   valor,
-  deshabilitado,
+  disabled,
   onChange,
 }: {
   titulo: string;
   valor: string;
-  deshabilitado: boolean;
+  disabled: boolean;
   onChange: (valor: string) => void;
 }) {
-  // Si una ficha antigua tiene un nivel diferente,
-  // lo mostramos para que pueda corregirse
-  // sin perderlo silenciosamente.
-
-  const nivelAntiguo =
-    valor !== "" && !nivelValido(valor);
+  const anterior =
+    valor !== "" &&
+    !NIVELES.some((nivel) => nivel === valor);
 
   return (
     <Campo titulo={titulo}>
       <select
         value={valor}
-        disabled={deshabilitado}
+        disabled={disabled}
         onChange={(evento) =>
           onChange(evento.target.value)
         }
-        className={CLASE_CAMPO}
+        className={CAMPO}
       >
-        <option value="">
-          Sin nivel asignado
-        </option>
+        <option value="">Sin nivel asignado</option>
 
-        {nivelAntiguo && (
+        {anterior && (
           <option value={valor}>
             {valor} (nivel anterior)
           </option>
         )}
 
         {NIVELES.map((nivel, indice) => (
-          <option
-            key={nivel}
-            value={nivel}
-          >
+          <option key={nivel} value={nivel}>
             {indice + 1}. {nivel}
           </option>
         ))}
       </select>
     </Campo>
-  );
-}
-
-function BadgeEstado({
-  activo,
-}: {
-  activo: boolean;
-}) {
-  return (
-    <span
-      className={[
-        "rounded-full px-3 py-1 text-xs font-bold",
-        activo
-          ? "bg-primary-fixed text-on-primary-fixed"
-          : "bg-surface-container-high text-on-surface-variant",
-      ].join(" ")}
-    >
-      {activo ? "Activo" : "Inactivo"}
-    </span>
   );
 }
 
@@ -289,58 +192,52 @@ export default function GestionPersonalDesignaciones({
   puedeCrear,
   puedeEditar,
 }: Props) {
-  const [personal, setPersonal] = useState(
-    () => ordenarPersonal(resultadoInicial.personal),
-  );
-
-  const [busqueda, setBusqueda] =
-    useState("");
-
-  const [filtroEstado, setFiltroEstado] =
-    useState<FiltroEstado>("todos");
-
-  const [
-    filtroHabilitacion,
-    setFiltroHabilitacion,
-  ] = useState("todos");
-
-  const [filtroNivel, setFiltroNivel] =
-    useState("todos");
-
-  const [filtroGrupo, setFiltroGrupo] =
-    useState("todos");
+  const [personal, setPersonal] = useState<
+    PersonalDesignacion[]
+  >(resultadoInicial.personal);
 
   const [formulario, setFormulario] =
-    useState<FormularioPersonal | null>(null);
+    useState<Ficha | null>(null);
 
-  const [guardando, setGuardando] =
-    useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const [estadoFiltro, setEstadoFiltro] =
+    useState<EstadoFiltro>("todos");
 
-  const [error, setError] =
-    useState<string | null>(null);
+  const [habilitacionFiltro, setHabilitacionFiltro] =
+    useState("todos");
 
+  const [nivelFiltro, setNivelFiltro] =
+    useState("todos");
+
+  const [grupoFiltro, setGrupoFiltro] =
+    useState("todos");
+
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [mensaje, setMensaje] =
     useState<string | null>(null);
 
   // ====================================================
-  // GRUPOS
+  // GRUPOS DISPONIBLES
   // ====================================================
 
-  const gruposDisponibles = useMemo(
+  const grupos = useMemo(
     () =>
       Array.from(
         new Set([
-          ...GRUPOS_SUGERIDOS,
+          ...GRUPOS_INICIALES,
+          ...resultadoInicial.gruposDisponibles,
           ...personal.flatMap(
             (persona) => persona.grupos,
           ),
+          ...(formulario?.grupos ?? []),
         ]),
-      ).sort((a, b) =>
-        a.localeCompare(b, "es", {
-          sensitivity: "base",
-        }),
-      ),
-    [personal],
+      ).sort((a, b) => a.localeCompare(b, "es")),
+    [
+      personal,
+      formulario?.grupos,
+      resultadoInicial.gruposDisponibles,
+    ],
   );
 
   // ====================================================
@@ -350,187 +247,149 @@ export default function GestionPersonalDesignaciones({
   const resumen = useMemo(
     () => ({
       total: personal.length,
-
       activos: personal.filter(
         (persona) => persona.activo,
       ).length,
-
       inactivos: personal.filter(
         (persona) => !persona.activo,
       ).length,
-
       pista: personal.filter(
-        (persona) =>
-          persona.habilitacion === "pista",
+        (persona) => persona.habilitacion === "pista",
       ).length,
-
       mesa: personal.filter(
-        (persona) =>
-          persona.habilitacion === "mesa",
+        (persona) => persona.habilitacion === "mesa",
       ).length,
-
       ambos: personal.filter(
-        (persona) =>
-          persona.habilitacion === "ambos",
+        (persona) => persona.habilitacion === "ambos",
       ).length,
     }),
     [personal],
   );
 
   // ====================================================
-  // FILTROS
+  // FILTROS Y ORDEN CBA
   // ====================================================
 
-  const personalFiltrado = useMemo(() => {
-    const consulta = normalizar(
-      busqueda.trim(),
-    );
+  const filtrados = useMemo(() => {
+    const consulta = normalizar(busqueda.trim());
 
-    return personal.filter((persona) => {
-      if (
-        filtroEstado === "activos" &&
-        !persona.activo
-      ) {
-        return false;
-      }
+    return personal
+      .filter((persona) => {
+        if (
+          estadoFiltro === "activos" &&
+          !persona.activo
+        ) {
+          return false;
+        }
 
-      if (
-        filtroEstado === "inactivos" &&
-        persona.activo
-      ) {
-        return false;
-      }
+        if (
+          estadoFiltro === "inactivos" &&
+          persona.activo
+        ) {
+          return false;
+        }
 
-      if (
-        filtroHabilitacion !== "todos" &&
-        persona.habilitacion !== filtroHabilitacion
-      ) {
-        return false;
-      }
+        if (
+          habilitacionFiltro !== "todos" &&
+          persona.habilitacion !== habilitacionFiltro
+        ) {
+          return false;
+        }
 
-      if (
-        filtroNivel !== "todos" &&
-        persona.nivelPista !== filtroNivel &&
-        persona.nivelMesa !== filtroNivel
-      ) {
-        return false;
-      }
+        if (
+          nivelFiltro !== "todos" &&
+          persona.nivelPista !== nivelFiltro &&
+          persona.nivelMesa !== nivelFiltro
+        ) {
+          return false;
+        }
 
-      if (
-        filtroGrupo !== "todos" &&
-        !persona.grupos.includes(filtroGrupo)
-      ) {
-        return false;
-      }
+        if (
+          grupoFiltro !== "todos" &&
+          !persona.grupos.includes(grupoFiltro)
+        ) {
+          return false;
+        }
 
-      if (!consulta) {
-        return true;
-      }
+        if (!consulta) {
+          return true;
+        }
 
-      const contenido = normalizar(
-        [
-          persona.codigo,
-          persona.nombreCompleto,
-          nombreHabilitacion(persona.habilitacion),
-          persona.nivelPista ?? "",
-          persona.nivelMesa ?? "",
-          ...persona.grupos,
-        ].join(" "),
-      );
+        const contenido = normalizar(
+          [
+            persona.codigo,
+            persona.nombreCompleto,
+            persona.habilitacion,
+            persona.nivelPista ?? "",
+            persona.nivelMesa ?? "",
+            ...persona.grupos,
+          ].join(" "),
+        );
 
-      return contenido.includes(consulta);
-    });
+        return contenido.includes(consulta);
+      })
+      .sort(compararPersonalPorCodigo);
   }, [
     personal,
     busqueda,
-    filtroEstado,
-    filtroHabilitacion,
-    filtroNivel,
-    filtroGrupo,
+    estadoFiltro,
+    habilitacionFiltro,
+    nivelFiltro,
+    grupoFiltro,
   ]);
 
   // ====================================================
-  // FORMULARIO
+  // EDITAR
   // ====================================================
 
-  function iniciarAlta() {
-    if (!puedeCrear) {
-      return;
-    }
-
-    setFormulario(formularioVacio());
-    setError(null);
-    setMensaje(null);
-  }
-
-  function iniciarEdicion(
-    persona: PersonalDesignacion,
+  function cambiar<K extends keyof Ficha>(
+    campo: K,
+    valor: Ficha[K],
   ) {
-    if (!puedeEditar) {
-      return;
-    }
-
-    setFormulario(
-      convertirFormulario(persona),
+    setFormulario((anterior) =>
+      anterior
+        ? { ...anterior, [campo]: valor }
+        : anterior,
     );
 
     setError(null);
-    setMensaje(null);
   }
 
-  function cerrarFormulario() {
-    if (guardando) {
-      return;
-    }
-
-    setFormulario(null);
-    setError(null);
-  }
-
-  function cambiarCampo<
-    K extends keyof FormularioPersonal
-  >(
-    campo: K,
-    valor: FormularioPersonal[K],
-  ) {
+  function alternarGrupo(grupo: string) {
     setFormulario((anterior) =>
       anterior
         ? {
             ...anterior,
-            [campo]: valor,
+            grupos: anterior.grupos.includes(grupo)
+              ? anterior.grupos.filter(
+                  (elemento) => elemento !== grupo,
+                )
+              : [...anterior.grupos, grupo],
           }
         : anterior,
     );
   }
 
-  function alternarGrupo(
-    grupo: string,
+  function abrirNueva() {
+    if (!puedeCrear) return;
+
+    setFormulario(vacia());
+    setMensaje(null);
+    setError(null);
+  }
+
+  function abrirEditar(
+    persona: PersonalDesignacion,
   ) {
-    setFormulario((anterior) => {
-      if (!anterior) {
-        return anterior;
-      }
+    if (!puedeEditar) return;
 
-      const seleccionado =
-        anterior.grupos.includes(grupo);
-
-      return {
-        ...anterior,
-
-        grupos: seleccionado
-          ? anterior.grupos.filter(
-              (actual) => actual !== grupo,
-            )
-          : [
-              ...anterior.grupos,
-              grupo,
-            ],
-      };
-    });
+    setFormulario(desdePersona(persona));
+    setMensaje(null);
+    setError(null);
   }
 
   // ====================================================
-  // GUARDAR PERSONAL
+  // GUARDAR
   // ====================================================
 
   async function guardar(
@@ -538,9 +397,7 @@ export default function GestionPersonalDesignaciones({
   ) {
     evento.preventDefault();
 
-    if (!formulario || guardando) {
-      return;
-    }
+    if (!formulario || guardando) return;
 
     if (
       formulario.id
@@ -548,30 +405,28 @@ export default function GestionPersonalDesignaciones({
         : !puedeCrear
     ) {
       setError(
-        "No tienes permiso para realizar esta operación.",
+        "No tienes permisos para esta operación.",
       );
       return;
     }
 
-    if (
-      formulario.nombreCompleto.trim().length < 3
-    ) {
-      setError(
-        "Introduce un nombre completo válido.",
-      );
+    if (formulario.nombreCompleto.trim().length < 3) {
+      setError("Introduce el nombre completo.");
       return;
     }
-
-    // Ningún usuario puede guardar niveles
-    // fuera de los seis definidos.
 
     for (const nivel of [
       formulario.nivelPista,
       formulario.nivelMesa,
     ]) {
-      if (nivel && !nivelValido(nivel)) {
+      if (
+        nivel &&
+        !NIVELES.some(
+          (permitido) => permitido === nivel,
+        )
+      ) {
         setError(
-          "Selecciona uno de los seis niveles establecidos para pista y mesa.",
+          "Selecciona uno de los seis niveles permitidos.",
         );
         return;
       }
@@ -582,53 +437,29 @@ export default function GestionPersonalDesignaciones({
     setMensaje(null);
 
     try {
-      const respuesta = await fetch(
-        API_PERSONAL,
-        {
-          method: "POST",
-          credentials: "same-origin",
-
-          headers: {
-            "Content-Type": "application/json",
-          },
-
-          body: JSON.stringify({
-            id: formulario.id,
-
-            nombreCompleto:
-              formulario.nombreCompleto.trim(),
-
-            habilitacion:
-              formulario.habilitacion,
-
-            nivelPista:
-              formulario.nivelPista || null,
-
-            nivelMesa:
-              formulario.nivelMesa || null,
-
-            grupos:
-              formulario.grupos,
-
-            activo:
-              formulario.activo,
-
-            anotaciones:
-              formulario.anotaciones,
-          }),
+      const respuesta = await fetch(API, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          id: formulario.id,
+          nombreCompleto:
+            formulario.nombreCompleto.trim(),
+          habilitacion: formulario.habilitacion,
+          nivelPista:
+            formulario.nivelPista || null,
+          nivelMesa:
+            formulario.nivelMesa || null,
+          grupos: formulario.grupos,
+          activo: formulario.activo,
+          anotaciones: formulario.anotaciones,
+        }),
+      });
 
-      let resultado: RespuestaApi;
-
-      try {
-        resultado =
-          await respuesta.json() as RespuestaApi;
-      } catch {
-        throw new Error(
-          "El servidor no ha devuelto una respuesta válida.",
-        );
-      }
+      const resultado =
+        (await respuesta.json()) as RespuestaApi;
 
       if (
         !respuesta.ok ||
@@ -637,44 +468,35 @@ export default function GestionPersonalDesignaciones({
       ) {
         throw new Error(
           resultado.error ||
-          "No se han podido guardar los datos.",
+            "No se han podido guardar los datos.",
         );
       }
 
-      const personaGuardada =
-        resultado.data.personal;
+      const guardada = resultado.data.personal;
 
-      setPersonal((anterior) => {
-        const existe = anterior.some(
-          (persona) =>
-            persona.id === personaGuardada.id,
-        );
-
-        return ordenarPersonal(
-          existe
-            ? anterior.map((persona) =>
-                persona.id === personaGuardada.id
-                  ? personaGuardada
-                  : persona,
-              )
-            : [
-                ...anterior,
-                personaGuardada,
-              ],
-        );
-      });
+      setPersonal((anterior) =>
+        anterior.some(
+          (persona) => persona.id === guardada.id,
+        )
+          ? anterior.map((persona) =>
+              persona.id === guardada.id
+                ? guardada
+                : persona,
+            )
+          : [...anterior, guardada],
+      );
 
       setFormulario(null);
 
       setMensaje(
         resultado.data.mensaje ||
-        "Los datos se han guardado correctamente.",
+          "Personal guardado correctamente.",
       );
     } catch (fallo) {
       setError(
         fallo instanceof Error
           ? fallo.message
-          : "Ha ocurrido un error inesperado.",
+          : "Error al guardar el personal.",
       );
     } finally {
       setGuardando(false);
@@ -687,26 +509,26 @@ export default function GestionPersonalDesignaciones({
 
   return (
     <div className="space-y-6">
-
       {/* CABECERA */}
 
-      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6">
+      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h2 className="text-xl font-extrabold text-on-surface sm:text-2xl">
+            <h2 className="text-xl font-extrabold text-on-surface">
               Árbitros y oficiales de mesa
             </h2>
 
-            <p className="mt-2 text-sm text-on-surface-variant">
-              Gestiona el personal de arbitraje del C.B. Andratx.
+            <p className="mt-1 text-sm text-on-surface-variant">
+              Activos primero. Orden numérico por código
+              CBA dentro de cada estado.
             </p>
           </div>
 
           {puedeCrear && !formulario && (
             <button
               type="button"
-              onClick={iniciarAlta}
-              className="min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary hover:opacity-90"
+              onClick={abrirNueva}
+              className="min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary"
             >
               + Añadir persona
             </button>
@@ -719,7 +541,7 @@ export default function GestionPersonalDesignaciones({
         >
           <a
             href="/panel/designaciones"
-            className="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface-variant hover:text-primary"
+            className="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface"
           >
             Partidos
           </a>
@@ -734,7 +556,7 @@ export default function GestionPersonalDesignaciones({
 
           <a
             href="/panel/designaciones/estadisticas"
-            className="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface-variant hover:text-primary"
+            className="rounded-xl bg-surface-container-low px-4 py-2 text-sm font-bold text-on-surface"
           >
             Estadísticas
           </a>
@@ -746,7 +568,7 @@ export default function GestionPersonalDesignaciones({
       {mensaje && (
         <div
           role="status"
-          className="rounded-xl border border-primary/30 bg-primary-fixed p-4 text-sm font-medium text-on-primary-fixed"
+          className="rounded-xl bg-primary-fixed p-4 text-sm text-on-primary-fixed"
         >
           {mensaje}
         </div>
@@ -765,57 +587,54 @@ export default function GestionPersonalDesignaciones({
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {[
-          { titulo: "Total", valor: resumen.total },
-          { titulo: "Activos", valor: resumen.activos },
-          { titulo: "Inactivos", valor: resumen.inactivos },
-          { titulo: "Solo pista", valor: resumen.pista },
-          { titulo: "Solo mesa", valor: resumen.mesa },
-          { titulo: "Ambos", valor: resumen.ambos },
-        ].map((dato) => (
+          ["Total", resumen.total],
+          ["Activos", resumen.activos],
+          ["Inactivos", resumen.inactivos],
+          ["Solo pista", resumen.pista],
+          ["Solo mesa", resumen.mesa],
+          ["Ambos", resumen.ambos],
+        ].map(([titulo, cantidad]) => (
           <div
-            key={dato.titulo}
-            className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 shadow-sm"
+            key={titulo}
+            className="rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-4"
           >
-            <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-              {dato.titulo}
+            <p className="text-xs text-on-surface-variant">
+              {titulo}
             </p>
 
-            <p className="mt-2 text-3xl font-extrabold tabular-nums text-on-surface">
-              {dato.valor}
+            <p className="mt-2 text-2xl font-extrabold tabular-nums text-on-surface">
+              {cantidad}
             </p>
           </div>
         ))}
       </section>
 
-      {/* FORMULARIO DE ALTA Y EDICIÓN */}
+      {/* FORMULARIO */}
 
       {formulario && (
-        <section className="rounded-2xl border border-primary/40 bg-surface-container-lowest p-5 shadow-sm sm:p-6">
-          <div className="mb-5 flex items-center justify-between gap-3">
-            <h3 className="text-lg font-extrabold text-on-surface">
+        <section className="rounded-2xl border border-primary/40 bg-surface-container-lowest p-5 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <h3 className="text-lg font-extrabold">
               {formulario.id
                 ? "Editar persona"
-                : "Registrar nueva persona"}
+                : "Registrar persona"}
             </h3>
 
             <button
               type="button"
               disabled={guardando}
-              onClick={cerrarFormulario}
-              className="rounded-lg px-3 py-2 text-sm font-bold text-on-surface-variant hover:bg-surface-container disabled:opacity-50"
+              onClick={() => {
+                setFormulario(null);
+                setError(null);
+              }}
+              className="rounded-lg px-3 py-2 text-sm font-bold"
             >
               Cerrar
             </button>
           </div>
 
-          <form
-            onSubmit={guardar}
-            className="space-y-5"
-          >
+          <form onSubmit={guardar} className="space-y-5">
             <div className="grid gap-4 md:grid-cols-2">
-
-              {/* NOMBRE */}
-
               <Campo titulo="Nombre completo">
                 <input
                   type="text"
@@ -824,164 +643,128 @@ export default function GestionPersonalDesignaciones({
                   maxLength={200}
                   autoComplete="name"
                   disabled={guardando}
+                  className={CAMPO}
                   value={formulario.nombreCompleto}
                   onChange={(evento) =>
-                    cambiarCampo(
+                    cambiar(
                       "nombreCompleto",
                       evento.target.value,
                     )
                   }
-                  className={CLASE_CAMPO}
                 />
               </Campo>
 
-              {/* HABILITACIÓN */}
-
               <Campo titulo="Habilitación">
                 <select
-                  value={formulario.habilitacion}
                   disabled={guardando}
+                  value={formulario.habilitacion}
                   onChange={(evento) =>
-                    cambiarCampo(
+                    cambiar(
                       "habilitacion",
                       evento.target.value as Habilitacion,
                     )
                   }
-                  className={CLASE_CAMPO}
+                  className={CAMPO}
                 >
                   <option value="pista">
                     Árbitro de pista
                   </option>
-
                   <option value="mesa">
                     Oficial de mesa
                   </option>
-
                   <option value="ambos">
                     Pista y mesa
                   </option>
                 </select>
               </Campo>
 
-              {/* NIVELES INDEPENDIENTES */}
-
-              <SelectorNivel
-                titulo="Nivel de árbitro de pista"
+              <Nivel
+                titulo="Nivel de pista"
                 valor={formulario.nivelPista}
-                deshabilitado={guardando}
+                disabled={guardando}
                 onChange={(valor) =>
-                  cambiarCampo(
-                    "nivelPista",
-                    valor,
-                  )
+                  cambiar("nivelPista", valor)
                 }
               />
 
-              <SelectorNivel
-                titulo="Nivel de oficial de mesa"
+              <Nivel
+                titulo="Nivel de mesa"
                 valor={formulario.nivelMesa}
-                deshabilitado={guardando}
+                disabled={guardando}
                 onChange={(valor) =>
-                  cambiarCampo(
-                    "nivelMesa",
-                    valor,
-                  )
+                  cambiar("nivelMesa", valor)
                 }
               />
             </div>
 
-            <p className="text-xs text-on-surface-variant">
-              Cada especialidad tiene seis niveles:
-              Escuela, Iniciación, Auxiliar, Entrenador,
-              Técnico y Responsable. Puedes dejar uno
-              sin asignar.
-            </p>
-
-            {/* GRUPOS */}
-
             <fieldset
-              disabled={guardando}
               className="rounded-xl border border-outline-variant/60 p-4"
+              disabled={guardando}
             >
-              <legend className="px-2 text-sm font-bold text-on-surface">
+              <legend className="px-2 text-sm font-bold">
                 Grupos habilitados
               </legend>
 
               <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {gruposDisponibles.map((grupo) => (
+                {grupos.map((grupo) => (
                   <label
                     key={grupo}
-                    className="flex cursor-pointer items-center gap-3 rounded-lg bg-surface-container-low p-3 text-sm text-on-surface"
+                    className="flex items-center gap-3 rounded-lg bg-surface-container-low p-3 text-sm"
                   >
                     <input
                       type="checkbox"
-                      checked={formulario.grupos.includes(grupo)}
+                      className="h-4 w-4 accent-primary"
+                      checked={formulario.grupos.includes(
+                        grupo,
+                      )}
                       onChange={() =>
                         alternarGrupo(grupo)
                       }
-                      className="h-4 w-4 accent-primary"
                     />
-
-                    <span>{grupo}</span>
+                    {grupo}
                   </label>
                 ))}
               </div>
             </fieldset>
-
-            {/* ANOTACIONES */}
 
             <Campo titulo="Anotaciones">
               <textarea
                 rows={3}
                 maxLength={5000}
                 disabled={guardando}
+                className={CAMPO}
                 value={formulario.anotaciones}
                 onChange={(evento) =>
-                  cambiarCampo(
+                  cambiar(
                     "anotaciones",
                     evento.target.value,
                   )
                 }
-                className={CLASE_CAMPO}
-                placeholder="Información interna relacionada con esta persona..."
               />
             </Campo>
 
-            {/* ACTIVO */}
-
-            <label className="flex items-center gap-3 rounded-xl bg-surface-container-low p-4">
+            <label className="flex items-center gap-3 rounded-xl bg-surface-container-low p-4 text-sm font-semibold">
               <input
                 type="checkbox"
+                className="h-5 w-5 accent-primary"
                 checked={formulario.activo}
                 disabled={guardando}
                 onChange={(evento) =>
-                  cambiarCampo(
+                  cambiar(
                     "activo",
                     evento.target.checked,
                   )
                 }
-                className="h-5 w-5 accent-primary"
               />
-
-              <span>
-                <span className="block text-sm font-bold text-on-surface">
-                  Persona activa
-                </span>
-
-                <span className="block text-xs text-on-surface-variant">
-                  Una persona inactiva conserva su historial.
-                </span>
-              </span>
+              Persona activa
             </label>
-
-            {/* BOTONES */}
 
             <div className="flex flex-wrap justify-end gap-3 border-t border-outline-variant/60 pt-5">
               <button
                 type="button"
                 disabled={guardando}
-                onClick={cerrarFormulario}
-                className="min-h-11 rounded-xl border border-outline-variant px-5 text-sm font-bold text-on-surface disabled:opacity-50"
+                onClick={() => setFormulario(null)}
+                className="min-h-11 rounded-xl border border-outline-variant px-5 text-sm font-bold"
               >
                 Cancelar
               </button>
@@ -993,9 +776,7 @@ export default function GestionPersonalDesignaciones({
               >
                 {guardando
                   ? "Guardando..."
-                  : formulario.id
-                    ? "Guardar cambios"
-                    : "Registrar persona"}
+                  : "Guardar persona"}
               </button>
             </div>
           </form>
@@ -1004,69 +785,48 @@ export default function GestionPersonalDesignaciones({
 
       {/* FILTROS */}
 
-      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 shadow-sm sm:p-5">
+      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-
-          <Campo titulo="Buscar personal">
+          <Campo titulo="Buscar">
             <input
               type="search"
+              className={CAMPO}
               value={busqueda}
               onChange={(evento) =>
                 setBusqueda(evento.target.value)
               }
-              placeholder="Nombre, código, nivel..."
-              className={CLASE_CAMPO}
+              placeholder="Nombre o CBA-001"
             />
           </Campo>
 
           <Campo titulo="Estado">
             <select
-              value={filtroEstado}
+              className={CAMPO}
+              value={estadoFiltro}
               onChange={(evento) =>
-                setFiltroEstado(
-                  evento.target.value as FiltroEstado,
+                setEstadoFiltro(
+                  evento.target.value as EstadoFiltro,
                 )
               }
-              className={CLASE_CAMPO}
             >
-              <option value="todos">
-                Todos
-              </option>
-
-              <option value="activos">
-                Activos
-              </option>
-
-              <option value="inactivos">
-                Inactivos
-              </option>
+              <option value="todos">Todos</option>
+              <option value="activos">Activos</option>
+              <option value="inactivos">Inactivos</option>
             </select>
           </Campo>
 
           <Campo titulo="Habilitación">
             <select
-              value={filtroHabilitacion}
+              className={CAMPO}
+              value={habilitacionFiltro}
               onChange={(evento) =>
-                setFiltroHabilitacion(evento.target.value)
+                setHabilitacionFiltro(evento.target.value)
               }
-              className={CLASE_CAMPO}
             >
-              <option value="todos">
-                Todas
-              </option>
-
-              <option value="pista">
-                Solo pista
-              </option>
-
-              <option value="mesa">
-                Solo mesa
-              </option>
-
-              <option value="ambos">
-                Pista y mesa
-              </option>
-
+              <option value="todos">Todas</option>
+              <option value="pista">Pista</option>
+              <option value="mesa">Mesa</option>
+              <option value="ambos">Ambos</option>
               <option value="sin_definir">
                 Sin definir
               </option>
@@ -1075,21 +835,15 @@ export default function GestionPersonalDesignaciones({
 
           <Campo titulo="Nivel">
             <select
-              value={filtroNivel}
+              className={CAMPO}
+              value={nivelFiltro}
               onChange={(evento) =>
-                setFiltroNivel(evento.target.value)
+                setNivelFiltro(evento.target.value)
               }
-              className={CLASE_CAMPO}
             >
-              <option value="todos">
-                Todos los niveles
-              </option>
-
+              <option value="todos">Todos</option>
               {NIVELES.map((nivel) => (
-                <option
-                  key={nivel}
-                  value={nivel}
-                >
+                <option key={nivel} value={nivel}>
                   {nivel}
                 </option>
               ))}
@@ -1098,21 +852,15 @@ export default function GestionPersonalDesignaciones({
 
           <Campo titulo="Grupo">
             <select
-              value={filtroGrupo}
+              className={CAMPO}
+              value={grupoFiltro}
               onChange={(evento) =>
-                setFiltroGrupo(evento.target.value)
+                setGrupoFiltro(evento.target.value)
               }
-              className={CLASE_CAMPO}
             >
-              <option value="todos">
-                Todos los grupos
-              </option>
-
-              {gruposDisponibles.map((grupo) => (
-                <option
-                  key={grupo}
-                  value={grupo}
-                >
+              <option value="todos">Todos</option>
+              {grupos.map((grupo) => (
+                <option key={grupo} value={grupo}>
                   {grupo}
                 </option>
               ))}
@@ -1122,22 +870,19 @@ export default function GestionPersonalDesignaciones({
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-on-surface-variant">
-            <strong className="text-on-surface">
-              {personalFiltrado.length}
-            </strong>{" "}
-            personas encontradas
+            {filtrados.length} personas encontradas
           </p>
 
           <button
             type="button"
+            className="text-sm font-bold text-primary"
             onClick={() => {
               setBusqueda("");
-              setFiltroEstado("todos");
-              setFiltroHabilitacion("todos");
-              setFiltroNivel("todos");
-              setFiltroGrupo("todos");
+              setEstadoFiltro("todos");
+              setHabilitacionFiltro("todos");
+              setNivelFiltro("todos");
+              setGrupoFiltro("todos");
             }}
-            className="text-sm font-bold text-primary hover:underline"
           >
             Limpiar filtros
           </button>
@@ -1146,16 +891,16 @@ export default function GestionPersonalDesignaciones({
 
       {/* LISTADO */}
 
-      {personalFiltrado.length > 0 ? (
+      {filtrados.length > 0 ? (
         <section className="grid gap-4 lg:grid-cols-2">
-          {personalFiltrado.map((persona) => (
+          {filtrados.map((persona) => (
             <article
               key={persona.id}
               className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+                <div>
+                  <p className="text-xs font-bold text-on-surface-variant">
                     {persona.codigo || "Sin código"}
                   </p>
 
@@ -1164,11 +909,17 @@ export default function GestionPersonalDesignaciones({
                   </h3>
                 </div>
 
-                <BadgeEstado activo={persona.activo} />
+                <span className="rounded-full bg-surface-container px-3 py-1 text-xs font-bold">
+                  {persona.activo
+                    ? "Activo"
+                    : "Inactivo"}
+                </span>
               </div>
 
-              <p className="mt-3 text-sm font-semibold text-on-surface-variant">
-                {nombreHabilitacion(persona.habilitacion)}
+              <p className="mt-2 text-sm text-on-surface-variant">
+                {etiquetaHabilitacion(
+                  persona.habilitacion,
+                )}
               </p>
 
               <div className="mt-4 grid grid-cols-2 gap-3">
@@ -1176,8 +927,7 @@ export default function GestionPersonalDesignaciones({
                   <p className="text-xs text-on-surface-variant">
                     Nivel de pista
                   </p>
-
-                  <p className="mt-1 text-sm font-bold text-on-surface">
+                  <p className="mt-1 font-bold">
                     {persona.nivelPista || "Sin asignar"}
                   </p>
                 </div>
@@ -1186,8 +936,7 @@ export default function GestionPersonalDesignaciones({
                   <p className="text-xs text-on-surface-variant">
                     Nivel de mesa
                   </p>
-
-                  <p className="mt-1 text-sm font-bold text-on-surface">
+                  <p className="mt-1 font-bold">
                     {persona.nivelMesa || "Sin asignar"}
                   </p>
                 </div>
@@ -1198,14 +947,14 @@ export default function GestionPersonalDesignaciones({
                   persona.grupos.map((grupo) => (
                     <span
                       key={grupo}
-                      className="rounded-lg border border-outline-variant px-2.5 py-1 text-xs text-on-surface"
+                      className="rounded-lg border border-outline-variant px-2 py-1 text-xs"
                     >
                       {grupo}
                     </span>
                   ))
                 ) : (
                   <span className="text-xs text-on-surface-variant">
-                    Sin grupos asignados
+                    Sin grupos
                   </span>
                 )}
               </div>
@@ -1217,13 +966,13 @@ export default function GestionPersonalDesignaciones({
               )}
 
               {puedeEditar && (
-                <div className="mt-5 flex justify-end border-t border-outline-variant/60 pt-4">
+                <div className="mt-4 flex justify-end border-t border-outline-variant/60 pt-4">
                   <button
                     type="button"
+                    className="min-h-10 rounded-xl border border-outline-variant px-4 text-sm font-bold"
                     onClick={() =>
-                      iniciarEdicion(persona)
+                      abrirEditar(persona)
                     }
-                    className="min-h-10 rounded-xl border border-outline-variant px-4 text-sm font-bold text-on-surface hover:border-primary hover:text-primary"
                   >
                     Editar persona
                   </button>
@@ -1233,24 +982,8 @@ export default function GestionPersonalDesignaciones({
           ))}
         </section>
       ) : (
-        <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest px-5 py-12 text-center">
-          <h3 className="text-lg font-extrabold text-on-surface">
-            No se ha encontrado personal
-          </h3>
-
-          <p className="mt-2 text-sm text-on-surface-variant">
-            Cambia los filtros o registra una nueva persona.
-          </p>
-
-          {puedeCrear && (
-            <button
-              type="button"
-              onClick={iniciarAlta}
-              className="mt-5 min-h-11 rounded-xl bg-primary px-5 text-sm font-bold text-on-primary"
-            >
-              Añadir persona
-            </button>
-          )}
+        <section className="rounded-xl border border-dashed border-outline-variant p-8 text-center text-sm text-on-surface-variant">
+          No se han encontrado personas.
         </section>
       )}
     </div>
