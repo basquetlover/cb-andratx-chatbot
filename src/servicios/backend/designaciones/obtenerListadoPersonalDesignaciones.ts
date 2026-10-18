@@ -3,6 +3,9 @@ import {
   supabaseServidor,
 } from "@servicios/supabase/servidor";
 
+import {
+  compararPersonalPorCodigo,
+} from "@servicios/backend/designaciones/ordenarPersonalPorCodigo";
 // ======================================================
 // C.B. ANDRATX
 // DESIGNACIONES - LISTADO DE PERSONAL
@@ -253,32 +256,7 @@ function ordenarPersonal(
   personal: PersonalDesignacion[],
 ): PersonalDesignacion[] {
   return [...personal].sort(
-    (a, b) => {
-      // Activos primero.
-
-      if (a.activo !== b.activo) {
-        return a.activo ? -1 : 1;
-      }
-
-      // Después por nombre.
-
-      const comparacion =
-        a.nombreCompleto.localeCompare(
-          b.nombreCompleto,
-          "es",
-          {
-            sensitivity: "base",
-          },
-        );
-
-      if (comparacion !== 0) {
-        return comparacion;
-      }
-
-      // Desempate estable.
-
-      return a.id.localeCompare(b.id);
-    },
+    compararPersonalPorCodigo,
   );
 }
 

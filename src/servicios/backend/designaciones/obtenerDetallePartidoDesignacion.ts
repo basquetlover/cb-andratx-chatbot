@@ -13,6 +13,9 @@ import type {
   InstalacionDesignacion,
 } from "@servicios/backend/designaciones/obtenerInstalacionesDesignaciones";
 
+import {
+  compararPersonalPorCodigo,
+} from "@servicios/backend/designaciones/ordenarPersonalPorCodigo";
 // ======================================================
 // CONFIGURACIÓN
 // ======================================================
