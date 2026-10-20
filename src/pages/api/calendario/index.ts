@@ -1,16 +1,23 @@
-import type {
-  APIRoute,
-} from "astro";
 
-import {
-  obtenerDatosEsbFbib,
-} from "@servicios/fbib/cliente/obtenerDatosEsbFbib";
+import type { APIRoute } from "astro";
 
 import {
   supabaseServidor,
 } from "@servicios/supabase/servidor";
 
+import {
+  obtenerPartidosCombinados,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
+
+import type {
+  PartidoCombinado,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
+
 export const prerender = false;
+
+// ======================================================
+// TIPOS PÚBLICOS DEL CALENDARIO
+// ======================================================
 
 type TipoEventoCalendario =
   | "evento"
@@ -44,6 +51,10 @@ interface EventoCalendarioClub {
   alcance?: AlcanceEventoCalendario;
   equiposIds?: string[];
 }
+
+// ======================================================
+// TIPOS DE BASE DE DATOS
+// ======================================================
 
 interface FilaTemporada {
   id: string;
@@ -105,26 +116,32 @@ interface FilaEvento {
   descripcion_corta: string | null;
   descripcion: string | null;
   tipo: string | null;
+
   alcance:
     | "todo-club"
     | "equipos"
     | null;
+
   fecha_inicio: string | null;
   fecha_fin: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
   todo_el_dia: boolean | null;
+
   instalacion_id: string | null;
   ubicacion: string | null;
   direccion: string | null;
+
   imagen: string | null;
   banner_notificacion: string | null;
   url_informacion: string | null;
   url_inscripcion: string | null;
+
   requiere_inscripcion: boolean | null;
   destacado: boolean | null;
   mostrar_calendario: boolean | null;
   estado: string | null;
+
   eventos_equipos:
     FilaRelacionEventoEquipo[] | null;
 }
@@ -132,15 +149,12 @@ interface FilaEvento {
 interface OcurrenciaEntrenamiento {
   id: string;
   equipoId: string;
-  entrenamientoId:
-    string | null;
-  instalacionId:
-    string | null;
+  entrenamientoId: string | null;
+  instalacionId: string | null;
   fecha: string;
   horaInicio: string | null;
   horaFin: string | null;
-  observaciones:
-    string | null;
+  observaciones: string | null;
   motivo: string | null;
 
   estado:
@@ -149,10 +163,9 @@ interface OcurrenciaEntrenamiento {
     | "cancelado";
 }
 
-interface FechaHoraPartido {
-  fecha: string;
-  hora: string | null;
-}
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
 
 const cabecerasJson = {
   "Cache-Control":
@@ -164,6 +177,10 @@ const cabecerasJson = {
   "X-Content-Type-Options":
     "nosniff",
 };
+
+// ======================================================
+// RESPUESTAS DE ERROR
+// ======================================================
 
 function respuestaError(
   error: string,
@@ -177,11 +194,14 @@ function respuestaError(
     },
     {
       status: estado,
-      headers:
-        cabecerasJson,
+      headers: cabecerasJson,
     },
   );
 }
+
+// ======================================================
+// UTILIDADES DE FECHAS
+// ======================================================
 
 function rellenarNumero(
   numero: number,
@@ -197,9 +217,11 @@ function crearFechaIso(
   mes: number,
   dia: number,
 ): string {
-  return `${anio}-${rellenarNumero(
-    mes,
-  )}-${rellenarNumero(dia)}`;
+  return (
+    `${anio}-` +
+    `${rellenarNumero(mes)}-` +
+    rellenarNumero(dia)
+  );
 }
 
 function convertirFechaUtc(
@@ -240,8 +262,7 @@ function sumarDias(
     new Date(fecha);
 
   resultado.setUTCDate(
-    resultado.getUTCDate() +
-      dias,
+    resultado.getUTCDate() + dias,
   );
 
   return resultado;
@@ -293,27 +314,8 @@ function obtenerDiaSemanaIso(
     : dia;
 }
 
-function convertirTexto(
-  valor: unknown,
-): string | null {
-  if (
-    typeof valor !== "string" &&
-    typeof valor !== "number"
-  ) {
-    return null;
-  }
-
-  const texto =
-    String(valor).trim();
-
-  return texto || null;
-}
-
 function normalizarHora(
-  hora:
-    | string
-    | null
-    | undefined,
+  hora: string | null | undefined,
 ): string | null {
   if (
     typeof hora !== "string"
@@ -332,9 +334,11 @@ function normalizarHora(
     return null;
   }
 
-  return `${rellenarNumero(
-    Number(coincidencia[1]),
-  )}:${coincidencia[2]}`;
+  return (
+    `${rellenarNumero(
+      Number(coincidencia[1]),
+    )}:${coincidencia[2]}`
+  );
 }
 
 function normalizarTexto(
@@ -356,54 +360,6 @@ function normalizarTexto(
     .toLowerCase();
 }
 
-function esRegistro(
-  valor: unknown,
-): valor is Record<
-  string,
-  unknown
-> {
-  return (
-    typeof valor === "object" &&
-    valor !== null &&
-    !Array.isArray(valor)
-  );
-}
-
-function obtenerValor(
-  registro: Record<
-    string,
-    unknown
-  >,
-  claves: string[],
-): unknown {
-  for (const clave of claves) {
-    if (
-      registro[clave] !==
-        undefined &&
-      registro[clave] !== null
-    ) {
-      return registro[clave];
-    }
-  }
-
-  return null;
-}
-
-function obtenerTexto(
-  registro: Record<
-    string,
-    unknown
-  >,
-  claves: string[],
-): string | null {
-  return convertirTexto(
-    obtenerValor(
-      registro,
-      claves,
-    ),
-  );
-}
-
 function obtenerNombreEquipo(
   equipo: FilaEquipo,
 ): string {
@@ -413,6 +369,10 @@ function obtenerNombreEquipo(
     "Equipo"
   );
 }
+
+// ======================================================
+// ENTRENAMIENTOS: COMPROBACIONES
+// ======================================================
 
 function fechaPertenecePeriodo(
   fecha: string,
@@ -474,9 +434,14 @@ function crearClaveOcurrencia(
   ].join(":");
 }
 
+// ======================================================
+// GENERAR ENTRENAMIENTOS HABITUALES
+// ======================================================
+
 function generarOcurrenciasHabituales(
   entrenamientos:
     FilaEntrenamiento[],
+
   inicio: string,
   fin: string,
 ): Map<
@@ -567,22 +532,26 @@ function generarOcurrenciasHabituales(
                 entrenamiento.observaciones,
 
               motivo: null,
+
               estado: "normal",
             },
           );
         }
 
-        fechaActual =
-          sumarDias(
-            fechaActual,
-            1,
-          );
+        fechaActual = sumarDias(
+          fechaActual,
+          1,
+        );
       }
     },
   );
 
   return ocurrencias;
 }
+
+// ======================================================
+// APLICAR EXCEPCIONES DE ENTRENAMIENTOS
+// ======================================================
 
 function aplicarExcepciones(
   ocurrencias: Map<
@@ -708,12 +677,13 @@ function aplicarExcepciones(
         );
 
       /*
-       * La excepción sustituye la
-       * ocurrencia habitual. Los
-       * entrenamientos cancelados se
-       * conservan para mostrarlos en
-       * el calendario.
+       * La excepción sustituye
+       * al entrenamiento habitual.
+       *
+       * Los entrenamientos cancelados
+       * se mantienen visibles.
        */
+
       ocurrencias.set(
         clave,
         ocurrenciaExcepcion,
@@ -726,6 +696,10 @@ function aplicarExcepciones(
     ...extras,
   ];
 }
+
+// ======================================================
+// UBICACIÓN DE ENTRENAMIENTOS
+// ======================================================
 
 function obtenerUbicacion(
   instalacion:
@@ -756,6 +730,10 @@ function obtenerUbicacion(
     null
   );
 }
+
+// ======================================================
+// ENTRENAMIENTOS -> EVENTOS DEL CALENDARIO
+// ======================================================
 
 function convertirEntrenamientosAEventos(
   ocurrencias:
@@ -840,10 +818,14 @@ function convertirEntrenamientosAEventos(
 
       return [
         {
-          id: ocurrencia.id,
+          id:
+            ocurrencia.id,
+
           titulo,
+
           fecha:
             ocurrencia.fecha,
+
           tipo,
 
           horaInicio:
@@ -865,7 +847,9 @@ function convertirEntrenamientosAEventos(
 
           url:
             equipo.slug?.trim()
-              ? `/equipos/${encodeURIComponent(equipo.slug.trim())}`
+              ? `/equipos/${encodeURIComponent(
+                  equipo.slug.trim(),
+                )}`
               : null,
 
           equipoId:
@@ -886,573 +870,231 @@ function convertirEntrenamientosAEventos(
   );
 }
 
-function extraerRegistrosPartidos(
-  valor: unknown,
-  profundidad = 0,
-): Record<
-  string,
-  unknown
->[] {
-  if (
-    profundidad > 6 ||
-    valor === null ||
-    valor === undefined
-  ) {
-    return [];
-  }
+// ======================================================
+// PARTIDOS: FUENTE ÚNICA FBIB + CBA
+// ======================================================
 
-  if (Array.isArray(valor)) {
-    return valor.flatMap(
-      (elemento) =>
-        extraerRegistrosPartidos(
-          elemento,
-          profundidad + 1,
-        ),
-    );
-  }
+function convertirPartidosAEventos(
+  partidos: PartidoCombinado[],
 
-  if (!esRegistro(valor)) {
-    return [];
-  }
+  equiposPorId: Map<
+    string,
+    FilaEquipo
+  >,
+): EventoCalendarioClub[] {
+  return partidos.flatMap(
+    (partido) => {
+      if (!partido.fecha) {
+        return [];
+      }
 
-  const parecePartido =
-    obtenerValor(
-      valor,
-      [
-        "idMatch",
-        "matchDay",
-        "nameLocalTeam",
-        "nameVisitorTeam",
-      ],
-    ) !== null;
+      // ----------------------------------------------
+      // 1. EQUIPOS DEL CLUB PARTICIPANTES
+      // ----------------------------------------------
 
-  if (parecePartido) {
-    return [valor];
-  }
+      /*
+       * Se crea UN evento por partido.
+       *
+       * Si hay dos equipos del CBA
+       * en el mismo encuentro, se
+       * conservan ambos identificadores.
+       *
+       * No se generan dos eventos
+       * diferentes del mismo partido.
+       */
 
-  const clavesContenedoras = [
-    "matches",
-    "data",
-    "items",
-    "results",
-    "partidos",
-  ];
-
-  for (
-    const clave of
-    clavesContenedoras
-  ) {
-    if (
-      valor[clave] !==
-      undefined
-    ) {
-      const registros =
-        extraerRegistrosPartidos(
-          valor[clave],
-          profundidad + 1,
+      const equiposIds =
+        Array.from(
+          new Set(
+            partido.equiposIdsClub.filter(
+              (id) =>
+                equiposPorId.has(
+                  id,
+                ),
+            ),
+          ),
         );
 
       if (
-        registros.length > 0
+        equiposIds.length === 0
       ) {
-        return registros;
+        return [];
       }
-    }
-  }
 
-  return Object.values(
-    valor,
-  ).flatMap(
-    (elemento) =>
-      extraerRegistrosPartidos(
-        elemento,
-        profundidad + 1,
-      ),
+      const idEquipoPrincipal =
+        partido.equipoIdClub &&
+        equiposIds.includes(
+          partido.equipoIdClub,
+        )
+          ? partido.equipoIdClub
+          : equiposIds[0];
+
+      const equipoPrincipal =
+        equiposPorId.get(
+          idEquipoPrincipal,
+        );
+
+      if (!equipoPrincipal) {
+        return [];
+      }
+
+      const nombreEquipo =
+        obtenerNombreEquipo(
+          equipoPrincipal,
+        );
+
+      // ----------------------------------------------
+      // 2. CASA / FUERA
+      // ----------------------------------------------
+
+      /*
+       * Nunca se calcula CASA/FUERA
+       * a partir de la posición
+       * local/visitante.
+       *
+       * Lo calcula el servicio central
+       * según la instalación.
+       */
+
+      const tipo:
+        TipoEventoCalendario =
+        partido.esEnCasa === true
+          ? "partido-casa"
+          : partido.esEnCasa === false
+            ? "partido-fuera"
+            : "evento";
+
+      // ----------------------------------------------
+      // 3. RESULTADO
+      // ----------------------------------------------
+
+      const descripcionResultado =
+        partido.resultado
+          ? (
+              `Resultado: ${
+                partido.resultado.local
+              } – ${
+                partido.resultado.visitante
+              }`
+            )
+          : null;
+
+      // ----------------------------------------------
+      // 4. JORNADA
+      // ----------------------------------------------
+
+      let descripcionJornada:
+        string | null = null;
+
+      if (
+        partido.jornadaTexto
+      ) {
+        const texto =
+          partido.jornadaTexto.trim();
+
+        descripcionJornada =
+          /^(jornada|j\.)\b/i.test(
+            texto,
+          )
+            ? texto
+            : `Jornada ${texto}`;
+      } else if (
+        partido.jornada !== null
+      ) {
+        descripcionJornada =
+          `Jornada ${partido.jornada}`;
+      }
+
+      // ----------------------------------------------
+      // 5. DESCRIPCIÓN
+      // ----------------------------------------------
+
+      const descripcion = [
+        descripcionResultado,
+
+        partido.competicion,
+
+        partido.grupo,
+
+        descripcionJornada,
+
+        partido.estadoPortada ===
+        "aplazado"
+          ? "Partido aplazado"
+          : null,
+
+        partido.esEnCasa === null
+          ? "Casa/fuera por confirmar"
+          : null,
+      ]
+        .filter(
+          (
+            valor,
+          ): valor is string =>
+            typeof valor ===
+              "string" &&
+            valor.trim().length >
+              0,
+        )
+        .join(" · ");
+
+      // ----------------------------------------------
+      // 6. EVENTO PÚBLICO
+      // ----------------------------------------------
+
+      return [
+        {
+          id:
+            partido.id,
+
+          titulo:
+            `${partido.local.nombre} – ${partido.visitante.nombre}`,
+
+          fecha:
+            partido.fecha,
+
+          tipo,
+
+          horaInicio:
+            partido.hora,
+
+          horaFin:
+            null,
+
+          ubicacion:
+            partido.ubicacion ??
+            partido.campo ??
+            partido.localidad,
+
+          descripcion:
+            descripcion || null,
+
+          categoria:
+            partido.categoria ??
+            equipoPrincipal.categoria,
+
+          url:
+            partido.enlaceFbib,
+
+          equipoId:
+            equipoPrincipal.id,
+
+          equipoNombre:
+            nombreEquipo,
+
+          alcance:
+            "equipo" as const,
+
+          equiposIds,
+        },
+      ];
+    },
   );
 }
 
-function extraerFechaHoraPartido(
-  partido: Record<
-    string,
-    unknown
-  >,
-): FechaHoraPartido | null {
-  const valorFecha =
-    obtenerValor(
-      partido,
-      [
-        "matchDay",
-        "date",
-        "fecha",
-        "matchDate",
-      ],
-    );
-
-  if (
-    typeof valorFecha ===
-    "number"
-  ) {
-    const fecha =
-      new Date(valorFecha);
-
-    if (
-      Number.isNaN(
-        fecha.getTime(),
-      )
-    ) {
-      return null;
-    }
-
-    return {
-      fecha:
-        crearFechaIso(
-          fecha.getUTCFullYear(),
-          fecha.getUTCMonth() +
-            1,
-          fecha.getUTCDate(),
-        ),
-
-      hora:
-        `${rellenarNumero(
-          fecha.getUTCHours(),
-        )}:${rellenarNumero(
-          fecha.getUTCMinutes(),
-        )}`,
-    };
-  }
-
-  if (
-    typeof valorFecha !==
-    "string"
-  ) {
-    return null;
-  }
-
-  const texto =
-    valorFecha.trim();
-
-  const fechaIso =
-    texto.match(
-      /^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{1,2}):(\d{2}))?/,
-    );
-
-  if (fechaIso) {
-    return {
-      fecha:
-        `${fechaIso[1]}-${fechaIso[2]}-${fechaIso[3]}`,
-
-      hora:
-        fechaIso[4] &&
-        fechaIso[5]
-          ? `${rellenarNumero(
-              Number(
-                fechaIso[4],
-              ),
-            )}:${fechaIso[5]}`
-          : normalizarHora(
-              obtenerTexto(
-                partido,
-                [
-                  "hour",
-                  "hora",
-                  "matchHour",
-                ],
-              ),
-            ),
-    };
-  }
-
-  const fechaEspanola =
-    texto.match(
-      /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/,
-    );
-
-  if (!fechaEspanola) {
-    return null;
-  }
-
-  return {
-    fecha:
-      crearFechaIso(
-        Number(
-          fechaEspanola[3],
-        ),
-        Number(
-          fechaEspanola[2],
-        ),
-        Number(
-          fechaEspanola[1],
-        ),
-      ),
-
-    hora:
-      fechaEspanola[4] &&
-      fechaEspanola[5]
-        ? `${rellenarNumero(
-            Number(
-              fechaEspanola[4],
-            ),
-          )}:${fechaEspanola[5]}`
-        : null,
-  };
-}
-
-function obtenerResultadoPartido(
-  partido: Record<
-    string,
-    unknown
-  >,
-): string | null {
-  const puntosLocal =
-    obtenerTexto(
-      partido,
-      [
-        "localScore",
-        "scoreLocal",
-        "pointsLocal",
-        "localPoints",
-      ],
-    );
-
-  const puntosVisitante =
-    obtenerTexto(
-      partido,
-      [
-        "visitorScore",
-        "scoreVisitor",
-        "pointsVisitor",
-        "visitorPoints",
-      ],
-    );
-
-  if (
-    puntosLocal === null ||
-    puntosVisitante === null
-  ) {
-    return null;
-  }
-
-  return `Resultado: ${puntosLocal} – ${puntosVisitante}`;
-}
-
-function obtenerCategoriaPartido(
-  partido: Record<
-    string,
-    unknown
-  >,
-  equipo: FilaEquipo,
-): string | null {
-  return (
-    obtenerTexto(
-      partido,
-      [
-        "nameCategory",
-        "categoryName",
-        "category",
-        "categoria",
-        "nameCompetition",
-        "competitionName",
-        "competition",
-      ],
-    ) ??
-    equipo.categoria?.trim() ??
-    null
-  );
-}
-
-function obtenerUbicacionPartido(
-  partido: Record<
-    string,
-    unknown
-  >,
-): string | null {
-  const localidad =
-    obtenerTexto(
-      partido,
-      [
-        "nameTown",
-        "town",
-        "locality",
-        "municipality",
-      ],
-    );
-
-  const instalacion =
-    obtenerTexto(
-      partido,
-      [
-        "nameField",
-        "fieldName",
-        "facilityName",
-        "nameFacility",
-        "courtName",
-        "installationName",
-        "pavilion",
-      ],
-    );
-
-  if (
-    localidad &&
-    normalizarTexto(
-      localidad,
-    ).includes("andratx")
-  ) {
-    const instalacionNormalizada =
-      normalizarTexto(
-        instalacion,
-      );
-
-    if (
-      instalacionNormalizada.includes(
-        "palau",
-      ) ||
-      instalacionNormalizada.includes(
-        "municipal",
-      )
-    ) {
-      return (
-        instalacion ??
-        "Palau Municipal d'Esports d'Andratx"
-      );
-    }
-
-    if (
-      instalacionNormalizada.includes(
-        "vinyet",
-      ) ||
-      instalacionNormalizada.includes(
-        "polideportivo",
-      )
-    ) {
-      return (
-        instalacion ??
-        "Poliesportiu Es Vinyet"
-      );
-    }
-
-    return (
-      instalacion ??
-      localidad
-    );
-  }
-
-  return (
-    localidad ??
-    instalacion ??
-    null
-  );
-}
-
-function convertirPartidoAEvento(
-  partido: Record<
-    string,
-    unknown
-  >,
-  equipo: FilaEquipo,
-  inicioMes: string,
-  finMes: string,
-): EventoCalendarioClub | null {
-  const fechaHora =
-    extraerFechaHoraPartido(
-      partido,
-    );
-
-  if (
-    !fechaHora ||
-    fechaHora.fecha <
-      inicioMes ||
-    fechaHora.fecha >
-      finMes
-  ) {
-    return null;
-  }
-
-  const idPartido =
-    obtenerTexto(
-      partido,
-      [
-        "idMatch",
-        "id",
-        "matchId",
-        "universallyid",
-      ],
-    );
-
-  if (!idPartido) {
-    return null;
-  }
-
-  const idLocal =
-    obtenerTexto(
-      partido,
-      [
-        "idLocalTeam",
-        "localTeamId",
-        "codeLocalTeam",
-        "codeLocalTeamClub",
-      ],
-    );
-
-  const idVisitante =
-    obtenerTexto(
-      partido,
-      [
-        "idVisitorTeam",
-        "visitorTeamId",
-        "codeVisitorTeam",
-        "codeVisitorTeamClub",
-      ],
-    );
-
-  const nombreLocal =
-    obtenerTexto(
-      partido,
-      [
-        "nameLocalTeam",
-        "localTeamName",
-      ],
-    ) ??
-    "Equipo local";
-
-  const nombreVisitante =
-    obtenerTexto(
-      partido,
-      [
-        "nameVisitorTeam",
-        "visitorTeamName",
-      ],
-    ) ??
-    "Equipo visitante";
-
-  const idFbib =
-    equipo.id_equipo_fbib
-      ?.trim() ?? "";
-
-  const nombreEquipo =
-    obtenerNombreEquipo(
-      equipo,
-    );
-
-  const juegaEnCasa =
-    idLocal === idFbib ||
-    (
-      idVisitante !== idFbib &&
-      normalizarTexto(
-        nombreLocal,
-      ).includes(
-        normalizarTexto(
-          nombreEquipo,
-        ),
-      )
-    );
-
-  return {
-    id:
-      `fbib-${idPartido}`,
-
-    titulo:
-      `${nombreLocal} – ${nombreVisitante}`,
-
-    fecha:
-      fechaHora.fecha,
-
-    tipo:
-      juegaEnCasa
-        ? "partido-casa"
-        : "partido-fuera",
-
-    horaInicio:
-      fechaHora.hora,
-
-    horaFin: null,
-
-    ubicacion:
-      obtenerUbicacionPartido(
-        partido,
-      ),
-
-    descripcion:
-      obtenerResultadoPartido(
-        partido,
-      ),
-
-    categoria:
-      obtenerCategoriaPartido(
-        partido,
-        equipo,
-      ),
-
-    url:
-      `https://www.fbib.es/partido/${encodeURIComponent(
-        idPartido,
-      )}`,
-
-    equipoId:
-      equipo.id,
-
-    equipoNombre:
-      nombreEquipo,
-
-    alcance: "equipo",
-
-    equiposIds: [
-      equipo.id,
-    ],
-  };
-}
-
-async function obtenerPartidosEquipo(
-  equipo: FilaEquipo,
-  mes: number,
-  inicioMes: string,
-  finMes: string,
-): Promise<
-  EventoCalendarioClub[]
-> {
-  const idFbib =
-    equipo.id_equipo_fbib
-      ?.trim();
-
-  if (!idFbib) {
-    return [];
-  }
-
-  try {
-    const resultado =
-      await obtenerDatosEsbFbib(
-        `/Match/getByTeamAndMonth/${encodeURIComponent(
-          idFbib,
-        )}/${mes}`,
-      );
-
-    return extraerRegistrosPartidos(
-      resultado,
-    ).flatMap(
-      (partido) => {
-        const evento =
-          convertirPartidoAEvento(
-            partido,
-            equipo,
-            inicioMes,
-            finMes,
-          );
-
-        return evento
-          ? [evento]
-          : [];
-      },
-    );
-  } catch (error) {
-    console.error(
-      `Error obteniendo los partidos FBIB de ${obtenerNombreEquipo(
-        equipo,
-      )}:`,
-      error,
-    );
-
-    return [];
-  }
-}
+// ======================================================
+// EVENTOS GENERALES DEL CLUB
+// ======================================================
 
 function convertirEventosTabla(
   filas: FilaEvento[],
@@ -1494,8 +1136,7 @@ function convertirEventosTabla(
                   (relacion) =>
                     relacion.equipo_id
                       ? [
-                          relacion
-                            .equipo_id,
+                          relacion.equipo_id,
                         ]
                       : [],
                 ),
@@ -1544,16 +1185,22 @@ function convertirEventosTabla(
                 ),
 
           ubicacion,
+
           descripcion,
-          categoria: null,
+
+          categoria:
+            null,
 
           url:
             fila.url_informacion
               ?.trim() ||
             null,
 
-          equipoId: null,
-          equipoNombre: null,
+          equipoId:
+            null,
+
+          equipoNombre:
+            null,
 
           alcance,
 
@@ -1564,16 +1211,24 @@ function convertirEventosTabla(
   );
 }
 
+// ======================================================
+// PRIORIDAD VISUAL DE EVENTOS
+// ======================================================
+
 function obtenerPrioridadTipo(
   tipo: TipoEventoCalendario,
 ): number {
-  if (tipo === "evento") {
+  if (
+    tipo === "evento"
+  ) {
     return 0;
   }
 
   if (
-    tipo === "partido-casa" ||
-    tipo === "partido-fuera"
+    tipo ===
+      "partido-casa" ||
+    tipo ===
+      "partido-fuera"
   ) {
     return 1;
   }
@@ -1589,6 +1244,10 @@ function obtenerPrioridadTipo(
 
   return 3;
 }
+
+// ======================================================
+// ELIMINAR EVENTOS DUPLICADOS Y ORDENAR
+// ======================================================
 
 function eliminarEventosDuplicados(
   eventos:
@@ -1674,6 +1333,10 @@ function eliminarEventosDuplicados(
   );
 }
 
+// ======================================================
+// GET /api/calendario?anio=AAAA&mes=MM
+// ======================================================
+
 export const GET: APIRoute =
   async ({ url }) => {
     const anio =
@@ -1689,6 +1352,10 @@ export const GET: APIRoute =
           "mes",
         ),
       );
+
+    // --------------------------------------------------
+    // 1. VALIDAR PARÁMETROS
+    // --------------------------------------------------
 
     if (
       !Number.isInteger(anio) ||
@@ -1719,18 +1386,20 @@ export const GET: APIRoute =
           mes,
         );
 
-      const {
-        data:
-          temporadaEncontrada,
+      // ------------------------------------------------
+      // 2. TEMPORADA ACTIVA
+      // ------------------------------------------------
 
-        error:
-          errorTemporada,
+      const {
+        data: temporadaEncontrada,
+        error: errorTemporada,
       } = await supabaseServidor
         .from("temporadas")
-        .select(
-          "id, nombre",
+        .select("id, nombre")
+        .eq(
+          "activa",
+          true,
         )
-        .eq("activa", true)
         .limit(1)
         .maybeSingle();
 
@@ -1748,12 +1417,8 @@ export const GET: APIRoute =
             ok: true,
 
             data: {
-              temporadaId:
-                null,
-
-              temporadaNombre:
-                null,
-
+              temporadaId: null,
+              temporadaNombre: null,
               eventos: [],
             },
 
@@ -1761,14 +1426,17 @@ export const GET: APIRoute =
           },
           {
             status: 200,
-            headers:
-              cabecerasJson,
+            headers: cabecerasJson,
           },
         );
       }
 
       const temporada =
         temporadaEncontrada as FilaTemporada;
+
+      // ------------------------------------------------
+      // 3. EQUIPOS Y EVENTOS
+      // ------------------------------------------------
 
       const [
         resultadoEquipos,
@@ -1789,7 +1457,10 @@ export const GET: APIRoute =
             "temporada_id",
             temporada.id,
           )
-          .eq("activo", true)
+          .eq(
+            "activo",
+            true,
+          )
           .order(
             "nombre",
             {
@@ -1884,12 +1555,17 @@ export const GET: APIRoute =
             equipo.id,
         );
 
+      // ------------------------------------------------
+      // 4. ENTRENAMIENTOS Y EXCEPCIONES
+      // ------------------------------------------------
+
       let entrenamientos:
         FilaEntrenamiento[] =
         [];
 
       let excepciones:
-        FilaExcepcion[] = [];
+        FilaExcepcion[] =
+        [];
 
       if (
         idsEquipos.length > 0
@@ -1986,6 +1662,10 @@ export const GET: APIRoute =
           ) as FilaExcepcion[];
       }
 
+      // ------------------------------------------------
+      // 5. INSTALACIONES DE ENTRENAMIENTOS
+      // ------------------------------------------------
+
       const idsInstalaciones =
         Array.from(
           new Set(
@@ -2015,8 +1695,7 @@ export const GET: APIRoute =
         [];
 
       if (
-        idsInstalaciones.length >
-        0
+        idsInstalaciones.length > 0
       ) {
         const {
           data,
@@ -2049,6 +1728,10 @@ export const GET: APIRoute =
           ) as FilaInstalacion[];
       }
 
+      // ------------------------------------------------
+      // 6. MAPAS DE REFERENCIA
+      // ------------------------------------------------
+
       const equiposPorId =
         new Map(
           equipos.map(
@@ -2068,6 +1751,10 @@ export const GET: APIRoute =
             ],
           ),
         );
+
+      // ------------------------------------------------
+      // 7. GENERAR ENTRENAMIENTOS
+      // ------------------------------------------------
 
       const ocurrencias =
         generarOcurrenciasHabituales(
@@ -2090,27 +1777,62 @@ export const GET: APIRoute =
           instalacionesPorId,
         );
 
-      const resultadosPartidos =
-        await Promise.allSettled(
-          equipos.map(
-            (equipo) =>
-              obtenerPartidosEquipo(
-                equipo,
-                mes,
-                rangoMes.inicio,
-                rangoMes.fin,
-              ),
-          ),
-        );
+      // ------------------------------------------------
+      // 8. OBTENER PARTIDOS COMBINADOS
+      // ------------------------------------------------
 
-      const eventosPartidos =
-        resultadosPartidos.flatMap(
-          (resultado) =>
-            resultado.status ===
-            "fulfilled"
-              ? resultado.value
-              : [],
+      /*
+       * ÚNICA CONSULTA GLOBAL.
+       *
+       * No se ejecuta una consulta
+       * individual por cada equipo.
+       *
+       * El servicio central combina
+       * partidos FBIB y partidos CBA.
+       *
+       * Si falla la consulta de
+       * partidos, el calendario
+       * conserva los demás eventos.
+       */
+
+      let eventosPartidos:
+        EventoCalendarioClub[] =
+        [];
+
+      try {
+        const resultadoPartidos =
+          await obtenerPartidosCombinados({
+            inicio:
+              rangoMes.inicio,
+
+            fin:
+              rangoMes.fin,
+          });
+
+        if (
+          resultadoPartidos.temporadaId !==
+          temporada.id
+        ) {
+          throw new Error(
+            "La temporada de los partidos no coincide con la del calendario.",
+          );
+        }
+
+        eventosPartidos =
+          convertirPartidosAEventos(
+            resultadoPartidos.partidos,
+            equiposPorId,
+          );
+      } catch (error) {
+        console.error(
+          "Error cargando los partidos combinados del calendario:",
+          error,
         );
+      }
+
+      // ------------------------------------------------
+      // 9. UNIFICAR TODOS LOS EVENTOS
+      // ------------------------------------------------
 
       const eventos =
         eliminarEventosDuplicados(
@@ -2120,6 +1842,10 @@ export const GET: APIRoute =
             ...eventosEntrenamientos,
           ],
         );
+
+      // ------------------------------------------------
+      // 10. DEVOLVER RESPUESTA
+      // ------------------------------------------------
 
       return Response.json(
         {
@@ -2139,8 +1865,7 @@ export const GET: APIRoute =
         },
         {
           status: 200,
-          headers:
-            cabecerasJson,
+          headers: cabecerasJson,
         },
       );
     } catch (error) {
@@ -2155,6 +1880,10 @@ export const GET: APIRoute =
       );
     }
   };
+
+// ======================================================
+// MÉTODOS NO PERMITIDOS
+// ======================================================
 
 export const ALL: APIRoute =
   async () => {

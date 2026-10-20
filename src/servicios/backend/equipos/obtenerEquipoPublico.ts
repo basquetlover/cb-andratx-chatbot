@@ -1,17 +1,29 @@
+
 import { supabaseServidor } from "../../supabase/servidor";
 
-import { obtenerEntrenamientosEquipo } from "@servicios/backend/entrenamientos/obtenerEntrenamientosEquipo";
-
-import { obtenerClasificacionesEquipoFbib } from "@servicios/fbib/equipos/obtenerClasificacionesEquipoFbib";
-
-import { obtenerFichaEquipoFbib } from "@servicios/fbib/equipos/obtenerFichaEquipoFbib";
+import {
+  obtenerEntrenamientosEquipo,
+} from "@servicios/backend/entrenamientos/obtenerEntrenamientosEquipo";
 
 import {
-  obtenerPartidosMesEquipoFbib,
-  obtenerProximosPartidosEquipoFbib,
-} from "@servicios/fbib/equipos/obtenerPartidosEquipoFbib";
+  obtenerClasificacionesEquipoFbib,
+} from "@servicios/fbib/equipos/obtenerClasificacionesEquipoFbib";
 
-import { obtenerPatrocinadoresPublicos } from "@servicios/backend/patrocinadores/obtenerPatrocinadoresPublicos";
+import {
+  obtenerFichaEquipoFbib,
+} from "@servicios/fbib/equipos/obtenerFichaEquipoFbib";
+
+import {
+  obtenerPartidosCombinados,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
+
+import {
+  obtenerPatrocinadoresPublicos,
+} from "@servicios/backend/patrocinadores/obtenerPatrocinadoresPublicos";
+
+import type {
+  PartidoCombinado,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
 
 import type {
   DatosEquipoPublico,
@@ -20,6 +32,18 @@ import type {
   PatrocinadorEquipoPublico,
   TemporadaEquipoPublico,
 } from "@tipos/EquipoPublico";
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+const ZONA_HORARIA = "Europe/Madrid";
+
+const CANTIDAD_PROXIMOS_PARTIDOS = 4;
+
+// ======================================================
+// ERRORES
+// ======================================================
 
 export class ErrorObtenerEquipoPublico extends Error {
   status: number;
@@ -37,19 +61,30 @@ export class ErrorObtenerEquipoPublico extends Error {
   }
 }
 
+// ======================================================
+// TIPOS DE BASE DE DATOS
+// ======================================================
+
 interface FilaEquipo {
   id: string;
+
   temporada_id: string | null;
+
   nombre: string | null;
   nombre_corto: string | null;
+
   categoria: string | null;
   genero: string | null;
   nivel: string | null;
+
   descripcion: string | null;
   imagen: string | null;
+
   id_equipo_fbib: string | null;
+
   patrocinadores: unknown;
   mostrar_sponsor: boolean | null;
+
   activo: boolean | null;
 }
 
@@ -58,9 +93,46 @@ interface FilaTemporada {
   nombre: string | null;
 }
 
-function validarSlug(valor: string): boolean {
-  return valor.length <= 120 && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(valor);
+// ======================================================
+// TIPOS DE FECHAS
+// ======================================================
+
+interface FechaActualMadrid {
+  anio: number;
+  mes: number;
+  dia: number;
+
+  hora: number;
+  minuto: number;
+
+  fecha: string;
+  horaTexto: string;
 }
+
+interface RangoTemporadaPartidos {
+  inicio: string;
+  fin: string;
+
+  mesActual: number;
+  anioActual: number;
+}
+
+// ======================================================
+// VALIDACIONES
+// ======================================================
+
+function validarSlug(
+  valor: string,
+): boolean {
+  return (
+    valor.length <= 120 &&
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(valor)
+  );
+}
+
+// ======================================================
+// UTILIDADES DE TEXTO
+// ======================================================
 
 function convertirTexto(
   valor: unknown,
@@ -72,13 +144,253 @@ function convertirTexto(
     return null;
   }
 
-  const texto =
-    String(valor).trim();
+  const texto = String(valor).trim();
 
   return texto.length > 0
     ? texto
     : null;
 }
+
+function rellenarDosDigitos(
+  valor: number,
+): string {
+  return String(valor).padStart(
+    2,
+    "0",
+  );
+}
+
+// ======================================================
+// FECHA ACTUAL EN MALLORCA
+// ======================================================
+
+function obtenerFechaActualMadrid(): FechaActualMadrid {
+  const ahora = new Date();
+
+  const partes =
+    new Intl.DateTimeFormat(
+      "en-GB",
+      {
+        timeZone: ZONA_HORARIA,
+
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+
+        hour: "2-digit",
+        minute: "2-digit",
+
+        hourCycle: "h23",
+      },
+    ).formatToParts(ahora);
+
+  function obtenerParte(
+    tipo: Intl.DateTimeFormatPartTypes,
+  ): number {
+    const valor =
+      partes.find(
+        (parte) =>
+          parte.type === tipo,
+      )?.value;
+
+    return Number(valor ?? 0);
+  }
+
+  const anio =
+    obtenerParte("year");
+
+  const mes =
+    obtenerParte("month");
+
+  const dia =
+    obtenerParte("day");
+
+  const hora =
+    obtenerParte("hour");
+
+  const minuto =
+    obtenerParte("minute");
+
+  return {
+    anio,
+    mes,
+    dia,
+
+    hora,
+    minuto,
+
+    fecha:
+      `${anio}-` +
+      `${rellenarDosDigitos(mes)}-` +
+      rellenarDosDigitos(dia),
+
+    horaTexto:
+      `${rellenarDosDigitos(hora)}:` +
+      rellenarDosDigitos(minuto),
+  };
+}
+
+// ======================================================
+// RANGO DE CONSULTA DE PARTIDOS
+// ======================================================
+
+function obtenerRangoTemporadaPartidos(
+  fechaActual: FechaActualMadrid,
+): RangoTemporadaPartidos {
+  /**
+   * Se consulta desde el primer día
+   * del mes actual hasta el final
+   * de la temporada deportiva.
+   *
+   * Agosto - julio.
+   *
+   * Con una única consulta podemos
+   * obtener:
+   *
+   * - Partidos del mes actual.
+   * - Próximos partidos.
+   *
+   * Los cambios de mes o fecha
+   * se resuelven en el servicio central.
+   */
+
+  const anioFinTemporada =
+    fechaActual.mes >= 8
+      ? fechaActual.anio + 1
+      : fechaActual.anio;
+
+  return {
+    inicio:
+      `${fechaActual.anio}-` +
+      `${rellenarDosDigitos(fechaActual.mes)}-01`,
+
+    fin:
+      `${anioFinTemporada}-07-31`,
+
+    mesActual:
+      fechaActual.mes,
+
+    anioActual:
+      fechaActual.anio,
+  };
+}
+
+// ======================================================
+// FILTROS DE PARTIDOS
+// ======================================================
+
+function obtenerPartidosMesActual(
+  partidos: PartidoCombinado[],
+  fechaActual: FechaActualMadrid,
+): PartidoCombinado[] {
+  const prefijoMes =
+    `${fechaActual.anio}-` +
+    rellenarDosDigitos(
+      fechaActual.mes,
+    );
+
+  return partidos.filter(
+    (partido) =>
+      partido.fecha !== null &&
+      partido.fecha.startsWith(
+        `${prefijoMes}-`,
+      ),
+  );
+}
+
+function esPartidoFuturo(
+  partido: PartidoCombinado,
+  fechaActual: FechaActualMadrid,
+): boolean {
+  if (!partido.fecha) {
+    return false;
+  }
+
+  /**
+   * No se consideran próximos
+   * los partidos ya finalizados
+   * ni los aplazados sin una
+   * nueva fecha confirmada.
+   */
+
+  if (
+    partido.estadoPortada ===
+      "finalizado" ||
+    partido.estadoPortada ===
+      "aplazado"
+  ) {
+    return false;
+  }
+
+  if (
+    partido.fecha >
+    fechaActual.fecha
+  ) {
+    return true;
+  }
+
+  if (
+    partido.fecha <
+    fechaActual.fecha
+  ) {
+    return false;
+  }
+
+  /**
+   * Partido del día actual.
+   *
+   * Si no se conoce la hora,
+   * permanece en próximos
+   * porque no podemos asegurar
+   * que ya haya empezado.
+   */
+
+  if (!partido.hora) {
+    return true;
+  }
+
+  return (
+    partido.hora >=
+    fechaActual.horaTexto
+  );
+}
+
+function obtenerProximosPartidosCombinados(
+  partidos: PartidoCombinado[],
+  fechaActual: FechaActualMadrid,
+): PartidoCombinado[] {
+  return partidos
+    .filter(
+      (partido) =>
+        esPartidoFuturo(
+          partido,
+          fechaActual,
+        ),
+    )
+    .sort(
+      (partidoA, partidoB) => {
+        const fechaA =
+          `${partidoA.fecha ?? ""}T` +
+          `${partidoA.hora ?? "23:59"}`;
+
+        const fechaB =
+          `${partidoB.fecha ?? ""}T` +
+          `${partidoB.hora ?? "23:59"}`;
+
+        return fechaA.localeCompare(
+          fechaB,
+        );
+      },
+    )
+    .slice(
+      0,
+      CANTIDAD_PROXIMOS_PARTIDOS,
+    );
+}
+
+// ======================================================
+// PATROCINADORES: OBTENER IDENTIFICADORES
+// ======================================================
 
 function obtenerIdsPatrocinadores(
   valor: unknown,
@@ -118,30 +430,20 @@ function obtenerIdsPatrocinadores(
     },
   );
 
-  return Array.from(new Set(ids));
+  return Array.from(
+    new Set(ids),
+  );
 }
 
-function obtenerMesActualMadrid(): number {
-  const mes = new Intl.DateTimeFormat(
-    "en-US",
-    {
-      timeZone: "Europe/Madrid",
-      month: "numeric",
-    },
-  ).format(new Date());
-
-  const numeroMes = Number(mes);
-
-  return Number.isInteger(numeroMes) &&
-    numeroMes >= 1 &&
-    numeroMes <= 12
-    ? numeroMes
-    : new Date().getMonth() + 1;
-}
+// ======================================================
+// TEMPORADA DEL EQUIPO
+// ======================================================
 
 async function obtenerTemporada(
   temporadaId: string | null,
-): Promise<TemporadaEquipoPublico | null> {
+): Promise<
+  TemporadaEquipoPublico | null
+> {
   if (!temporadaId) {
     return null;
   }
@@ -170,7 +472,8 @@ async function obtenerTemporada(
     temporadaEncontrada as FilaTemporada;
 
   return {
-    id: temporada.id,
+    id:
+      temporada.id,
 
     nombre:
       temporada.nombre?.trim() ||
@@ -178,10 +481,16 @@ async function obtenerTemporada(
   };
 }
 
+// ======================================================
+// PATROCINADORES DEL EQUIPO
+// ======================================================
+
 async function obtenerPatrocinadoresEquipo(
   patrocinadoresGuardados: unknown,
   mostrarSponsor: boolean,
-): Promise<PatrocinadorEquipoPublico[]> {
+): Promise<
+  PatrocinadorEquipoPublico[]
+> {
   if (!mostrarSponsor) {
     return [];
   }
@@ -191,11 +500,14 @@ async function obtenerPatrocinadoresEquipo(
       patrocinadoresGuardados,
     );
 
-  /*
-   * No debe llamarse al servicio con un array
-   * vacío porque podría devolver todos los
+  /**
+   * No llamar al servicio
+   * con un array vacío:
+   *
+   * podría devolver todos los
    * patrocinadores públicos.
    */
+
   if (ids.length === 0) {
     return [];
   }
@@ -220,13 +532,13 @@ async function obtenerPatrocinadoresEquipo(
 
       return [
         {
-          id: patrocinador.id,
+          id:
+            patrocinador.id,
 
           nombre:
             convertirTexto(
               patrocinador.nombre,
-            ) ??
-            "Patrocinador",
+            ) ?? "Patrocinador",
 
           banner,
 
@@ -246,6 +558,10 @@ async function obtenerPatrocinadoresEquipo(
     return [];
   }
 }
+
+// ======================================================
+// ENTRENAMIENTOS HABITUALES
+// ======================================================
 
 async function obtenerEntrenamientosHabituales(
   equipoId: string,
@@ -267,7 +583,8 @@ async function obtenerEntrenamientosHabituales(
         (
           entrenamiento,
         ): EntrenamientoHabitualEquipoPublico => ({
-          id: entrenamiento.id,
+          id:
+            entrenamiento.id,
 
           diaSemana:
             entrenamiento.diaSemana,
@@ -325,10 +642,12 @@ async function obtenerEntrenamientosHabituales(
         }),
       );
   } catch (error) {
-    /*
-     * La ausencia de entrenamientos no debe
-     * impedir que se muestre el equipo.
+    /**
+     * Si fallan los entrenamientos,
+     * el resto de la página continúa
+     * funcionando.
      */
+
     console.error(
       `Error cargando los entrenamientos habituales del equipo ${equipoId}:`,
       error,
@@ -338,67 +657,91 @@ async function obtenerEntrenamientosHabituales(
   }
 }
 
-async function obtenerDatosFbibEquipo(
-  idEquipoFbib: string | null,
-): Promise<DatosFbibEquipoPublico | null> {
-  if (!idEquipoFbib) {
-    return null;
-  }
+// ======================================================
+// INFORMACIÓN FBIB + PARTIDOS UNIFICADOS
+// ======================================================
 
+async function obtenerDatosFbibEquipo(
+  equipoId: string,
+  idEquipoFbib: string | null,
+): Promise<
+  DatosFbibEquipoPublico | null
+> {
   const id =
-    idEquipoFbib.trim();
+    convertirTexto(
+      idEquipoFbib,
+    );
+
+  /**
+   * Se mantiene el contrato existente.
+   *
+   * En equipos sin ID FBIB, fbib
+   * permanece null.
+   *
+   * Sus partidos manuales ya pueden
+   * consultarse desde el calendario
+   * público mediante el archivo 2.
+   */
 
   if (!id) {
     return null;
   }
 
-  const mesActual =
-    obtenerMesActualMadrid();
+  const fechaActual =
+    obtenerFechaActualMadrid();
+
+  const rango =
+    obtenerRangoTemporadaPartidos(
+      fechaActual,
+    );
 
   const enlaceFbib =
     `https://www.fbib.es/equipo/${encodeURIComponent(id)}`;
 
-  /*
-   * La ficha, los partidos del mes y los
-   * próximos partidos son independientes.
-   * Si falla una consulta, el resto de la
-   * página sigue funcionando.
+  /**
+   * La ficha FBIB se obtiene por
+   * separado de los partidos.
+   *
+   * Los partidos proceden únicamente
+   * de obtenerPartidosCombinados.
+   *
+   * No se ejecutan servicios paralelos
+   * que puedan devolver listas distintas.
    */
+
   const [
     resultadoFicha,
-    resultadoPartidosMes,
-    resultadoProximos,
+    resultadoPartidos,
   ] = await Promise.allSettled([
-    obtenerFichaEquipoFbib(id),
-
-    obtenerPartidosMesEquipoFbib(
+    obtenerFichaEquipoFbib(
       id,
-      mesActual,
     ),
 
-    obtenerProximosPartidosEquipoFbib(
-      id,
-      4,
-    ),
+    obtenerPartidosCombinados({
+      equipoId,
+
+      inicio:
+        rango.inicio,
+
+      fin:
+        rango.fin,
+    }),
   ]);
+
+  // --------------------------------------------------
+  // FICHA
+  // --------------------------------------------------
 
   let ficha:
     DatosFbibEquipoPublico["ficha"] =
       null;
 
-  let partidosMes:
-    DatosFbibEquipoPublico["partidosMes"] =
-      [];
-
-  let proximosPartidos:
-    DatosFbibEquipoPublico["proximosPartidos"] =
-      [];
-
   if (
     resultadoFicha.status ===
     "fulfilled"
   ) {
-    ficha = resultadoFicha.value;
+    ficha =
+      resultadoFicha.value;
   } else {
     console.error(
       `Error cargando la ficha FBIB del equipo ${id}:`,
@@ -406,31 +749,51 @@ async function obtenerDatosFbibEquipo(
     );
   }
 
+  // --------------------------------------------------
+  // PARTIDOS
+  // --------------------------------------------------
+
+  let partidosCombinados:
+    PartidoCombinado[] = [];
+
   if (
-    resultadoPartidosMes.status ===
+    resultadoPartidos.status ===
     "fulfilled"
   ) {
-    partidosMes =
-      resultadoPartidosMes.value;
+    partidosCombinados =
+      resultadoPartidos.value.partidos;
   } else {
     console.error(
-      `Error cargando los partidos del mes del equipo ${id}:`,
-      resultadoPartidosMes.reason,
+      `Error cargando los partidos del equipo ${equipoId}:`,
+      resultadoPartidos.reason,
     );
   }
 
-  if (
-    resultadoProximos.status ===
-    "fulfilled"
-  ) {
-    proximosPartidos =
-      resultadoProximos.value;
-  } else {
-    console.error(
-      `Error cargando los próximos partidos del equipo ${id}:`,
-      resultadoProximos.reason,
-    );
-  }
+  // --------------------------------------------------
+  // PARTIDOS DEL MES
+  // --------------------------------------------------
+
+  const partidosMes:
+    DatosFbibEquipoPublico["partidosMes"] =
+      obtenerPartidosMesActual(
+        partidosCombinados,
+        fechaActual,
+      );
+
+  // --------------------------------------------------
+  // PRÓXIMOS PARTIDOS
+  // --------------------------------------------------
+
+  const proximosPartidos:
+    DatosFbibEquipoPublico["proximosPartidos"] =
+      obtenerProximosPartidosCombinados(
+        partidosCombinados,
+        fechaActual,
+      );
+
+  // --------------------------------------------------
+  // CLASIFICACIONES
+  // --------------------------------------------------
 
   let clasificaciones:
     DatosFbibEquipoPublico["clasificaciones"] =
@@ -451,21 +814,40 @@ async function obtenerDatosFbibEquipo(
     }
   }
 
+  // --------------------------------------------------
+  // RESPUESTA
+  // --------------------------------------------------
+
   return {
     idEquipoFbib: id,
+
     enlaceFbib,
-    mesConsultado: mesActual,
+
+    mesConsultado:
+      fechaActual.mes,
+
     ficha,
+
     partidosMes,
+
     proximosPartidos,
+
     clasificaciones,
   };
 }
+
+// ======================================================
+// OBTENER EQUIPO PÚBLICO POR SLUG
+// ======================================================
 
 export async function obtenerEquipoPublico(
   equipoSlug: string,
 ): Promise<DatosEquipoPublico> {
   const slug = equipoSlug.trim();
+
+  // --------------------------------------------------
+  // 1. VALIDAR SLUG
+  // --------------------------------------------------
 
   if (!validarSlug(slug)) {
     throw new ErrorObtenerEquipoPublico(
@@ -473,6 +855,10 @@ export async function obtenerEquipoPublico(
       404,
     );
   }
+
+  // --------------------------------------------------
+  // 2. CONSULTAR EQUIPO
+  // --------------------------------------------------
 
   const {
     data: equipoEncontrado,
@@ -494,8 +880,14 @@ export async function obtenerEquipoPublico(
       mostrar_sponsor,
       activo
     `)
-    .eq("slug", slug)
-    .eq("activo", true)
+    .eq(
+      "slug",
+      slug,
+    )
+    .eq(
+      "activo",
+      true,
+    )
     .maybeSingle();
 
   if (errorEquipo) {
@@ -518,6 +910,10 @@ export async function obtenerEquipoPublico(
   const mostrarSponsor =
     equipo.mostrar_sponsor ?? true;
 
+  // --------------------------------------------------
+  // 3. CARGAR DATOS INDEPENDIENTES
+  // --------------------------------------------------
+
   const [
     temporada,
     patrocinadores,
@@ -538,14 +934,20 @@ export async function obtenerEquipoPublico(
     ),
 
     obtenerDatosFbibEquipo(
+      equipo.id,
       convertirTexto(
         equipo.id_equipo_fbib,
       ),
     ),
   ]);
 
+  // --------------------------------------------------
+  // 4. RESPUESTA PÚBLICA
+  // --------------------------------------------------
+
   return {
-    id: equipo.id,
+    id:
+      equipo.id,
 
     nombre:
       convertirTexto(
@@ -591,6 +993,7 @@ export async function obtenerEquipoPublico(
     entrenamientosHabituales,
 
     mostrarSponsor,
+
     patrocinadores,
 
     fbib,

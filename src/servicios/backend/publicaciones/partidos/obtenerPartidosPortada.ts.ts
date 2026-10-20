@@ -1,82 +1,53 @@
-import {
-  supabaseServidor,
-} from "@servicios/supabase/servidor";
 
 import {
-  obtenerDatosEsbFbib,
-} from "@servicios/fbib/cliente/obtenerDatosEsbFbib";
+  obtenerPartidosCombinados,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
 
 import type {
-  EstadoPartidoPortada,
+  EquipoPartidosCombinados,
+  PartidoCombinado,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
+
+import type {
   EquipoPartidoPortada,
   PartidoPortada,
   PeriodoPartidosPortada,
 } from "@tipos/PartidoPortada";
 
-const ZONA_HORARIA =
-  "Europe/Madrid";
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
 
-const ID_CLUB_ANDRATX =
-  "129";
+const ZONA_HORARIA = "Europe/Madrid";
 
-const URL_ESCUDO_CLUB =
-  "/favicon.svg";
+const HORA_CAMBIO_SEMANA = 20;
 
-interface FilaTemporada {
-  id: string;
+const ESCUDO_CLUB = "/favicon.svg";
+
+// ======================================================
+// ERRORES
+// ======================================================
+
+export class ErrorObtenerPartidosPortada
+  extends Error {
+  status: number;
+
+  constructor(
+    mensaje: string,
+    status = 500,
+  ) {
+    super(mensaje);
+
+    this.name =
+      "ErrorObtenerPartidosPortada";
+
+    this.status = status;
+  }
 }
 
-interface FilaEquipo {
-  id: string;
-
-  nombre: string | null;
-  nombre_corto: string | null;
-
-  id_equipo_fbib: string | null;
-}
-
-interface PartidoFbibCrudo {
-  idMatch?: unknown;
-
-  idLocalClub?: unknown;
-  idVisitorClub?: unknown;
-
-  idLocalTeam?: unknown;
-  idVisitorTeam?: unknown;
-
-  nameLocalTeam?: unknown;
-  nameVisitorTeam?: unknown;
-
-  localClubLogo?: unknown;
-  visitorClubLogo?: unknown;
-
-  matchDay?: unknown;
-
-  numMatchDay?: unknown;
-
-  nameField?: unknown;
-  nameTown?: unknown;
-
-  localScore?: unknown;
-  visitorScore?: unknown;
-
-  localPoints?: unknown;
-  visitorPoints?: unknown;
-
-  resultLocal?: unknown;
-  resultVisitor?: unknown;
-
-  resultsVisibles?: unknown;
-  idMatchResult?: unknown;
-
-  isLive?: unknown;
-  state?: unknown;
-
-  publicMessage?: unknown;
-  description?: unknown;
-  observations?: unknown;
-  typeResult?: unknown;
-}
+// ======================================================
+// TIPOS INTERNOS
+// ======================================================
 
 interface PartesFechaHora {
   anio: number;
@@ -88,13 +59,6 @@ interface PartesFechaHora {
   segundo: number;
 }
 
-interface FechaPartidoConvertida {
-  fecha: string;
-  hora: string;
-
-  instante: Date;
-}
-
 interface PeriodoCalculado {
   inicio: Date;
   fin: Date;
@@ -104,214 +68,21 @@ interface PeriodoCalculado {
   fechaActual: string;
 }
 
-interface ResultadoConsultaFbib {
-  correcto: boolean;
-  partidos: PartidoFbibCrudo[];
-}
+type PosicionClub =
+  | "local"
+  | "visitante";
 
-export class ErrorObtenerPartidosPortada
-  extends Error {
-  status: number;
+// ======================================================
+// UTILIDADES
+// ======================================================
 
-  constructor(
-    mensaje: string,
-    status: number,
-  ) {
-    super(mensaje);
-
-    this.name =
-      "ErrorObtenerPartidosPortada";
-
-    this.status = status;
-  }
-}
-
-function esObjeto(
-  valor: unknown,
-): valor is Record<string, unknown> {
-  return (
-    typeof valor === "object" &&
-    valor !== null &&
-    !Array.isArray(valor)
-  );
-}
-
-function convertirTexto(
-  valor: unknown,
-): string {
-  if (
-    typeof valor === "string" ||
-    typeof valor === "number"
-  ) {
-    return String(valor).trim();
-  }
-
-  return "";
-}
-
-function convertirTextoNullable(
-  valor: unknown,
-): string | null {
-  const texto =
-    convertirTexto(valor);
-
-  return texto || null;
-}
-
-function convertirNumeroNullable(
-  valor: unknown,
-): number | null {
-  if (
-    typeof valor === "number" &&
-    Number.isFinite(valor)
-  ) {
-    return Math.trunc(valor);
-  }
-
-  if (
-    typeof valor === "string"
-  ) {
-    const texto =
-      valor.trim();
-
-    if (!texto) {
-      return null;
-    }
-
-    const numero =
-      Number(texto);
-
-    if (
-      Number.isFinite(numero)
-    ) {
-      return Math.trunc(numero);
-    }
-  }
-
-  return null;
-}
-
-function convertirBooleano(
-  valor: unknown,
-): boolean {
-  if (
-    valor === true ||
-    valor === 1
-  ) {
-    return true;
-  }
-
-  if (
-    typeof valor === "string"
-  ) {
-    const texto =
-      valor
-        .trim()
-        .toLowerCase();
-
-    return (
-      texto === "true" ||
-      texto === "1" ||
-      texto === "si" ||
-      texto === "sí"
-    );
-  }
-
-  return false;
-}
-
-function esValorFalso(
-  valor: unknown,
-): boolean {
-  if (
-    valor === false ||
-    valor === 0
-  ) {
-    return true;
-  }
-
-  if (
-    typeof valor === "string"
-  ) {
-    const texto =
-      valor
-        .trim()
-        .toLowerCase();
-
-    return (
-      texto === "false" ||
-      texto === "0" ||
-      texto === "no"
-    );
-  }
-
-  return false;
-}
-
-function normalizarTexto(
-  valor: string,
-): string {
-  return valor
-    .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    )
-    .toLowerCase()
-    .trim();
-}
-
-function normalizarImagen(
-  valor: unknown,
-): string | null {
-  const imagen =
-    convertirTexto(valor);
-
-  if (!imagen) {
-    return null;
-  }
-
-  if (
-    imagen.startsWith(
-      "https://",
-    )
-  ) {
-    return imagen;
-  }
-
-  if (
-    imagen.startsWith(
-      "http://",
-    )
-  ) {
-    return imagen.replace(
-      "http://",
-      "https://",
-    );
-  }
-
-  if (
-    imagen.startsWith(
-      "data:image/",
-    )
-  ) {
-    return imagen;
-  }
-
-  if (
-    imagen.startsWith("/")
-  ) {
-    return `https://www.fbib.es${imagen}`;
-  }
-
-  return null;
-}
-
-function rellenarDosDigitos(
+function dosDigitos(
   valor: number,
 ): string {
-  return String(valor)
-    .padStart(2, "0");
+  return String(valor).padStart(
+    2,
+    "0",
+  );
 }
 
 function crearFechaIso(
@@ -321,20 +92,40 @@ function crearFechaIso(
 ): string {
   return (
     `${anio}-` +
-    `${rellenarDosDigitos(mes)}-` +
-    rellenarDosDigitos(dia)
+    `${dosDigitos(mes)}-` +
+    dosDigitos(dia)
   );
 }
 
-function obtenerPartesFechaHoraMadrid(
+function normalizarTexto(
+  valor: string | null | undefined,
+): string {
+  return (valor ?? "")
+    .normalize("NFD")
+    .replace(
+      /[\u0300-\u036f]/g,
+      "",
+    )
+    .toLowerCase()
+    .replace(
+      /\s+/g,
+      " ",
+    )
+    .trim();
+}
+
+// ======================================================
+// FECHA Y HORA DE MALLORCA
+// ======================================================
+
+function obtenerPartesMadrid(
   fecha: Date,
 ): PartesFechaHora {
   const partes =
     new Intl.DateTimeFormat(
-      "en-CA",
+      "en-GB",
       {
-        timeZone:
-          ZONA_HORARIA,
+        timeZone: ZONA_HORARIA,
 
         year: "numeric",
         month: "2-digit",
@@ -346,120 +137,112 @@ function obtenerPartesFechaHoraMadrid(
 
         hourCycle: "h23",
       },
-    ).formatToParts(
-      fecha,
-    );
+    ).formatToParts(fecha);
 
-  const obtenerParte = (
-    tipo:
-      Intl.DateTimeFormatPartTypes,
-  ): number => {
-    const parte =
-      partes.find(
-        (elemento) =>
-          elemento.type ===
-          tipo,
-      )?.value;
-
+  function obtener(
+    tipo: Intl.DateTimeFormatPartTypes,
+  ): number {
     return Number(
-      parte ?? 0,
+      partes.find(
+        (parte) =>
+          parte.type === tipo,
+      )?.value ?? 0,
     );
-  };
+  }
 
   return {
-    anio:
-      obtenerParte("year"),
+    anio: obtener("year"),
+    mes: obtener("month"),
+    dia: obtener("day"),
 
-    mes:
-      obtenerParte("month"),
-
-    dia:
-      obtenerParte("day"),
-
-    hora:
-      obtenerParte("hour"),
-
-    minuto:
-      obtenerParte("minute"),
-
-    segundo:
-      obtenerParte("second"),
+    hora: obtener("hour"),
+    minuto: obtener("minute"),
+    segundo: obtener("second"),
   };
 }
 
-/*
- * Convierte una fecha escrita como hora
- * local de Madrid en su instante UTC real.
- *
- * De este modo el periodo también funciona
- * correctamente durante los cambios de
- * horario de verano e invierno.
- */
+// ======================================================
+// CONVERSIÓN DE HORA MADRID A UTC
+// ======================================================
+
 function convertirHoraMadridAUtc(
-  partes:
-    PartesFechaHora,
+  partes: PartesFechaHora,
 ): Date {
-  const fechaLocalObjetivo =
-    Date.UTC(
-      partes.anio,
-      partes.mes - 1,
-      partes.dia,
-      partes.hora,
-      partes.minuto,
-      partes.segundo,
-    );
+  /**
+   * Convierte una hora local
+   * de Europe/Madrid a su instante UTC.
+   *
+   * Permite que el cambio de semana
+   * siga funcionando durante los
+   * cambios de horario de verano
+   * e invierno.
+   */
+
+  const objetivoLocal = Date.UTC(
+    partes.anio,
+    partes.mes - 1,
+    partes.dia,
+
+    partes.hora,
+    partes.minuto,
+    partes.segundo,
+  );
 
   let candidato =
-    fechaLocalObjetivo;
+    objetivoLocal;
 
   for (
     let intento = 0;
-    intento < 3;
+    intento < 4;
     intento += 1
   ) {
-    const partesCandidato =
-      obtenerPartesFechaHoraMadrid(
+    const convertido =
+      obtenerPartesMadrid(
         new Date(candidato),
       );
 
-    const fechaLocalCandidato =
+    const candidatoLocal =
       Date.UTC(
-        partesCandidato.anio,
-        partesCandidato.mes - 1,
-        partesCandidato.dia,
-        partesCandidato.hora,
-        partesCandidato.minuto,
-        partesCandidato.segundo,
+        convertido.anio,
+        convertido.mes - 1,
+        convertido.dia,
+
+        convertido.hora,
+        convertido.minuto,
+        convertido.segundo,
       );
 
     const diferencia =
-      fechaLocalCandidato -
-      fechaLocalObjetivo;
+      candidatoLocal -
+      objetivoLocal;
 
-    if (
-      diferencia === 0
-    ) {
+    if (diferencia === 0) {
       break;
     }
 
-    candidato -=
-      diferencia;
+    candidato -= diferencia;
   }
 
-  return new Date(
-    candidato,
-  );
+  return new Date(candidato);
 }
+
+// ======================================================
+// PERÍODO SEMANAL
+// ======================================================
 
 function obtenerPeriodoActual(
   ahora = new Date(),
 ): PeriodoCalculado {
-  const partesAhora =
-    obtenerPartesFechaHoraMadrid(
-      ahora,
-    );
+  /**
+   * Desde el martes a las 20:00
+   * hasta el siguiente martes
+   * a las 20:00.
+   */
 
-  const fechaLocalActual =
+  const partesAhora =
+    obtenerPartesMadrid(ahora);
+
+  const fechaHoy =
     new Date(
       Date.UTC(
         partesAhora.anio,
@@ -469,66 +252,58 @@ function obtenerPeriodoActual(
     );
 
   const diaSemana =
-    fechaLocalActual.getUTCDay();
+    fechaHoy.getUTCDay();
 
   const diasDesdeMartes =
     (
-      diaSemana -
-      2 +
-      7
+      diaSemana - 2 + 7
     ) % 7;
 
   const inicioLocal =
-    new Date(
-      Date.UTC(
-        partesAhora.anio,
-        partesAhora.mes - 1,
-        partesAhora.dia -
-          diasDesdeMartes,
-        20,
-        0,
-        0,
-      ),
-    );
+    new Date(fechaHoy);
 
-  const antesDeLasOcho =
-    partesAhora.hora < 20;
+  inicioLocal.setUTCDate(
+    inicioLocal.getUTCDate() -
+    diasDesdeMartes,
+  );
+
+  /**
+   * El martes, antes de las 20:00,
+   * todavía corresponde a la
+   * semana anterior.
+   */
 
   if (
     diaSemana === 2 &&
-    antesDeLasOcho
+    partesAhora.hora <
+      HORA_CAMBIO_SEMANA
   ) {
     inicioLocal.setUTCDate(
-      inicioLocal.getUTCDate() -
-        7,
+      inicioLocal.getUTCDate() - 7,
     );
   }
 
   const finLocal =
-    new Date(
-      inicioLocal.getTime(),
-    );
+    new Date(inicioLocal);
 
   finLocal.setUTCDate(
-    finLocal.getUTCDate() +
-      7,
+    finLocal.getUTCDate() + 7,
   );
 
   const inicio =
     convertirHoraMadridAUtc({
       anio:
-        inicioLocal
-          .getUTCFullYear(),
+        inicioLocal.getUTCFullYear(),
 
       mes:
-        inicioLocal
-          .getUTCMonth() + 1,
+        inicioLocal.getUTCMonth() + 1,
 
       dia:
-        inicioLocal
-          .getUTCDate(),
+        inicioLocal.getUTCDate(),
 
-      hora: 20,
+      hora:
+        HORA_CAMBIO_SEMANA,
+
       minuto: 0,
       segundo: 0,
     });
@@ -536,18 +311,17 @@ function obtenerPeriodoActual(
   const fin =
     convertirHoraMadridAUtc({
       anio:
-        finLocal
-          .getUTCFullYear(),
+        finLocal.getUTCFullYear(),
 
       mes:
-        finLocal
-          .getUTCMonth() + 1,
+        finLocal.getUTCMonth() + 1,
 
       dia:
-        finLocal
-          .getUTCDate(),
+        finLocal.getUTCDate(),
 
-      hora: 20,
+      hora:
+        HORA_CAMBIO_SEMANA,
+
       minuto: 0,
       segundo: 0,
     });
@@ -558,26 +332,16 @@ function obtenerPeriodoActual(
 
     fechaInicio:
       crearFechaIso(
-        inicioLocal
-          .getUTCFullYear(),
-
-        inicioLocal
-          .getUTCMonth() + 1,
-
-        inicioLocal
-          .getUTCDate(),
+        inicioLocal.getUTCFullYear(),
+        inicioLocal.getUTCMonth() + 1,
+        inicioLocal.getUTCDate(),
       ),
 
     fechaFin:
       crearFechaIso(
-        finLocal
-          .getUTCFullYear(),
-
-        finLocal
-          .getUTCMonth() + 1,
-
-        finLocal
-          .getUTCDate(),
+        finLocal.getUTCFullYear(),
+        finLocal.getUTCMonth() + 1,
+        finLocal.getUTCDate(),
       ),
 
     fechaActual:
@@ -589,983 +353,595 @@ function obtenerPeriodoActual(
   };
 }
 
-function fechaIsoValida(
-  anio: number,
-  mes: number,
-  dia: number,
+// ======================================================
+// COMPROBAR SI EL PARTIDO ESTÁ EN LA SEMANA
+// ======================================================
+
+function perteneceAlPeriodo(
+  partido: PartidoCombinado,
+  periodo: PeriodoCalculado,
 ): boolean {
-  const fecha =
-    new Date(
-      Date.UTC(
-        anio,
-        mes - 1,
-        dia,
-      ),
-    );
+  const fecha = partido.fecha;
 
-  return (
-    fecha.getUTCFullYear() ===
-      anio &&
-    fecha.getUTCMonth() ===
-      mes - 1 &&
-    fecha.getUTCDate() ===
-      dia
-  );
-}
-
-function convertirFechaPartido(
-  valor: unknown,
-): FechaPartidoConvertida | null {
-  const texto =
-    convertirTexto(valor);
-
-  if (!texto) {
-    return null;
-  }
-
-  let anio = 0;
-  let mes = 0;
-  let dia = 0;
-
-  let hora = 0;
-  let minuto = 0;
-  let segundo = 0;
-
-  const formatoIso =
-    texto.match(
-      /^(\d{4})-(\d{2})-(\d{2})(?:T|\s)(\d{2}):(\d{2})(?::(\d{2}))?/,
-    );
-
-  if (formatoIso) {
-    anio =
-      Number(formatoIso[1]);
-
-    mes =
-      Number(formatoIso[2]);
-
-    dia =
-      Number(formatoIso[3]);
-
-    hora =
-      Number(formatoIso[4]);
-
-    minuto =
-      Number(formatoIso[5]);
-
-    segundo =
-      Number(
-        formatoIso[6] ?? 0,
-      );
-  } else {
-    const formatoEspanol =
-      texto.match(
-        /^(\d{2})\/(\d{2})\/(\d{4})(?:T|\s)(\d{2}):(\d{2})(?::(\d{2}))?/,
-      );
-
-    if (!formatoEspanol) {
-      return null;
-    }
-
-    dia =
-      Number(
-        formatoEspanol[1],
-      );
-
-    mes =
-      Number(
-        formatoEspanol[2],
-      );
-
-    anio =
-      Number(
-        formatoEspanol[3],
-      );
-
-    hora =
-      Number(
-        formatoEspanol[4],
-      );
-
-    minuto =
-      Number(
-        formatoEspanol[5],
-      );
-
-    segundo =
-      Number(
-        formatoEspanol[6] ??
-          0,
-      );
+  if (!fecha) {
+    return false;
   }
 
   if (
-    !fechaIsoValida(
-      anio,
-      mes,
-      dia,
-    ) ||
-    hora < 0 ||
-    hora > 23 ||
-    minuto < 0 ||
-    minuto > 59 ||
-    segundo < 0 ||
-    segundo > 59
+    fecha < periodo.fechaInicio ||
+    fecha > periodo.fechaFin
   ) {
-    return null;
+    return false;
   }
-
-  return {
-    fecha:
-      crearFechaIso(
-        anio,
-        mes,
-        dia,
-      ),
-
-    hora:
-      `${rellenarDosDigitos(
-        hora,
-      )}:${rellenarDosDigitos(
-        minuto,
-      )}`,
-
-    instante:
-      convertirHoraMadridAUtc({
-        anio,
-        mes,
-        dia,
-        hora,
-        minuto,
-        segundo,
-      }),
-  };
-}
-
-function extraerColeccion(
-  valor: unknown,
-): PartidoFbibCrudo[] {
-  if (Array.isArray(valor)) {
-    return valor.filter(
-      esObjeto,
-    ) as PartidoFbibCrudo[];
-  }
-
-  if (esObjeto(valor)) {
-    return Object.values(
-      valor,
-    ).filter(
-      esObjeto,
-    ) as PartidoFbibCrudo[];
-  }
-
-  return [];
-}
-
-function extraerPartidos(
-  valor: unknown,
-): PartidoFbibCrudo[] {
-  if (Array.isArray(valor)) {
-    return extraerColeccion(
-      valor,
-    );
-  }
-
-  if (!esObjeto(valor)) {
-    return [];
-  }
-
-  const partidosDirectos =
-    extraerColeccion(
-      valor.matches,
-    );
 
   if (
-    partidosDirectos.length >
-    0
+    fecha > periodo.fechaInicio &&
+    fecha < periodo.fechaFin
   ) {
-    return partidosDirectos;
+    return true;
   }
 
-  const contenedores = [
-    valor.data,
-    valor.result,
-    valor.value,
-  ];
-
-  for (
-    const contenedor of
-    contenedores
-  ) {
-    if (
-      Array.isArray(
-        contenedor,
-      )
-    ) {
-      return extraerColeccion(
-        contenedor,
-      );
-    }
-
-    if (
-      esObjeto(
-        contenedor,
-      )
-    ) {
-      const partidos =
-        extraerColeccion(
-          contenedor.matches,
-        );
-
-      if (
-        partidos.length > 0
-      ) {
-        return partidos;
-      }
-    }
-  }
-
-  return [];
-}
-
-function obtenerMesesPeriodo(
-  fechaInicio: string,
-  fechaFin: string,
-): number[] {
-  const [
-    anioInicio,
-    mesInicio,
-  ] =
-    fechaInicio
-      .split("-")
-      .map(Number);
-
-  const [
-    anioFin,
-    mesFin,
-  ] =
-    fechaFin
-      .split("-")
-      .map(Number);
-
-  const cursor =
-    new Date(
-      Date.UTC(
-        anioInicio,
-        mesInicio - 1,
-        1,
-      ),
-    );
-
-  const ultimoMes =
-    new Date(
-      Date.UTC(
-        anioFin,
-        mesFin - 1,
-        1,
-      ),
-    );
-
-  const meses =
-    new Set<number>();
-
-  while (
-    cursor <= ultimoMes
-  ) {
-    meses.add(
-      cursor.getUTCMonth() +
-        1,
-    );
-
-    cursor.setUTCMonth(
-      cursor.getUTCMonth() +
-        1,
-    );
-  }
-
-  return Array.from(
-    meses,
-  );
-}
-
-function obtenerJornada(
-  partido:
-    PartidoFbibCrudo,
-): string | null {
-  const numero =
-    convertirTexto(
-      partido.numMatchDay,
-    );
-
-  if (!numero) {
-    return null;
-  }
-
-  const normalizado =
-    normalizarTexto(
-      numero,
-    );
+  /**
+   * Los martes hay que comprobar
+   * también la hora.
+   */
 
   if (
-    normalizado.startsWith(
-      "jornada",
-    )
+    fecha === periodo.fechaInicio
   ) {
-    return numero;
-  }
-
-  return `Jornada ${numero}`;
-}
-
-function obtenerUbicacion(
-  partido:
-    PartidoFbibCrudo,
-): string | null {
-  const municipio =
-    convertirTexto(
-      partido.nameTown,
-    );
-
-  const instalacion =
-    convertirTexto(
-      partido.nameField,
-    );
-
-  const municipioNormalizado =
-    normalizarTexto(
-      municipio,
-    );
-
-  if (
-    municipioNormalizado.includes(
-      "andratx",
-    )
-  ) {
-    const instalacionNormalizada =
-      normalizarTexto(
-        instalacion,
-      );
-
-    if (
-      instalacionNormalizada.includes(
-        "vinyet",
-      )
-    ) {
-      return "Poliesportiu Es Vinyet";
-    }
-
-    if (
-      instalacionNormalizada.includes(
-        "palau",
-      ) ||
-      instalacionNormalizada.includes(
-        "municipal d'esports",
-      ) ||
-      instalacionNormalizada.includes(
-        "municipal de deportes",
-      )
-    ) {
-      return "Palau Municipal d'Esports d'Andratx";
+    if (!partido.hora) {
+      /**
+       * Hora pendiente.
+       *
+       * Se asigna al período cuyo
+       * martes es su fecha de inicio,
+       * evitando duplicarlo.
+       */
+      return true;
     }
 
     return (
-      instalacion ||
-      municipio ||
-      "Andratx"
+      partido.hora >=
+      `${dosDigitos(
+        HORA_CAMBIO_SEMANA,
+      )}:00`
     );
-  }
-
-  return (
-    municipio ||
-    instalacion ||
-    null
-  );
-}
-
-function contieneIndicadorAplazado(
-  partido:
-    PartidoFbibCrudo,
-): boolean {
-  const contenido =
-    [
-      partido.state,
-      partido.publicMessage,
-      partido.description,
-      partido.observations,
-      partido.typeResult,
-    ]
-      .map(
-        convertirTexto,
-      )
-      .join(" ");
-
-  const normalizado =
-    normalizarTexto(
-      contenido,
-    );
-
-  return (
-    normalizado.includes(
-      "aplaz",
-    ) ||
-    normalizado.includes(
-      "ajorn",
-    ) ||
-    normalizado.includes(
-      "suspend",
-    ) ||
-    normalizado.includes(
-      "suspes",
-    )
-  );
-}
-
-function obtenerPuntuacionLocal(
-  partido:
-    PartidoFbibCrudo,
-): number | null {
-  return (
-    convertirNumeroNullable(
-      partido.localScore,
-    ) ??
-    convertirNumeroNullable(
-      partido.localPoints,
-    ) ??
-    convertirNumeroNullable(
-      partido.resultLocal,
-    )
-  );
-}
-
-function obtenerPuntuacionVisitante(
-  partido:
-    PartidoFbibCrudo,
-): number | null {
-  return (
-    convertirNumeroNullable(
-      partido.visitorScore,
-    ) ??
-    convertirNumeroNullable(
-      partido.visitorPoints,
-    ) ??
-    convertirNumeroNullable(
-      partido.resultVisitor,
-    )
-  );
-}
-
-function obtenerEstadoPartido(
-  partido:
-    PartidoFbibCrudo,
-
-  puntosLocal: number | null,
-  puntosVisitante: number | null,
-): EstadoPartidoPortada {
-  if (
-    convertirBooleano(
-      partido.isLive,
-    )
-  ) {
-    return "en-juego";
   }
 
   if (
-    contieneIndicadorAplazado(
-      partido,
-    )
+    fecha === periodo.fechaFin
   ) {
-    return "aplazado";
-  }
+    if (!partido.hora) {
+      return false;
+    }
 
-  const resultadoVisible =
-    !esValorFalso(
-      partido.resultsVisibles,
-    );
-
-  if (
-    resultadoVisible &&
-    puntosLocal !== null &&
-    puntosVisitante !== null
-  ) {
-    return "finalizado";
-  }
-
-  return "programado";
-}
-
-function obtenerNombreEquipo(
-  equipoFbibId: string,
-  nombreFbib: unknown,
-  equiposPorFbibId:
-    Map<string, FilaEquipo>,
-): string {
-  const equipoClub =
-    equiposPorFbibId.get(
-      equipoFbibId,
-    );
-
-  if (equipoClub) {
     return (
-      equipoClub.nombre?.trim() ||
-      equipoClub.nombre_corto?.trim() ||
-      convertirTexto(
-        nombreFbib,
-      ) ||
-      "C.B. Andratx"
+      partido.hora <
+      `${dosDigitos(
+        HORA_CAMBIO_SEMANA,
+      )}:00`
     );
   }
 
-  return (
-    convertirTexto(
-      nombreFbib,
-    ) ||
-    "Equipo pendiente"
-  );
+  return false;
 }
 
-function crearEquipoPartido(
-  opciones: {
-    equipoFbibId: string;
-    clubFbibId: string;
+// ======================================================
+// IDENTIFICAR EL EQUIPO DEL CBA
+// ======================================================
 
-    nombre: unknown;
-    escudo: unknown;
+function obtenerPosicionClub(
+  partido: PartidoCombinado,
+  equipos: EquipoPartidosCombinados[],
+): PosicionClub {
+  /**
+   * Primero utilizamos la posición
+   * identificada por el servicio central.
+   *
+   * Este campo expresa qué equipo
+   * participa como local o visitante.
+   *
+   * No determina CASA/FUERA.
+   */
 
-    equiposPorFbibId:
-      Map<string, FilaEquipo>;
-  },
+  if (
+    partido.posicionEquipo ===
+    "local"
+  ) {
+    return "local";
+  }
+
+  if (
+    partido.posicionEquipo ===
+    "visitante"
+  ) {
+    return "visitante";
+  }
+
+  const equiposParticipantes =
+    equipos.filter(
+      (equipo) =>
+        partido.equiposIdsClub.includes(
+          equipo.id,
+        ),
+    );
+
+  const idsFbib =
+    new Set(
+      equiposParticipantes
+        .map(
+          (equipo) =>
+            equipo.idEquipoFbib,
+        )
+        .filter(Boolean),
+    );
+
+  if (
+    partido.local.id &&
+    idsFbib.has(
+      partido.local.id,
+    )
+  ) {
+    return "local";
+  }
+
+  if (
+    partido.visitante.id &&
+    idsFbib.has(
+      partido.visitante.id,
+    )
+  ) {
+    return "visitante";
+  }
+
+  /**
+   * En partidos manuales puede no
+   * existir ID federativo.
+   *
+   * Se comparan los nombres
+   * guardados con los equipos del club.
+   */
+
+  const nombreLocal =
+    normalizarTexto(
+      partido.local.nombre,
+    );
+
+  const nombreVisitante =
+    normalizarTexto(
+      partido.visitante.nombre,
+    );
+
+  const coincideLocal =
+    equiposParticipantes.some(
+      (equipo) =>
+        nombreLocal ===
+          normalizarTexto(
+            equipo.nombre,
+          ) ||
+        (
+          equipo.nombreCorto !== null &&
+          nombreLocal ===
+            normalizarTexto(
+              equipo.nombreCorto,
+            )
+        ),
+    );
+
+  const coincideVisitante =
+    equiposParticipantes.some(
+      (equipo) =>
+        nombreVisitante ===
+          normalizarTexto(
+            equipo.nombre,
+          ) ||
+        (
+          equipo.nombreCorto !== null &&
+          nombreVisitante ===
+            normalizarTexto(
+              equipo.nombreCorto,
+            )
+        ),
+    );
+
+  if (
+    coincideLocal &&
+    !coincideVisitante
+  ) {
+    return "local";
+  }
+
+  if (
+    coincideVisitante &&
+    !coincideLocal
+  ) {
+    return "visitante";
+  }
+
+  /**
+   * Sin datos suficientes no se
+   * inventa un cambio de posición.
+   *
+   * Se conserva el primer equipo
+   * tal como aparece en el partido.
+   */
+  return "local";
+}
+
+// ======================================================
+// CONVERTIR EQUIPO PARA PORTADA
+// ======================================================
+
+function convertirEquipoPortada(
+  nombre: string,
+  id: string | null,
+  escudo: string | null,
+  esClub: boolean,
 ): EquipoPartidoPortada {
-  const {
-    equipoFbibId,
-    clubFbibId,
-    nombre,
-    escudo,
-    equiposPorFbibId,
-  } = opciones;
-
-  const esClub =
-    equiposPorFbibId.has(
-      equipoFbibId,
-    ) ||
-    clubFbibId ===
-      ID_CLUB_ANDRATX;
-
   return {
-    id:
-      equipoFbibId ||
-      null,
-
-    nombre:
-      obtenerNombreEquipo(
-        equipoFbibId,
-        nombre,
-        equiposPorFbibId,
-      ),
+    id,
+    nombre,
 
     escudo:
-      esClub
-        ? normalizarImagen(
-            escudo,
-          ) ||
-          URL_ESCUDO_CLUB
-        : normalizarImagen(
-            escudo,
-          ),
+      escudo ??
+      (
+        esClub
+          ? ESCUDO_CLUB
+          : null
+      ),
 
     esClub,
   };
 }
 
-function convertirPartido(
-  partido:
-    PartidoFbibCrudo,
+// ======================================================
+// FORMATO DE JORNADA
+// ======================================================
 
-  equiposPorFbibId:
-    Map<string, FilaEquipo>,
+function obtenerJornadaPortada(
+  partido: PartidoCombinado,
+): string | null {
+  const jornada =
+    partido.jornadaTexto?.trim() ??
+    (
+      partido.jornada !== null
+        ? String(
+            partido.jornada,
+          )
+        : null
+    );
 
-  inicio: Date,
-  fin: Date,
+  if (jornada) {
+    if (
+      normalizarTexto(
+        jornada,
+      ).startsWith("jornada")
+    ) {
+      return jornada;
+    }
+
+    return `Jornada ${jornada}`;
+  }
+
+  /**
+   * El componente actual solo dibuja
+   * el pie de ubicación cuando existe
+   * jornada o enlace FBIB.
+   *
+   * Para un partido manual sin jornada
+   * necesitamos un texto identificador
+   * para que su ubicación sea visible.
+   */
+  if (
+    partido.origen === "cba"
+  ) {
+    return "PARTIDO CBA";
+  }
+
+  return null;
+}
+
+// ======================================================
+// PARTIDO COMBINADO -> PARTIDO DE PORTADA
+// ======================================================
+
+function convertirPartidoPortada(
+  partido: PartidoCombinado,
+  equipos: EquipoPartidosCombinados[],
 ): PartidoPortada | null {
-  const id =
-    convertirTexto(
-      partido.idMatch,
-    );
-
-  const equipoLocalId =
-    convertirTexto(
-      partido.idLocalTeam,
-    );
-
-  const equipoVisitanteId =
-    convertirTexto(
-      partido.idVisitorTeam,
-    );
-
-  const clubLocalId =
-    convertirTexto(
-      partido.idLocalClub,
-    );
-
-  const clubVisitanteId =
-    convertirTexto(
-      partido.idVisitorClub,
-    );
-
-  const fechaPartido =
-    convertirFechaPartido(
-      partido.matchDay,
-    );
-
-  if (
-    !id ||
-    !equipoLocalId ||
-    !equipoVisitanteId ||
-    !fechaPartido
-  ) {
+  if (!partido.fecha) {
     return null;
   }
 
-  const perteneceAlClub =
-    equiposPorFbibId.has(
-      equipoLocalId,
-    ) ||
-    equiposPorFbibId.has(
-      equipoVisitanteId,
-    ) ||
-    clubLocalId ===
-      ID_CLUB_ANDRATX ||
-    clubVisitanteId ===
-      ID_CLUB_ANDRATX;
+  // --------------------------------------------------
+  // 1. IDENTIFICAR EL CBA Y SU RIVAL
+  // --------------------------------------------------
 
-  if (!perteneceAlClub) {
-    return null;
-  }
+  const posicionClub =
+    obtenerPosicionClub(
+      partido,
+      equipos,
+    );
 
-  const instante =
-    fechaPartido
-      .instante
-      .getTime();
+  const cbaEsLocalReal =
+    posicionClub === "local";
 
-  if (
-    instante <
-      inicio.getTime() ||
-    instante >=
-      fin.getTime()
-  ) {
-    return null;
-  }
+  const equipoLocalReal =
+    convertirEquipoPortada(
+      partido.local.nombre,
+      partido.local.id,
+      partido.local.escudo,
+      cbaEsLocalReal,
+    );
+
+  const equipoVisitanteReal =
+    convertirEquipoPortada(
+      partido.visitante.nombre,
+      partido.visitante.id,
+      partido.visitante.escudo,
+      !cbaEsLocalReal,
+    );
+
+  const equipoCba =
+    cbaEsLocalReal
+      ? equipoLocalReal
+      : equipoVisitanteReal;
+
+  const equipoRival =
+    cbaEsLocalReal
+      ? equipoVisitanteReal
+      : equipoLocalReal;
+
+  // --------------------------------------------------
+  // 2. RESULTADO REAL
+  // --------------------------------------------------
+
+  const puntosLocalReales =
+    partido.resultado?.local ??
+    null;
+
+  const puntosVisitanteReales =
+    partido.resultado?.visitante ??
+    null;
+
+  const puntosCba =
+    cbaEsLocalReal
+      ? puntosLocalReales
+      : puntosVisitanteReales;
+
+  const puntosRival =
+    cbaEsLocalReal
+      ? puntosVisitanteReales
+      : puntosLocalReales;
+
+  // --------------------------------------------------
+  // 3. CASA / FUERA POR INSTALACIÓN
+  // --------------------------------------------------
+
+  /**
+   * El frontend actual calcula:
+   *
+   * esLocal = equipoLocal.esClub
+   * fuera = !esLocal && visitante.esClub
+   *
+   * Para no modificar React,
+   * normalizamos la orientación
+   * únicamente en la respuesta
+   * destinada a la portada.
+   *
+   * Si el partido se celebra en una
+   * instalación del CBA, colocamos
+   * al equipo del club en la primera
+   * posición visual.
+   *
+   * Si juega fuera, lo colocamos
+   * en la segunda.
+   *
+   * Los puntos se intercambian junto
+   * a los equipos para preservar
+   * el resultado correcto.
+   */
+
+  const cbaEnPrimeraPosicion =
+    partido.esEnCasa === true
+      ? true
+      : partido.esEnCasa === false
+        ? false
+        : cbaEsLocalReal;
+
+  const equipoLocal =
+    cbaEnPrimeraPosicion
+      ? equipoCba
+      : equipoRival;
+
+  const equipoVisitante =
+    cbaEnPrimeraPosicion
+      ? equipoRival
+      : equipoCba;
 
   const puntosLocal =
-    obtenerPuntuacionLocal(
-      partido,
-    );
+    cbaEnPrimeraPosicion
+      ? puntosCba
+      : puntosRival;
 
   const puntosVisitante =
-    obtenerPuntuacionVisitante(
-      partido,
-    );
+    cbaEnPrimeraPosicion
+      ? puntosRival
+      : puntosCba;
+
+  // --------------------------------------------------
+  // 4. DATOS DE LA PORTADA
+  // --------------------------------------------------
 
   return {
-    id,
+    id:
+      partido.id,
 
     fecha:
-      fechaPartido.fecha,
+      partido.fecha,
 
     hora:
-      fechaPartido.hora,
+      partido.hora,
 
     jornada:
-      obtenerJornada(
+      obtenerJornadaPortada(
         partido,
       ),
 
     estado:
-      obtenerEstadoPartido(
-        partido,
-        puntosLocal,
-        puntosVisitante,
-      ),
+      partido.estadoPortada,
 
-    equipoLocal:
-      crearEquipoPartido({
-        equipoFbibId:
-          equipoLocalId,
+    equipoLocal: {
+      ...equipoLocal,
 
-        clubFbibId:
-          clubLocalId,
+      esClub:
+        cbaEnPrimeraPosicion,
+    },
 
-        nombre:
-          partido.nameLocalTeam,
+    equipoVisitante: {
+      ...equipoVisitante,
 
-        escudo:
-          partido.localClubLogo,
-
-        equiposPorFbibId,
-      }),
-
-    equipoVisitante:
-      crearEquipoPartido({
-        equipoFbibId:
-          equipoVisitanteId,
-
-        clubFbibId:
-          clubVisitanteId,
-
-        nombre:
-          partido.nameVisitorTeam,
-
-        escudo:
-          partido.visitorClubLogo,
-
-        equiposPorFbibId,
-      }),
+      esClub:
+        !cbaEnPrimeraPosicion,
+    },
 
     puntosLocal,
+
     puntosVisitante,
 
     ubicacion:
-      obtenerUbicacion(
-        partido,
-      ),
+      partido.ubicacion ??
+      partido.campo ??
+      partido.localidad,
 
     enlaceFbib:
-      `https://www.fbib.es/partido/${encodeURIComponent(
-        id,
-      )}`,
+      partido.enlaceFbib,
   };
 }
 
-async function obtenerEquiposClub():
-  Promise<FilaEquipo[]> {
-  const {
-    data:
-      temporadaEncontrada,
+// ======================================================
+// ORDENAR PARTIDOS DE PORTADA
+// ======================================================
 
-    error:
-      errorTemporada,
-  } =
-    await supabaseServidor
-      .from(
-        "temporadas",
-      )
-      .select("id")
-      .eq(
-        "activa",
-        true,
-      )
-      .limit(1)
-      .maybeSingle();
+function ordenarPartidos(
+  partidos: PartidoPortada[],
+): PartidoPortada[] {
+  return [...partidos].sort(
+    (primero, segundo) => {
+      const fechaPrimero =
+        `${primero.fecha}T` +
+        `${primero.hora ?? "23:59"}`;
 
-  if (errorTemporada) {
-    throw new ErrorObtenerPartidosPortada(
-      `No se ha podido obtener la temporada activa: ${errorTemporada.message}`,
-      500,
-    );
-  }
+      const fechaSegundo =
+        `${segundo.fecha}T` +
+        `${segundo.hora ?? "23:59"}`;
 
-  const temporada =
-    temporadaEncontrada as
-      | FilaTemporada
-      | null;
-
-  if (!temporada?.id) {
-    return [];
-  }
-
-  const {
-    data:
-      equiposEncontrados,
-
-    error:
-      errorEquipos,
-  } =
-    await supabaseServidor
-      .from(
-        "equipos",
-      )
-      .select(`
-        id,
-        nombre,
-        nombre_corto,
-        id_equipo_fbib
-      `)
-      .eq(
-        "temporada_id",
-        temporada.id,
-      )
-      .eq(
-        "activo",
-        true,
-      )
-      .not(
-        "id_equipo_fbib",
-        "is",
-        null,
-      )
-      .order(
-        "categoria",
-        {
-          ascending: true,
-        },
-      )
-      .order(
-        "nombre",
-        {
-          ascending: true,
-        },
+      return (
+        fechaPrimero.localeCompare(
+          fechaSegundo,
+        ) ||
+        primero.id.localeCompare(
+          segundo.id,
+        )
       );
-
-  if (errorEquipos) {
-    throw new ErrorObtenerPartidosPortada(
-      `No se han podido obtener los equipos del club: ${errorEquipos.message}`,
-      500,
-    );
-  }
-
-  return (
-    equiposEncontrados ??
-    []
-  ) as FilaEquipo[];
-}
-
-async function consultarPartidosFbib(
-  equipos: FilaEquipo[],
-  meses: number[],
-): Promise<ResultadoConsultaFbib[]> {
-  const consultas =
-    equipos.flatMap(
-      (equipo) => {
-        const equipoFbibId =
-          convertirTexto(
-            equipo.id_equipo_fbib,
-          );
-
-        if (!equipoFbibId) {
-          return [];
-        }
-
-        return meses.map(
-          async (
-            mes,
-          ): Promise<ResultadoConsultaFbib> => {
-            const ruta =
-              `/Match/getByTeamAndMonth/${encodeURIComponent(
-                equipoFbibId,
-              )}/${mes}`;
-
-            try {
-              const resultado =
-                await obtenerDatosEsbFbib(
-                  ruta,
-                );
-
-              return {
-                correcto: true,
-
-                partidos:
-                  extraerPartidos(
-                    resultado,
-                  ),
-              };
-            } catch (error) {
-              console.error(
-                `Error consultando los partidos de portada del equipo FBIB ${equipoFbibId} para el mes ${mes}:`,
-                error,
-              );
-
-              return {
-                correcto: false,
-                partidos: [],
-              };
-            }
-          },
-        );
-      },
-    );
-
-  return Promise.all(
-    consultas,
+    },
   );
 }
+
+// ======================================================
+// OBTENER PARTIDOS DE PORTADA
+// ======================================================
 
 export async function obtenerPartidosPortada(
   ahora = new Date(),
 ): Promise<PeriodoPartidosPortada> {
+  // --------------------------------------------------
+  // 1. PERÍODO DE MARTES A MARTES
+  // --------------------------------------------------
+
   const periodo =
     obtenerPeriodoActual(
       ahora,
     );
 
-  const equipos =
-    await obtenerEquiposClub();
+  // --------------------------------------------------
+  // 2. OBTENER PARTIDOS DEL SERVICIO CENTRAL
+  // --------------------------------------------------
 
-  if (
-    equipos.length === 0
-  ) {
-    return {
-      inicio:
-        periodo.inicio
-          .toISOString(),
+  /**
+   * No hacemos consultas directas a FBIB
+   * ni a designaciones_partidos.
+   *
+   * El servicio central ya resuelve
+   * las prioridades, correcciones,
+   * partidos manuales y duplicados.
+   */
 
-      fin:
-        periodo.fin
-          .toISOString(),
+  let resultado:
+    Awaited<
+      ReturnType<
+        typeof obtenerPartidosCombinados
+      >
+    >;
 
-      fechaActual:
-        periodo.fechaActual,
+  try {
+    resultado =
+      await obtenerPartidosCombinados({
+        inicio:
+          periodo.fechaInicio,
 
-      partidos: [],
-    };
-  }
-
-  const equiposPorFbibId =
-    new Map<
-      string,
-      FilaEquipo
-    >();
-
-  equipos.forEach(
-    (equipo) => {
-      const equipoFbibId =
-        convertirTexto(
-          equipo.id_equipo_fbib,
-        );
-
-      if (equipoFbibId) {
-        equiposPorFbibId.set(
-          equipoFbibId,
-          equipo,
-        );
-      }
-    },
-  );
-
-  const meses =
-    obtenerMesesPeriodo(
-      periodo.fechaInicio,
-      periodo.fechaFin,
+        fin:
+          periodo.fechaFin,
+      });
+  } catch (error) {
+    console.error(
+      "[PARTIDOS PORTADA] Error consultando partidos combinados:",
+      error,
     );
 
-  const resultados =
-    await consultarPartidosFbib(
-      equipos,
-      meses,
-    );
-
-  const consultasCorrectas =
-    resultados.filter(
-      (resultado) =>
-        resultado.correcto,
-    ).length;
-
-  if (
-    resultados.length > 0 &&
-    consultasCorrectas === 0
-  ) {
     throw new ErrorObtenerPartidosPortada(
-      "No se han podido consultar los partidos en la FBIB.",
-      502,
+      "No se han podido consultar los partidos de la semana.",
+      500,
     );
   }
+
+  // --------------------------------------------------
+  // 3. FILTRAR POR HORA Y PERÍODO EXACTO
+  // --------------------------------------------------
+
+  const partidosDelPeriodo =
+    resultado.partidos.filter(
+      (partido) =>
+        perteneceAlPeriodo(
+          partido,
+          periodo,
+        ),
+    );
+
+  // --------------------------------------------------
+  // 4. CONVERTIR AL CONTRATO DE LA PORTADA
+  // --------------------------------------------------
+
+  const convertidos =
+    partidosDelPeriodo.flatMap<
+      PartidoPortada
+    >(
+      (partido) => {
+        const convertido =
+          convertirPartidoPortada(
+            partido,
+            resultado.equipos,
+          );
+
+        return convertido
+          ? [convertido]
+          : [];
+      },
+    );
+
+  // --------------------------------------------------
+  // 5. ELIMINAR POSIBLES DUPLICADOS
+  // --------------------------------------------------
 
   const partidosPorId =
     new Map<
@@ -1573,70 +949,36 @@ export async function obtenerPartidosPortada(
       PartidoPortada
     >();
 
-  resultados.forEach(
-    (resultado) => {
-      resultado.partidos.forEach(
-        (partidoFbib) => {
-          const partido =
-            convertirPartido(
-              partidoFbib,
-              equiposPorFbibId,
-              periodo.inicio,
-              periodo.fin,
-            );
+  for (
+    const partido of convertidos
+  ) {
+    partidosPorId.set(
+      partido.id,
+      partido,
+    );
+  }
 
-          if (
-            !partido ||
-            partidosPorId.has(
-              partido.id,
-            )
-          ) {
-            return;
-          }
-
-          partidosPorId.set(
-            partido.id,
-            partido,
-          );
-        },
-      );
-    },
-  );
+  // --------------------------------------------------
+  // 6. ORDENAR
+  // --------------------------------------------------
 
   const partidos =
-    Array.from(
-      partidosPorId.values(),
-    ).sort(
-      (
-        partidoA,
-        partidoB,
-      ) => {
-        const fechaA =
-          `${partidoA.fecha} ${partidoA.hora ?? "23:59"}`;
-
-        const fechaB =
-          `${partidoB.fecha} ${partidoB.hora ?? "23:59"}`;
-
-        return (
-          fechaA.localeCompare(
-            fechaB,
-          ) ||
-          partidoA.equipoLocal.nombre.localeCompare(
-            partidoB.equipoLocal.nombre,
-            "es",
-          )
-        );
-      },
+    ordenarPartidos(
+      [
+        ...partidosPorId.values(),
+      ],
     );
+
+  // --------------------------------------------------
+  // 7. RESPUESTA
+  // --------------------------------------------------
 
   return {
     inicio:
-      periodo.inicio
-        .toISOString(),
+      periodo.inicio.toISOString(),
 
     fin:
-      periodo.fin
-        .toISOString(),
+      periodo.fin.toISOString(),
 
     fechaActual:
       periodo.fechaActual,

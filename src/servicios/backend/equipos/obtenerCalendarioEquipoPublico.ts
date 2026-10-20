@@ -1,8 +1,21 @@
+
 import { supabaseServidor } from "../../supabase/servidor";
 
-import { obtenerPartidosMesEquipoFbib } from "@servicios/fbib/equipos/obtenerPartidosEquipoFbib";
+import {
+  obtenerPartidosCombinados,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
 
-import type { PartidoEquipoFbib } from "@tipos/FbibEquipoPublico";
+import type {
+  PartidoCombinado,
+} from "@servicios/backend/partidos/obtenerPartidosCombinados";
+
+import type {
+  PartidoEquipoFbib,
+} from "@tipos/FbibEquipoPublico";
+
+// ======================================================
+// TIPOS PÚBLICOS
+// ======================================================
 
 export type TipoEventoEquipoPublico =
   | "evento"
@@ -30,8 +43,20 @@ export interface ResultadoCalendarioEquipoPublico {
   anio: number;
   mes: number;
   eventos: EventoCalendarioEquipoPublico[];
+
+  /**
+   * Se conserva el tipo público existente
+   * para no modificar el frontend.
+   *
+   * PartidoCombinado es compatible
+   * con PartidoEquipoFbib.
+   */
   partidos: PartidoEquipoFbib[];
 }
+
+// ======================================================
+// TIPOS DE BASE DE DATOS
+// ======================================================
 
 interface FilaEquipo {
   id: string;
@@ -76,27 +101,33 @@ interface OcurrenciaEntrenamiento {
   horaFin: string | null;
   instalacionId: string | null;
   descripcion: string | null;
+
   estado:
     | "normal"
     | "modificado"
     | "cancelado";
 }
 
+// ======================================================
+// VALIDACIÓN
+// ======================================================
+
 function validarUuid(
   valor: string,
 ): boolean {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     valor,
   );
 }
 
+// ======================================================
+// FECHAS
+// ======================================================
+
 function rellenarNumero(
   numero: number,
 ): string {
-  return String(numero).padStart(
-    2,
-    "0",
-  );
+  return String(numero).padStart(2, "0");
 }
 
 function crearFecha(
@@ -104,7 +135,11 @@ function crearFecha(
   mes: number,
   dia: number,
 ): string {
-  return `${anio}-${rellenarNumero(mes)}-${rellenarNumero(dia)}`;
+  return [
+    anio,
+    rellenarNumero(mes),
+    rellenarNumero(dia),
+  ].join("-");
 }
 
 function convertirFecha(
@@ -134,12 +169,10 @@ function sumarDias(
   fecha: Date,
   dias: number,
 ): Date {
-  const resultado =
-    new Date(fecha);
+  const resultado = new Date(fecha);
 
   resultado.setUTCDate(
-    resultado.getUTCDate() +
-      dias,
+    resultado.getUTCDate() + dias,
   );
 
   return resultado;
@@ -152,31 +185,31 @@ function obtenerRangoMes(
   inicio: string;
   fin: string;
 } {
-  const ultimoDia =
-    new Date(
-      Date.UTC(anio, mes, 0),
-    ).getUTCDate();
+  const ultimoDia = new Date(
+    Date.UTC(anio, mes, 0),
+  ).getUTCDate();
 
   return {
-    inicio:
-      crearFecha(anio, mes, 1),
+    inicio: crearFecha(
+      anio,
+      mes,
+      1,
+    ),
 
-    fin:
-      crearFecha(
-        anio,
-        mes,
-        ultimoDia,
-      ),
+    fin: crearFecha(
+      anio,
+      mes,
+      ultimoDia,
+    ),
   };
 }
 
 function obtenerDiaSemana(
   fecha: string,
 ): number {
-  const dia =
-    convertirFecha(
-      fecha,
-    ).getUTCDay();
+  const dia = convertirFecha(
+    fecha,
+  ).getUTCDay();
 
   return dia === 0 ? 7 : dia;
 }
@@ -196,6 +229,10 @@ function pertenecePeriodo(
 
   return true;
 }
+
+// ======================================================
+// NORMALIZACIÓN
+// ======================================================
 
 function normalizarTexto(
   valor: string | null,
@@ -217,17 +254,15 @@ function esCancelacion(
     normalizarTexto(tipo);
 
   return (
-    tipoNormalizado.includes(
-      "cancel",
-    ) ||
-    tipoNormalizado.includes(
-      "anul",
-    ) ||
-    tipoNormalizado.includes(
-      "suspend",
-    )
+    tipoNormalizado.includes("cancel") ||
+    tipoNormalizado.includes("anul") ||
+    tipoNormalizado.includes("suspend")
   );
 }
+
+// ======================================================
+// ENTRENAMIENTOS HABITUALES
+// ======================================================
 
 function crearClaveEntrenamiento(
   entrenamientoId: string,
@@ -244,8 +279,7 @@ function generarEntrenamientosHabituales(
   const ocurrencias:
     OcurrenciaEntrenamiento[] = [];
 
-  let fecha =
-    convertirFecha(inicio);
+  let fecha = convertirFecha(inicio);
 
   const fechaFinal =
     convertirFecha(fin);
@@ -272,11 +306,10 @@ function generarEntrenamientosHabituales(
         }
 
         ocurrencias.push({
-          id:
-            crearClaveEntrenamiento(
-              entrenamiento.id,
-              fechaIso,
-            ),
+          id: crearClaveEntrenamiento(
+            entrenamiento.id,
+            fechaIso,
+          ),
 
           entrenamientoId:
             entrenamiento.id,
@@ -300,17 +333,22 @@ function generarEntrenamientosHabituales(
       },
     );
 
-    fecha = sumarDias(fecha, 1);
+    fecha = sumarDias(
+      fecha,
+      1,
+    );
   }
 
   return ocurrencias;
 }
 
+// ======================================================
+// EXCEPCIONES DE ENTRENAMIENTOS
+// ======================================================
+
 function aplicarExcepciones(
-  ocurrencias:
-    OcurrenciaEntrenamiento[],
-  entrenamientos:
-    FilaEntrenamiento[],
+  ocurrencias: OcurrenciaEntrenamiento[],
+  entrenamientos: FilaEntrenamiento[],
   excepciones: FilaExcepcion[],
 ): OcurrenciaEntrenamiento[] {
   const entrenamientosPorId =
@@ -331,9 +369,7 @@ function aplicarExcepciones(
 
   ocurrencias.forEach(
     (ocurrencia) => {
-      if (
-        !ocurrencia.entrenamientoId
-      ) {
+      if (!ocurrencia.entrenamientoId) {
         return;
       }
 
@@ -360,9 +396,11 @@ function aplicarExcepciones(
           ? "cancelado"
           : "modificado";
 
-      if (
-        excepcion.entrenamiento_id
-      ) {
+      // ----------------------------------------------
+      // EXCEPCIÓN SOBRE UN ENTRENAMIENTO EXISTENTE
+      // ----------------------------------------------
+
+      if (excepcion.entrenamiento_id) {
         const clave =
           crearClaveEntrenamiento(
             excepcion.entrenamiento_id,
@@ -399,34 +437,26 @@ function aplicarExcepciones(
 
             horaInicio:
               excepcion.hora_inicio ??
-              ocurrenciaActual
-                ?.horaInicio ??
-              entrenamientoBase
-                ?.hora_inicio ??
+              ocurrenciaActual?.horaInicio ??
+              entrenamientoBase?.hora_inicio ??
               null,
 
             horaFin:
               excepcion.hora_fin ??
-              ocurrenciaActual
-                ?.horaFin ??
-              entrenamientoBase
-                ?.hora_fin ??
+              ocurrenciaActual?.horaFin ??
+              entrenamientoBase?.hora_fin ??
               null,
 
             instalacionId:
               excepcion.instalacion_id ??
-              ocurrenciaActual
-                ?.instalacionId ??
-              entrenamientoBase
-                ?.instalacion_id ??
+              ocurrenciaActual?.instalacionId ??
+              entrenamientoBase?.instalacion_id ??
               null,
 
             descripcion:
               excepcion.motivo?.trim() ||
-              ocurrenciaActual
-                ?.descripcion ||
-              entrenamientoBase
-                ?.observaciones ||
+              ocurrenciaActual?.descripcion ||
+              entrenamientoBase?.observaciones ||
               null,
 
             estado,
@@ -436,6 +466,10 @@ function aplicarExcepciones(
         return;
       }
 
+      // ----------------------------------------------
+      // EXCEPCIÓN / ENTRENAMIENTO ADICIONAL
+      // ----------------------------------------------
+
       const clave =
         `excepcion:${excepcion.id}:${excepcion.fecha}`;
 
@@ -443,8 +477,11 @@ function aplicarExcepciones(
         clave,
         {
           id: clave,
+
           entrenamientoId: null,
-          fecha: excepcion.fecha,
+
+          fecha:
+            excepcion.fecha,
 
           horaInicio:
             excepcion.hora_inicio,
@@ -466,27 +503,32 @@ function aplicarExcepciones(
 
   return Array.from(
     ocurrenciasPorClave.values(),
-  ).sort((primero, segundo) => {
-    const fecha =
-      primero.fecha.localeCompare(
-        segundo.fecha,
+  ).sort(
+    (primero, segundo) => {
+      const fecha =
+        primero.fecha.localeCompare(
+          segundo.fecha,
+        );
+
+      if (fecha !== 0) {
+        return fecha;
+      }
+
+      return (
+        primero.horaInicio ?? ""
+      ).localeCompare(
+        segundo.horaInicio ?? "",
       );
-
-    if (fecha !== 0) {
-      return fecha;
-    }
-
-    return (
-      primero.horaInicio ?? ""
-    ).localeCompare(
-      segundo.horaInicio ?? "",
-    );
-  });
+    },
+  );
 }
 
+// ======================================================
+// ENTRENAMIENTO -> EVENTO PÚBLICO
+// ======================================================
+
 function convertirEntrenamientoEvento(
-  entrenamiento:
-    OcurrenciaEntrenamiento,
+  entrenamiento: OcurrenciaEntrenamiento,
   instalaciones: Map<
     string,
     FilaInstalacion
@@ -503,6 +545,10 @@ function convertirEntrenamientoEvento(
     instalacion?.nombre_corto?.trim() ||
     instalacion?.nombre?.trim() ||
     null;
+
+  // --------------------------------------------------
+  // CANCELADO
+  // --------------------------------------------------
 
   if (
     entrenamiento.estado ===
@@ -535,6 +581,10 @@ function convertirEntrenamientoEvento(
       url: null,
     };
   }
+
+  // --------------------------------------------------
+  // MODIFICADO / ADICIONAL
+  // --------------------------------------------------
 
   if (
     entrenamiento.estado ===
@@ -570,16 +620,22 @@ function convertirEntrenamientoEvento(
     };
   }
 
+  // --------------------------------------------------
+  // HABITUAL
+  // --------------------------------------------------
+
   return {
     id:
       `entreno-${entrenamiento.id}`,
 
-    titulo: "Entrenamiento",
+    titulo:
+      "Entrenamiento",
 
     fecha:
       entrenamiento.fecha,
 
-    tipo: "entreno",
+    tipo:
+      "entreno",
 
     horaInicio:
       entrenamiento.horaInicio,
@@ -596,8 +652,51 @@ function convertirEntrenamientoEvento(
   };
 }
 
+// ======================================================
+// CASA / FUERA DE PARTIDOS
+// ======================================================
+
+function obtenerTipoPartido(
+  partido: PartidoCombinado,
+): TipoEventoEquipoPublico {
+  /**
+   * La detección se realiza exclusivamente
+   * mediante el campo del servicio central.
+   *
+   * Este campo ya contempla:
+   *
+   * - Código postal FBIB 07150.
+   * - Instalación corregida en Supabase.
+   * - Instalación de partidos manuales.
+   *
+   * No se consulta posicionEquipo.
+   */
+
+  if (partido.esEnCasa === true) {
+    return "partido-casa";
+  }
+
+  if (partido.esEnCasa === false) {
+    return "partido-fuera";
+  }
+
+  /**
+   * No etiquetar un partido como CASA
+   * o FUERA si no hay información
+   * suficiente para determinarlo.
+   *
+   * El tipo "evento" ya existe en
+   * el contrato público del calendario.
+   */
+  return "evento";
+}
+
+// ======================================================
+// PARTIDO COMBINADO -> EVENTO PÚBLICO
+// ======================================================
+
 function convertirPartidoEvento(
-  partido: PartidoEquipoFbib,
+  partido: PartidoCombinado,
 ): EventoCalendarioEquipoPublico | null {
   if (!partido.fecha) {
     return null;
@@ -605,7 +704,13 @@ function convertirPartidoEvento(
 
   const descripcionResultado =
     partido.resultado
-      ? `Resultado: ${partido.resultado.local} - ${partido.resultado.visitante}`
+      ? (
+          `Resultado: ${
+            partido.resultado.local
+          } - ${
+            partido.resultado.visitante
+          }`
+        )
       : null;
 
   const descripcionCompeticion = [
@@ -615,34 +720,61 @@ function convertirPartidoEvento(
     .filter(Boolean)
     .join(" · ");
 
+  const descripcionJornada =
+    partido.jornadaTexto
+      ? `Jornada ${partido.jornadaTexto}`
+      : null;
+
+  const descripcionUbicacion =
+    partido.esEnCasa === null
+      ? "Casa/fuera sin confirmar"
+      : null;
+
+  const descripcion = [
+    descripcionResultado,
+    descripcionCompeticion,
+    descripcionJornada,
+    descripcionUbicacion,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   return {
-    id: `partido-${partido.id}`,
+    id:
+      `partido-${partido.id}`,
 
     titulo:
       `${partido.local.nombre} - ${partido.visitante.nombre}`,
 
-    fecha: partido.fecha,
+    fecha:
+      partido.fecha,
 
     tipo:
-      partido.posicionEquipo ===
-      "local"
-        ? "partido-casa"
-        : "partido-fuera",
+      obtenerTipoPartido(
+        partido,
+      ),
 
-    horaInicio: partido.hora,
+    horaInicio:
+      partido.hora,
 
-    ubicacion: partido.campo,
+    horaFin:
+      null,
 
-    descripcion: [
-      descripcionResultado,
-      descripcionCompeticion,
-    ]
-      .filter(Boolean)
-      .join(" · ") || null,
+    ubicacion:
+      partido.ubicacion ??
+      partido.campo,
 
-    url: partido.enlaceFbib,
+    descripcion:
+      descripcion || null,
+
+    url:
+      partido.enlaceFbib,
   };
 }
+
+// ======================================================
+// OBTENER CALENDARIO PÚBLICO DEL EQUIPO
+// ======================================================
 
 export async function obtenerCalendarioEquipoPublico(
   equipoId: string,
@@ -650,6 +782,10 @@ export async function obtenerCalendarioEquipoPublico(
   mes: number,
 ): Promise<ResultadoCalendarioEquipoPublico> {
   const id = equipoId.trim();
+
+  // --------------------------------------------------
+  // 1. VALIDAR PARÁMETROS
+  // --------------------------------------------------
 
   if (!validarUuid(id)) {
     throw new Error(
@@ -676,6 +812,10 @@ export async function obtenerCalendarioEquipoPublico(
       "El mes solicitado no es válido.",
     );
   }
+
+  // --------------------------------------------------
+  // 2. OBTENER EQUIPO
+  // --------------------------------------------------
 
   const {
     data: equipoEncontrado,
@@ -705,7 +845,14 @@ export async function obtenerCalendarioEquipoPublico(
     equipoEncontrado as FilaEquipo;
 
   const rango =
-    obtenerRangoMes(anio, mes);
+    obtenerRangoMes(
+      anio,
+      mes,
+    );
+
+  // --------------------------------------------------
+  // 3. ENTRENAMIENTOS Y EXCEPCIONES
+  // --------------------------------------------------
 
   const [
     resultadoEntrenamientos,
@@ -724,12 +871,18 @@ export async function obtenerCalendarioEquipoPublico(
         observaciones,
         activo
       `)
-      .eq("equipo_id", id)
+      .eq(
+        "equipo_id",
+        id,
+      )
       .eq(
         "temporada_id",
         equipo.temporada_id,
       )
-      .eq("activo", true),
+      .eq(
+        "activo",
+        true,
+      ),
 
     supabaseServidor
       .from(
@@ -745,12 +898,24 @@ export async function obtenerCalendarioEquipoPublico(
         hora_fin,
         motivo
       `)
-      .eq("equipo_id", id)
-      .gte("fecha", rango.inicio)
-      .lte("fecha", rango.fin)
-      .order("fecha", {
-        ascending: true,
-      }),
+      .eq(
+        "equipo_id",
+        id,
+      )
+      .gte(
+        "fecha",
+        rango.inicio,
+      )
+      .lte(
+        "fecha",
+        rango.fin,
+      )
+      .order(
+        "fecha",
+        {
+          ascending: true,
+        },
+      ),
   ]);
 
   if (resultadoEntrenamientos.error) {
@@ -766,12 +931,20 @@ export async function obtenerCalendarioEquipoPublico(
   }
 
   const entrenamientos =
-    (resultadoEntrenamientos.data ??
-      []) as FilaEntrenamiento[];
+    (
+      resultadoEntrenamientos.data ??
+      []
+    ) as FilaEntrenamiento[];
 
   const excepciones =
-    (resultadoExcepciones.data ??
-      []) as FilaExcepcion[];
+    (
+      resultadoExcepciones.data ??
+      []
+    ) as FilaExcepcion[];
+
+  // --------------------------------------------------
+  // 4. GENERAR OCURRENCIAS DE ENTRENAMIENTOS
+  // --------------------------------------------------
 
   const ocurrencias =
     aplicarExcepciones(
@@ -784,6 +957,10 @@ export async function obtenerCalendarioEquipoPublico(
       excepciones,
     );
 
+  // --------------------------------------------------
+  // 5. INSTALACIONES DE ENTRENAMIENTOS
+  // --------------------------------------------------
+
   const idsInstalaciones =
     Array.from(
       new Set(
@@ -793,11 +970,12 @@ export async function obtenerCalendarioEquipoPublico(
               ocurrencia.instalacionId,
           )
           .filter(
-            (instalacionId):
-              instalacionId is string =>
-                Boolean(
-                  instalacionId,
-                ),
+            (
+              instalacionId,
+            ): instalacionId is string =>
+              Boolean(
+                instalacionId,
+              ),
           ),
       ),
     );
@@ -828,34 +1006,9 @@ export async function obtenerCalendarioEquipoPublico(
     }
 
     instalaciones =
-      (data ??
-        []) as FilaInstalacion[];
-  }
-
-  let partidos:
-    PartidoEquipoFbib[] = [];
-
-  if (equipo.id_equipo_fbib) {
-    try {
-      partidos =
-        await obtenerPartidosMesEquipoFbib(
-          equipo.id_equipo_fbib,
-          mes,
-        );
-
-      partidos = partidos.filter(
-        (partido) =>
-          partido.fecha !== null &&
-          partido.fecha >=
-            rango.inicio &&
-          partido.fecha <= rango.fin,
-      );
-    } catch (error) {
-      console.error(
-        `Error cargando los partidos FBIB del equipo ${id}:`,
-        error,
-      );
-    }
+      (
+        data ?? []
+      ) as FilaInstalacion[];
   }
 
   const instalacionesPorId =
@@ -868,6 +1021,59 @@ export async function obtenerCalendarioEquipoPublico(
       ),
     );
 
+  // --------------------------------------------------
+  // 6. OBTENER PARTIDOS UNIFICADOS
+  // --------------------------------------------------
+
+  /**
+   * IMPORTANTE:
+   *
+   * No se consulta la FBIB directamente.
+   *
+   * El servicio central devuelve:
+   * - Partidos originales FBIB.
+   * - Correcciones de Supabase.
+   * - Partidos CBA manuales.
+   *
+   * Incluye equipos sin vinculación FBIB
+   * que tengan partidos manuales.
+   */
+
+  let partidos:
+    PartidoCombinado[] = [];
+
+  try {
+    const resultadoPartidos =
+      await obtenerPartidosCombinados({
+        equipoId: id,
+
+        inicio:
+          rango.inicio,
+
+        fin:
+          rango.fin,
+      });
+
+    partidos =
+      resultadoPartidos.partidos;
+  } catch (error) {
+    /**
+     * Se mantiene el criterio original:
+     * un error al cargar partidos no
+     * debe impedir que se muestren
+     * los entrenamientos del equipo.
+     */
+
+    console.error(
+      `[CALENDARIO EQUIPO] Error cargando partidos del equipo ${id}:`,
+      error,
+    );
+  }
+
+  // --------------------------------------------------
+  // 7. ENTRENAMIENTOS -> EVENTOS
+  // --------------------------------------------------
+
   const eventosEntrenamientos =
     ocurrencias.map(
       (entrenamiento) =>
@@ -877,42 +1083,62 @@ export async function obtenerCalendarioEquipoPublico(
         ),
     );
 
+  // --------------------------------------------------
+  // 8. PARTIDOS -> EVENTOS
+  // --------------------------------------------------
+
   const eventosPartidos =
     partidos.flatMap<
       EventoCalendarioEquipoPublico
-    >((partido) => {
-      const evento =
-        convertirPartidoEvento(
-          partido,
-        );
+    >(
+      (partido) => {
+        const evento =
+          convertirPartidoEvento(
+            partido,
+          );
 
-      return evento ? [evento] : [];
-    });
+        return evento
+          ? [evento]
+          : [];
+      },
+    );
+
+  // --------------------------------------------------
+  // 9. UNIFICAR Y ORDENAR EVENTOS
+  // --------------------------------------------------
 
   const eventos = [
     ...eventosEntrenamientos,
     ...eventosPartidos,
-  ].sort((primero, segundo) => {
-    const fecha =
-      primero.fecha.localeCompare(
-        segundo.fecha,
+  ].sort(
+    (primero, segundo) => {
+      const fecha =
+        primero.fecha.localeCompare(
+          segundo.fecha,
+        );
+
+      if (fecha !== 0) {
+        return fecha;
+      }
+
+      return (
+        primero.horaInicio ?? ""
+      ).localeCompare(
+        segundo.horaInicio ?? "",
       );
+    },
+  );
 
-    if (fecha !== 0) {
-      return fecha;
-    }
-
-    return (
-      primero.horaInicio ?? ""
-    ).localeCompare(
-      segundo.horaInicio ?? "",
-    );
-  });
+  // --------------------------------------------------
+  // 10. RESPUESTA PÚBLICA
+  // --------------------------------------------------
 
   return {
     anio,
     mes,
+
     eventos,
+
     partidos,
   };
 }
