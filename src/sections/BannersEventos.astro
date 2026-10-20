@@ -1,0 +1,599 @@
+---
+import { supabaseServidor } from "@servicios/supabase/servidor";
+
+interface Props {
+  clase?: string;
+}
+
+interface FilaEvento {
+  id: string;
+  titulo: string | null;
+  descripcion: string | null;
+  descripcion_corta: string | null;
+
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  todo_el_dia: boolean | null;
+
+  imagen: string | null;
+  banner_notificacion: string | null;
+
+  ubicacion: string | null;
+
+  url_informacion: string | null;
+  url_inscripcion: string | null;
+  requiere_inscripcion: boolean | null;
+}
+
+interface EventoBanner {
+  id: string;
+  titulo: string;
+  descripcion: string;
+
+  imagen: string | null;
+  banner: string;
+
+  fechaInicio: string;
+  fechaFin: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  todoElDia: boolean;
+
+  ubicacion: string | null;
+
+  urlInformacion: string | null;
+  urlInscripcion: string | null;
+  requiereInscripcion: boolean;
+}
+
+const { clase = "" } = Astro.props;
+
+// ======================================================
+// FECHA ACTUAL EN MALLORCA
+// ======================================================
+
+function obtenerMomentoMadrid(): string {
+  const partes = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+
+  const obtener = (tipo: string) =>
+    partes.find((parte) => parte.type === tipo)?.value ?? "";
+
+  return (
+    `${obtener("year")}-` +
+    `${obtener("month")}-` +
+    `${obtener("day")}T` +
+    `${obtener("hour")}:` +
+    `${obtener("minute")}:` +
+    obtener("second")
+  );
+}
+
+// ======================================================
+// URL SEGURA
+// ======================================================
+
+function obtenerUrlSegura(valor: string | null): string | null {
+  if (!valor?.trim()) {
+    return null;
+  }
+
+  const texto = valor.trim();
+
+  if (texto.startsWith("/") && !texto.startsWith("//")) {
+    return texto;
+  }
+
+  try {
+    const url = new URL(texto);
+
+    return ["https:", "http:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+// ======================================================
+// NORMALIZAR HORA
+// ======================================================
+
+function normalizarHora(valor: string | null): string | null {
+  if (!valor) {
+    return null;
+  }
+
+  const coincidencia = valor.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+
+  return coincidencia ? `${coincidencia[1]}:${coincidencia[2]}` : null;
+}
+
+// ======================================================
+// EVENTO NO FINALIZADO
+// ======================================================
+
+function eventoNoFinalizado(evento: FilaEvento, ahora: string): boolean {
+  const fechaInicio = evento.fecha_inicio?.trim();
+
+  if (!fechaInicio || !/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
+    return false;
+  }
+
+  const fechaFin = evento.fecha_fin?.trim() || fechaInicio;
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaFin)) {
+    return false;
+  }
+
+  const horaInicio = normalizarHora(evento.hora_inicio);
+
+  const horaFin = normalizarHora(evento.hora_fin);
+
+  let horaFinal = "23:59:59";
+
+  if (evento.todo_el_dia !== true) {
+    if (horaFin) {
+      horaFinal = `${horaFin}:00`;
+    } else if (fechaFin === fechaInicio && horaInicio) {
+      horaFinal = `${horaInicio}:00`;
+    }
+  }
+
+  return `${fechaFin}T${horaFinal}` > ahora;
+}
+
+// ======================================================
+// FECHAS
+// ======================================================
+
+function formatearFecha(fecha: string): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(`${fecha}T12:00:00Z`));
+}
+
+function obtenerTextoFecha(evento: EventoBanner): string {
+  if (evento.fechaInicio === evento.fechaFin) {
+    return formatearFecha(evento.fechaInicio);
+  }
+
+  return `Del ${formatearFecha(evento.fechaInicio)} al ${formatearFecha(
+    evento.fechaFin,
+  )}`;
+}
+
+function obtenerTextoHorario(evento: EventoBanner): string | null {
+  if (evento.todoElDia) {
+    return "Todo el día";
+  }
+
+  if (evento.horaInicio && evento.horaFin) {
+    return `${evento.horaInicio} – ` + evento.horaFin;
+  }
+
+  if (evento.horaInicio) {
+    return `A las ${evento.horaInicio}`;
+  }
+
+  if (evento.horaFin) {
+    return `Hasta las ${evento.horaFin}`;
+  }
+
+  return null;
+}
+
+// ======================================================
+// CONSULTA A SUPABASE
+// ======================================================
+
+const ahora = obtenerMomentoMadrid();
+
+const hoy = ahora.slice(0, 10);
+
+let eventos: EventoBanner[] = [];
+
+try {
+  const filas: FilaEvento[] = [];
+
+  const tamanoPagina = 500;
+
+  for (let inicio = 0; ; inicio += tamanoPagina) {
+    const { data, error } = await supabaseServidor
+      .from("eventos")
+      .select(
+        `
+        id,
+        titulo,
+        descripcion,
+        descripcion_corta,
+        fecha_inicio,
+        fecha_fin,
+        hora_inicio,
+        hora_fin,
+        todo_el_dia,
+        imagen,
+        banner_notificacion,
+        ubicacion,
+        url_informacion,
+        url_inscripcion,
+        requiere_inscripcion
+      `,
+      )
+      .eq("estado", "publicado")
+      .not("banner_notificacion", "is", null)
+      .or(`fecha_fin.gte.${hoy},fecha_inicio.gte.${hoy}`)
+      .order("fecha_inicio", {
+        ascending: true,
+      })
+      .order("id", {
+        ascending: true,
+      })
+      .range(inicio, inicio + tamanoPagina - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const pagina = (data ?? []) as FilaEvento[];
+
+    filas.push(...pagina);
+
+    if (pagina.length < tamanoPagina) {
+      break;
+    }
+  }
+
+  eventos = filas
+    .filter((fila) => eventoNoFinalizado(fila, ahora))
+    .flatMap((fila): EventoBanner[] => {
+      const banner = obtenerUrlSegura(fila.banner_notificacion);
+
+      if (!banner) {
+        return [];
+      }
+
+      const fechaInicio = fila.fecha_inicio!;
+
+      const fechaFin = fila.fecha_fin || fechaInicio;
+
+      return [
+        {
+          id: fila.id,
+
+          titulo: fila.titulo?.trim() || "Evento del C.B. Andratx",
+
+          descripcion:
+            fila.descripcion?.trim() || fila.descripcion_corta?.trim() || "",
+
+          imagen: obtenerUrlSegura(fila.imagen),
+
+          banner,
+
+          fechaInicio,
+          fechaFin,
+
+          horaInicio: normalizarHora(fila.hora_inicio),
+
+          horaFin: normalizarHora(fila.hora_fin),
+
+          todoElDia: fila.todo_el_dia === true,
+
+          ubicacion: fila.ubicacion?.trim() || null,
+
+          urlInformacion: obtenerUrlSegura(fila.url_informacion),
+
+          urlInscripcion: obtenerUrlSegura(fila.url_inscripcion),
+
+          requiereInscripcion: fila.requiere_inscripcion === true,
+        },
+      ];
+    });
+} catch (error) {
+  console.error("Error cargando banners de eventos:", error);
+}
+---
+
+{
+  eventos.length > 0 && (
+    <section
+      data-banners-eventos
+      class:list={["w-full py-6 sm:py-10", clase]}
+      aria-label="Eventos del Club Bàsquet Andratx"
+    >
+      {/* ==========================================
+          CONTENEDOR CENTRADO
+      ========================================== */}
+
+      <div class="mx-auto flex w-full max-w-[1180px] flex-col items-center gap-5 px-4 sm:gap-6 sm:px-6">
+        {eventos.map((evento) => (
+          <article data-evento-banner class="mx-auto w-full max-w-[1100px]">
+            {/* ======================================
+                BANNER HORIZONTAL
+            ====================================== */}
+
+            <button
+              type="button"
+              data-abrir-evento
+              aria-label={`Ver información del evento: ${evento.titulo}`}
+              class="group relative mx-auto block aspect-[3.5/1] w-full cursor-pointer overflow-hidden rounded-xl border border-outline-variant/40 bg-surface-container-lowest shadow-[0_5px_20px_rgba(3,42,85,0.12)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_12px_32px_rgba(3,42,85,0.22)] focus-visible:outline-3 focus-visible:outline-offset-3 focus-visible:outline-primary sm:aspect-[5/1] sm:rounded-2xl"
+            >
+              {/* FONDO DEL BANNER */}
+
+              <img
+                src={evento.banner}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                decoding="async"
+                class="absolute inset-0 h-full w-full scale-110 object-cover opacity-30 blur-lg"
+              />
+
+              {/* IMAGEN DEL BANNER, SIN RECORTAR */}
+
+              <img
+                src={evento.banner}
+                alt={`Banner de ${evento.titulo}`}
+                loading="lazy"
+                decoding="async"
+                class="relative z-10 h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.015] group-focus-visible:scale-[1.015]"
+              />
+
+              {/* EFECTO HOVER */}
+
+              <span
+                class="absolute inset-0 z-20 flex items-center justify-center bg-[#002B45]/0 opacity-0 transition-all duration-300 group-hover:bg-[#002B45]/55 group-hover:opacity-100 group-focus-visible:bg-[#002B45]/55 group-focus-visible:opacity-100"
+                aria-hidden="true"
+              >
+                <span class="inline-flex items-center gap-2 rounded-full border border-white/70 bg-white/15 px-5 py-2.5 text-sm font-bold text-white backdrop-blur-sm">
+                  Ver evento
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m13 6 6 6-6 6" />
+                  </svg>
+                </span>
+              </span>
+            </button>
+
+            {/* ======================================
+                POPUP
+            ====================================== */}
+
+            <dialog
+              data-detalle-evento
+              aria-label={evento.titulo}
+              class="m-auto max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-4xl overflow-y-auto rounded-3xl border border-outline-variant/50 bg-surface-container-lowest p-0 text-on-surface shadow-2xl backdrop:bg-[#001B45]/80 sm:w-[calc(100%-3rem)]"
+            >
+              <div class="relative">
+                {/* CERRAR */}
+
+                <div class="sticky top-0 z-20 flex justify-end border-b border-outline-variant/40 bg-surface-container-lowest/95 px-4 py-3 backdrop-blur-md">
+                  <button
+                    type="button"
+                    data-cerrar-evento
+                    aria-label="Cerrar información del evento"
+                    class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface-container text-on-surface-variant transition-colors hover:bg-error-container hover:text-error focus-visible:outline-2 focus-visible:outline-primary"
+                  >
+                    <svg
+                      viewBox="0 0 24 24"
+                      width="22"
+                      height="22"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                    >
+                      <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* IMAGEN PRINCIPAL */}
+
+                {evento.imagen && (
+                  <div class="flex max-h-[480px] items-center justify-center bg-surface-container">
+                    <img
+                      src={evento.imagen}
+                      alt={`Imagen principal de ${evento.titulo}`}
+                      loading="lazy"
+                      decoding="async"
+                      class="max-h-[480px] w-full object-contain"
+                    />
+                  </div>
+                )}
+
+                {/* INFORMACIÓN */}
+
+                <div class="space-y-6 p-5 sm:p-8">
+                  <header class="space-y-3">
+                    <p class="text-xs font-black uppercase tracking-[0.18em] text-secondary">
+                      Club Bàsquet Andratx
+                    </p>
+
+                    <h2 class="text-2xl font-black leading-tight text-on-secondary-fixed sm:text-3xl">
+                      {evento.titulo}
+                    </h2>
+
+                    <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-on-surface-variant">
+                      <span class="inline-flex items-center gap-2">
+                        <svg
+                          viewBox="0 0 24 24"
+                          width="18"
+                          height="18"
+                          fill="none"
+                          stroke="currentColor"
+                          stroke-width="2"
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          aria-hidden="true"
+                        >
+                          <rect x="3" y="5" width="18" height="16" rx="2" />
+
+                          <path d="M16 3v4M8 3v4M3 10h18" />
+                        </svg>
+
+                        {obtenerTextoFecha(evento)}
+                      </span>
+
+                      {obtenerTextoHorario(evento) && (
+                        <span>{obtenerTextoHorario(evento)}</span>
+                      )}
+                    </div>
+
+                    {evento.ubicacion && (
+                      <p class="text-sm text-on-surface-variant">
+                        {evento.ubicacion}
+                      </p>
+                    )}
+                  </header>
+
+                  {/* DESCRIPCIÓN COMPLETA */}
+
+                  {evento.descripcion && (
+                    <div class="border-t border-outline-variant/50 pt-5">
+                      <p class="whitespace-pre-wrap break-words text-sm leading-7 text-on-surface-variant sm:text-base">
+                        {evento.descripcion}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ENLACES */}
+
+                  {(evento.urlInformacion || evento.urlInscripcion) && (
+                    <div class="flex flex-wrap gap-3 border-t border-outline-variant/50 pt-6">
+                      {evento.urlInformacion && (
+                        <a
+                          href={evento.urlInformacion}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex min-h-11 items-center justify-center rounded-xl border border-secondary px-5 py-2.5 text-sm font-bold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
+                        >
+                          Más información
+                        </a>
+                      )}
+
+                      {evento.urlInscripcion && (
+                        <a
+                          href={evento.urlInscripcion}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          class="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim"
+                        >
+                          {evento.requiereInscripcion
+                            ? "Inscribirse"
+                            : "Ver enlace de inscripción"}
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </dialog>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+<script>
+  function inicializarBannersEventos() {
+    document
+      .querySelectorAll<HTMLElement>("[data-banners-eventos]")
+      .forEach((seccion) => {
+        if (seccion.dataset.inicializada === "true") {
+          return;
+        }
+
+        seccion.dataset.inicializada = "true";
+
+        seccion
+          .querySelectorAll<HTMLElement>("[data-evento-banner]")
+          .forEach((contenedor) => {
+            const botonAbrir = contenedor.querySelector<HTMLButtonElement>(
+              "[data-abrir-evento]",
+            );
+
+            const dialogo = contenedor.querySelector<HTMLDialogElement>(
+              "[data-detalle-evento]",
+            );
+
+            const botonCerrar = contenedor.querySelector<HTMLButtonElement>(
+              "[data-cerrar-evento]",
+            );
+
+            if (!botonAbrir || !dialogo) {
+              return;
+            }
+
+            let overflowAnterior = "";
+
+            botonAbrir.addEventListener("click", () => {
+              if (dialogo.open) {
+                return;
+              }
+
+              overflowAnterior = document.body.style.overflow;
+
+              dialogo.showModal();
+
+              document.body.style.overflow = "hidden";
+
+              botonCerrar?.focus();
+            });
+
+            botonCerrar?.addEventListener("click", () => {
+              dialogo.close();
+            });
+
+            dialogo.addEventListener("click", (evento) => {
+              if (evento.target !== dialogo) {
+                return;
+              }
+
+              const limites = dialogo.getBoundingClientRect();
+
+              const fuera =
+                evento.clientX < limites.left ||
+                evento.clientX > limites.right ||
+                evento.clientY < limites.top ||
+                evento.clientY > limites.bottom;
+
+              if (fuera) {
+                dialogo.close();
+              }
+            });
+
+            dialogo.addEventListener("close", () => {
+              document.body.style.overflow = overflowAnterior;
+
+              botonAbrir.focus();
+            });
+          });
+      });
+  }
+
+  inicializarBannersEventos();
+
+  document.addEventListener("astro:page-load", inicializarBannersEventos);
+</script>

@@ -6,6 +6,7 @@ import SistemaNotificaciones from "@components/notificaciones/SistemaNotificacio
 import DatosEstructurados from "@components/seo/DatosEstructurados.astro";
 
 import "../global.css";
+import SpamEventos from "@components/eventos/SpamEventos.astro";
 
 interface Props {
   title?: string;
@@ -27,12 +28,9 @@ const {
   noIndex = false,
 } = Astro.props;
 
-const dominio =
-  Astro.site ??
-  new URL("https://cbandratx.es");
+const dominio = Astro.site ?? new URL("https://cbandratx.es");
 
-const tituloPorDefecto =
-  "C.B. Andratx | Club Bàsquet Andratx";
+const tituloPorDefecto = "C.B. Andratx | Club Bàsquet Andratx";
 
 const titulo = title
   ? title.includes("C.B. Andratx")
@@ -40,35 +38,22 @@ const titulo = title
     : `${title} | C.B. Andratx`
   : tituloPorDefecto;
 
-const urlCanonical =
-  new URL(
-    Astro.url.pathname,
-    dominio,
-  ).toString();
+const urlCanonical = new URL(Astro.url.pathname, dominio).toString();
 
-const imagenSocial =
-  new URL(
-    image,
-    dominio,
-  ).toString();
+const imagenSocial = new URL(image, dominio).toString();
 
 const robots = noIndex
   ? "noindex, nofollow"
   : "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1";
 
-const esInicio =
-  Astro.url.pathname === "/";
+const esInicio = Astro.url.pathname === "/";
 
 export const prerender = false;
 
-Astro.response.headers.set(
-  "Cache-Control",
-  "no-store, max-age=0",
-);
+Astro.response.headers.set("Cache-Control", "no-store, max-age=0");
 ---
 
 <!doctype html>
-
 <html lang="es" class="min-h-full">
   <head>
     <meta charset="utf-8" />
@@ -126,7 +111,10 @@ Astro.response.headers.set(
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap"
+    />
 
     <!-- Analítica propia -->
 
@@ -134,13 +122,24 @@ Astro.response.headers.set(
   </head>
 
   <body class="flex min-h-dvh flex-col">
-    {menu && (
-      <div class="sticky top-0 z-50 hidden w-full shrink-0 md:block">
-        <Header />
-      </div>
-    )}
+    <!-- AVISOS DE EVENTOS Y MENÚ SUPERIOR -->
 
-    <main id="contenido-principal" class:list={["relative min-w-0 flex-1", menuMobile && "pb-24 md:pb-0"]}>
+    <div class="sticky top-0 z-50 w-full shrink-0">
+      <!-- <SpamEventos /> -->
+
+      {
+        menu && (
+          <div class="hidden w-full md:block">
+            <Header />
+          </div>
+        )
+      }
+    </div>
+
+    <main
+      id="contenido-principal"
+      class:list={["relative min-w-0 flex-1", menuMobile && "pb-24 md:pb-0"]}
+    >
       <slot />
     </main>
 
@@ -148,11 +147,13 @@ Astro.response.headers.set(
       <Footer />
     </div>
 
-    {menuMobile && (
-      <div class="fixed inset-x-0 bottom-0 z-50 w-full md:hidden">
-        <HeaderMobile />
-      </div>
-    )}
+    {
+      menuMobile && (
+        <div class="fixed inset-x-0 bottom-0 z-50 w-full md:hidden">
+          <HeaderMobile />
+        </div>
+      )
+    }
 
     <SistemaNotificaciones client:only="react" />
   </body>

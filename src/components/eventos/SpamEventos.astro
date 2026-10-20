@@ -1,0 +1,1183 @@
+---
+import { supabaseServidor } from "@servicios/supabase/servidor";
+
+interface FilaEvento {
+  id: string;
+  temporada_id: string | null;
+  titulo: string | null;
+  descripcion: string | null;
+  descripcion_corta: string | null;
+  alcance: string | null;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  hora_inicio: string | null;
+  hora_fin: string | null;
+  todo_el_dia: boolean | null;
+  imagen: string | null;
+  banner_notificacion: string | null;
+  ubicacion: string | null;
+  url_informacion: string | null;
+  url_inscripcion: string | null;
+  requiere_inscripcion: boolean | null;
+  eventos_equipos:
+    | {
+        equipo_id: string | null;
+      }[]
+    | null;
+}
+
+interface EventoAviso {
+  id: string;
+  titulo: string;
+  descripcion: string;
+  alcance: "todo-club" | "equipos";
+  equiposIds: string[];
+  banner: string;
+  imagen: string | null;
+  fechaInicio: string;
+  fechaFin: string;
+  finLocal: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  todoElDia: boolean;
+  ubicacion: string | null;
+  urlInformacion: string | null;
+  urlInscripcion: string | null;
+  requiereInscripcion: boolean;
+}
+
+// ======================================================
+// FECHA Y HORA DE MALLORCA
+// ======================================================
+
+function obtenerMomentoMadrid(): string {
+  const partes = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date());
+
+  const obtener = (tipo: string) =>
+    partes.find((parte) => parte.type === tipo)?.value ?? "";
+
+  return (
+    `${obtener("year")}-${obtener("month")}-${obtener("day")}` +
+    `T${obtener("hour")}:${obtener("minute")}:${obtener("second")}`
+  );
+}
+
+function normalizarHora(valor: string | null): string | null {
+  const coincidencia = valor?.match(/^([01]\d|2[0-3]):([0-5]\d)/);
+
+  return coincidencia ? `${coincidencia[1]}:${coincidencia[2]}` : null;
+}
+
+// ======================================================
+// URL SEGURAS
+// ======================================================
+
+function urlImagenSegura(valor: string | null): string | null {
+  if (!valor?.trim()) {
+    return null;
+  }
+
+  const texto = valor.trim();
+
+  if (texto.startsWith("/") && !texto.startsWith("//")) {
+    return texto;
+  }
+
+  try {
+    const url = new URL(texto);
+
+    return ["https:", "http:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function urlEnlaceSeguro(valor: string | null): string | null {
+  if (!valor?.trim()) {
+    return null;
+  }
+
+  try {
+    const url = new URL(valor.trim());
+
+    return ["https:", "http:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+// ======================================================
+// FINALIZACIÓN DE EVENTOS
+// ======================================================
+
+function obtenerFinLocal(fila: FilaEvento): string | null {
+  const fechaInicio = fila.fecha_inicio?.trim();
+
+  if (!fechaInicio || !/^\d{4}-\d{2}-\d{2}$/.test(fechaInicio)) {
+    return null;
+  }
+
+  const fechaFin = fila.fecha_fin?.trim() || fechaInicio;
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaFin)) {
+    return null;
+  }
+
+  const horaInicio = normalizarHora(fila.hora_inicio);
+
+  const horaFin = normalizarHora(fila.hora_fin);
+
+  let horaFinal = "23:59:59";
+
+  if (fila.todo_el_dia !== true) {
+    if (horaFin) {
+      horaFinal = `${horaFin}:00`;
+    } else if (fechaInicio === fechaFin && horaInicio) {
+      horaFinal = `${horaInicio}:00`;
+    }
+  }
+
+  return `${fechaFin}T${horaFinal}`;
+}
+
+// ======================================================
+// FORMATO DEL POPUP
+// ======================================================
+
+function formatearFecha(fecha: string): string {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(new Date(`${fecha}T12:00:00Z`));
+}
+
+function textoFechas(evento: EventoAviso): string {
+  if (evento.fechaInicio === evento.fechaFin) {
+    return formatearFecha(evento.fechaInicio);
+  }
+
+  return (
+    `Del ${formatearFecha(evento.fechaInicio)} ` +
+    `al ${formatearFecha(evento.fechaFin)}`
+  );
+}
+
+function textoHorario(evento: EventoAviso): string | null {
+  if (evento.todoElDia) {
+    return "Todo el día";
+  }
+
+  if (evento.horaInicio && evento.horaFin) {
+    return `${evento.horaInicio} – ${evento.horaFin}`;
+  }
+
+  if (evento.horaInicio) {
+    return `A las ${evento.horaInicio}`;
+  }
+
+  if (evento.horaFin) {
+    return `Hasta las ${evento.horaFin}`;
+  }
+
+  return null;
+}
+
+// ======================================================
+// CONSULTA DE EVENTOS
+// ======================================================
+
+let temporadaId: string | null = null;
+let eventos: EventoAviso[] = [];
+
+try {
+  const { data: temporada, error: errorTemporada } = await supabaseServidor
+    .from("temporadas")
+    .select("id")
+    .eq("activa", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (errorTemporada) {
+    throw errorTemporada;
+  }
+
+  temporadaId = temporada?.id ?? null;
+
+  const ahora = obtenerMomentoMadrid();
+  const hoy = ahora.slice(0, 10);
+
+  const filas: FilaEvento[] = [];
+  const tamanoPagina = 200;
+
+  for (let inicio = 0; ; inicio += tamanoPagina) {
+    let consulta = supabaseServidor
+      .from("eventos")
+      .select(
+        `
+        id,
+        temporada_id,
+        titulo,
+        descripcion,
+        descripcion_corta,
+        alcance,
+        fecha_inicio,
+        fecha_fin,
+        hora_inicio,
+        hora_fin,
+        todo_el_dia,
+        imagen,
+        banner_notificacion,
+        ubicacion,
+        url_informacion,
+        url_inscripcion,
+        requiere_inscripcion,
+        eventos_equipos (
+          equipo_id
+        )
+      `,
+      )
+      .eq("estado", "publicado")
+      .not("banner_notificacion", "is", null)
+      .or(`fecha_fin.gte.${hoy},fecha_inicio.gte.${hoy}`);
+
+    // Solo temporada activa y eventos
+    // que no tienen temporada asignada.
+    consulta = temporadaId
+      ? consulta.or(`temporada_id.eq.${temporadaId},temporada_id.is.null`)
+      : consulta.is("temporada_id", null);
+
+    const { data, error } = await consulta
+      .order("fecha_inicio", {
+        ascending: true,
+      })
+      .order("id", {
+        ascending: true,
+      })
+      .range(inicio, inicio + tamanoPagina - 1);
+
+    if (error) {
+      throw error;
+    }
+
+    const pagina = (data ?? []) as FilaEvento[];
+
+    filas.push(...pagina);
+
+    if (pagina.length < tamanoPagina) {
+      break;
+    }
+  }
+
+  eventos = filas.flatMap((fila): EventoAviso[] => {
+    if (fila.alcance !== "todo-club" && fila.alcance !== "equipos") {
+      return [];
+    }
+
+    const finLocal = obtenerFinLocal(fila);
+
+    if (!finLocal || finLocal <= ahora) {
+      return [];
+    }
+
+    const banner = urlImagenSegura(fila.banner_notificacion);
+
+    if (!banner) {
+      return [];
+    }
+
+    const equiposIds = Array.from(
+      new Set(
+        (fila.eventos_equipos ?? []).flatMap((relacion) =>
+          relacion.equipo_id ? [relacion.equipo_id] : [],
+        ),
+      ),
+    );
+
+    if (fila.alcance === "equipos" && equiposIds.length === 0) {
+      return [];
+    }
+
+    const fechaInicio = fila.fecha_inicio!;
+
+    return [
+      {
+        id: fila.id,
+
+        titulo: fila.titulo?.trim() || "Evento del C.B. Andratx",
+
+        descripcion:
+          fila.descripcion?.trim() || fila.descripcion_corta?.trim() || "",
+
+        alcance: fila.alcance,
+        equiposIds,
+        banner,
+
+        imagen: urlImagenSegura(fila.imagen),
+
+        fechaInicio,
+
+        fechaFin: fila.fecha_fin || fechaInicio,
+
+        finLocal,
+
+        horaInicio: normalizarHora(fila.hora_inicio),
+
+        horaFin: normalizarHora(fila.hora_fin),
+
+        todoElDia: fila.todo_el_dia === true,
+
+        ubicacion: fila.ubicacion?.trim() || null,
+
+        urlInformacion: urlEnlaceSeguro(fila.url_informacion),
+
+        urlInscripcion: urlEnlaceSeguro(fila.url_inscripcion),
+
+        requiereInscripcion: fila.requiere_inscripcion === true,
+      },
+    ];
+  });
+} catch (error) {
+  console.error("Error cargando los avisos de eventos:", error);
+}
+---
+
+{
+  eventos.length > 0 && (
+    <div
+      data-spam-eventos
+      data-temporada-id={temporadaId ?? ""}
+      class="relative w-full"
+    >
+      {/* ============================================
+          BANNER SUPERIOR · 100 % DE ANCHURA
+      ============================================ */}
+
+      <div
+        data-spam-franja
+        hidden
+        class="relative w-full overflow-hidden bg-[#001B45] shadow-[0_5px_20px_rgba(0,0,0,0.20)]"
+      >
+        <button
+          type="button"
+          data-spam-abrir
+          aria-label="Ver información del evento"
+          class="group relative block w-full cursor-pointer overflow-hidden focus-visible:outline-3 focus-visible:outline-offset-[-3px] focus-visible:outline-[#FFD21E]"
+        >
+          <img
+            data-spam-imagen
+            src={eventos[0].banner}
+            alt=""
+            width="2560"
+            height="512"
+            class="block aspect-5/1 h-auto w-full object-contain"
+          />
+
+          <span
+            class="absolute inset-0 flex items-center justify-center bg-[#001B45]/0 opacity-0 transition-all duration-300 group-hover:bg-[#001B45]/60 group-hover:opacity-100 group-focus-visible:bg-[#001B45]/60 group-focus-visible:opacity-100"
+            aria-hidden="true"
+          >
+            <span class="rounded-full border border-white/70 bg-white/15 px-5 py-2.5 text-sm font-bold text-white backdrop-blur-sm">
+              Ver evento
+            </span>
+          </span>
+        </button>
+
+        {/* BOTÓN DE CERRAR */}
+
+        <button
+          type="button"
+          data-spam-cerrar
+          aria-label="Cerrar aviso de evento"
+          class="absolute right-2 top-2 z-10 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-[#001B45]/85 text-white shadow-lg transition-colors hover:bg-error focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFD21E] sm:right-4 sm:top-4 sm:h-11 sm:w-11"
+        >
+          <svg
+            viewBox="0 0 24 24"
+            width="20"
+            height="20"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <path d="M18 6 6 18M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+
+      {/* ============================================
+          POPUPS DE EVENTOS
+      ============================================ */}
+
+      {eventos.map((evento) => (
+        <dialog
+          data-spam-popup
+          data-evento-id={evento.id}
+          data-banner={evento.banner}
+          data-titulo={evento.titulo}
+          data-alcance={evento.alcance}
+          data-equipos-ids={evento.equiposIds.join(",")}
+          data-fin-local={evento.finLocal}
+          aria-label={evento.titulo}
+          class="m-auto max-h-[92dvh] w-[calc(100%-1.5rem)] max-w-4xl overflow-y-auto rounded-3xl border border-outline-variant/50 bg-surface-container-lowest p-0 text-on-surface shadow-2xl backdrop:bg-[#001B45]/80 sm:w-[calc(100%-3rem)]"
+        >
+          <div class="relative">
+            {/* CERRAR POPUP */}
+
+            <div class="sticky top-0 z-20 flex justify-end border-b border-outline-variant/40 bg-surface-container-lowest/95 px-4 py-3 backdrop-blur-md">
+              <button
+                type="button"
+                data-spam-cerrar-popup
+                aria-label="Cerrar información del evento"
+                class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-surface-container text-on-surface-variant transition-colors hover:bg-error-container hover:text-error focus-visible:outline-2 focus-visible:outline-primary"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  width="22"
+                  height="22"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  aria-hidden="true"
+                >
+                  <path d="M18 6 6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* IMAGEN PRINCIPAL */}
+
+            {evento.imagen && (
+              <div class="flex max-h-120 items-center justify-center bg-surface-container">
+                <img
+                  src={evento.imagen}
+                  alt={`Imagen principal de ${evento.titulo}`}
+                  loading="lazy"
+                  decoding="async"
+                  class="max-h-120 w-full object-contain"
+                />
+              </div>
+            )}
+
+            {/* INFORMACIÓN */}
+
+            <div class="space-y-6 p-5 sm:p-8">
+              <header class="space-y-3">
+                <p class="text-xs font-black uppercase tracking-[0.18em] text-secondary">
+                  Club Bàsquet Andratx
+                </p>
+
+                <h2 class="text-2xl font-black leading-tight text-on-secondary-fixed sm:text-3xl">
+                  {evento.titulo}
+                </h2>
+
+                <div class="flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold text-on-surface-variant">
+                  <span>{textoFechas(evento)}</span>
+
+                  {textoHorario(evento) && <span>{textoHorario(evento)}</span>}
+                </div>
+
+                {evento.ubicacion && (
+                  <p class="text-sm text-on-surface-variant">
+                    {evento.ubicacion}
+                  </p>
+                )}
+              </header>
+
+              {/* DESCRIPCIÓN COMPLETA */}
+
+              {evento.descripcion && (
+                <div class="border-t border-outline-variant/50 pt-5">
+                  <p class="whitespace-pre-wrap wrap-break-word text-sm leading-7 text-on-surface-variant sm:text-base">
+                    {evento.descripcion}
+                  </p>
+                </div>
+              )}
+
+              {/* ENLACES */}
+
+              {(evento.urlInformacion || evento.urlInscripcion) && (
+                <div class="flex flex-wrap gap-3 border-t border-outline-variant/50 pt-6">
+                  {evento.urlInformacion && (
+                    <a
+                      href={evento.urlInformacion}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex min-h-11 items-center justify-center rounded-xl border border-secondary px-5 py-2.5 text-sm font-bold text-secondary transition-colors hover:bg-secondary hover:text-on-secondary"
+                    >
+                      Más información
+                    </a>
+                  )}
+
+                  {evento.urlInscripcion && (
+                    <a
+                      href={evento.urlInscripcion}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim"
+                    >
+                      {evento.requiereInscripcion
+                        ? "Inscribirse"
+                        : "Ver enlace de inscripción"}
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </dialog>
+      ))}
+    </div>
+  )
+}
+
+<script>
+  import {
+    obtenerEquiposFavoritos,
+    escucharCambiosFavoritos,
+  } from "@servicios/favoritos/equiposFavoritos";
+
+  // ==================================================
+  // CONFIGURACIÓN DE TIEMPOS
+  // ==================================================
+
+  const ESPERA_INICIAL = 30_000;
+  const DURACION_AVISO = 10_000;
+  const COOLDOWN_GLOBAL = 120_000;
+  const COOLDOWN_EVENTO = 300_000;
+
+  const CLAVE_ESTADO = "cb-andratx:spam-eventos:v1";
+
+  const CLAVE_ENTRADA = "cb-andratx:spam-eventos:entrada:v1";
+
+  interface EstadoFrecuencia {
+    ultimoAviso: number;
+    eventos: Record<string, number>;
+  }
+
+  const instancias = new Map<HTMLElement, () => void>();
+
+  // ==================================================
+  // ALMACENAMIENTO
+  // ==================================================
+
+  function leerEstado(): EstadoFrecuencia {
+    try {
+      const contenido = localStorage.getItem(CLAVE_ESTADO);
+
+      if (!contenido) {
+        return {
+          ultimoAviso: 0,
+          eventos: {},
+        };
+      }
+
+      const datos: unknown = JSON.parse(contenido);
+
+      if (typeof datos !== "object" || datos === null || Array.isArray(datos)) {
+        throw new Error("Estado de frecuencia inválido");
+      }
+
+      const registro = datos as Record<string, unknown>;
+
+      const eventos: Record<string, number> = {};
+
+      if (
+        typeof registro.eventos === "object" &&
+        registro.eventos !== null &&
+        !Array.isArray(registro.eventos)
+      ) {
+        for (const [id, fecha] of Object.entries(registro.eventos)) {
+          if (typeof fecha === "number" && Number.isFinite(fecha)) {
+            eventos[id] = fecha;
+          }
+        }
+      }
+
+      return {
+        ultimoAviso:
+          typeof registro.ultimoAviso === "number" &&
+          Number.isFinite(registro.ultimoAviso)
+            ? registro.ultimoAviso
+            : 0,
+
+        eventos,
+      };
+    } catch {
+      return {
+        ultimoAviso: 0,
+        eventos: {},
+      };
+    }
+  }
+
+  function guardarEstado(estado: EstadoFrecuencia): void {
+    try {
+      const ahora = Date.now();
+
+      for (const [id, fecha] of Object.entries(estado.eventos)) {
+        if (ahora - fecha > 7 * 24 * 60 * 60 * 1000) {
+          delete estado.eventos[id];
+        }
+      }
+
+      localStorage.setItem(CLAVE_ESTADO, JSON.stringify(estado));
+    } catch {
+      // El navegador puede bloquear localStorage.
+    }
+  }
+
+  // ==================================================
+  // PRIMERA ENTRADA EN LA WEB
+  // ==================================================
+
+  function obtenerPrimeraEntrada(): number {
+    const ahora = Date.now();
+
+    try {
+      const guardado = Number(sessionStorage.getItem(CLAVE_ENTRADA));
+
+      if (Number.isFinite(guardado) && guardado > 0 && guardado <= ahora) {
+        return guardado;
+      }
+
+      sessionStorage.setItem(CLAVE_ENTRADA, String(ahora));
+    } catch {
+      // Se utilizará el momento actual.
+    }
+
+    return ahora;
+  }
+
+  // ==================================================
+  // MOMENTO ACTUAL EN MALLORCA
+  // ==================================================
+
+  function obtenerAhoraMadrid(): string {
+    const partes = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(new Date());
+
+    const obtener = (tipo: string) =>
+      partes.find((parte) => parte.type === tipo)?.value ?? "";
+
+    return (
+      `${obtener("year")}-${obtener("month")}-${obtener("day")}` +
+      `T${obtener("hour")}:${obtener("minute")}:${obtener("second")}`
+    );
+  }
+
+  // ==================================================
+  // INICIALIZAR UNA INSTANCIA
+  // ==================================================
+
+  function inicializarComponente(raiz: HTMLElement): () => void {
+    const franjaEncontrada =
+      raiz.querySelector<HTMLElement>("[data-spam-franja]");
+
+    const botonAbrirEncontrado =
+      raiz.querySelector<HTMLButtonElement>("[data-spam-abrir]");
+
+    const botonCerrarEncontrado =
+      raiz.querySelector<HTMLButtonElement>("[data-spam-cerrar]");
+
+    const imagenEncontrada =
+      raiz.querySelector<HTMLImageElement>("[data-spam-imagen]");
+
+    if (
+      !franjaEncontrada ||
+      !botonAbrirEncontrado ||
+      !botonCerrarEncontrado ||
+      !imagenEncontrada
+    ) {
+      return () => {};
+    }
+
+    /**
+     * CORRECCIÓN TS18047:
+     *
+     * Estas referencias se declaran como
+     * constantes no anulables DESPUÉS de
+     * haber comprobado su existencia.
+     *
+     * Así TypeScript reconoce sus tipos
+     * dentro de todas las funciones
+     * internas del componente.
+     */
+
+    const franja: HTMLElement = franjaEncontrada;
+
+    const botonAbrir: HTMLButtonElement = botonAbrirEncontrado;
+
+    const botonCerrar: HTMLButtonElement = botonCerrarEncontrado;
+
+    const imagen: HTMLImageElement = imagenEncontrada;
+
+    const temporadaId = raiz.dataset.temporadaId ?? "";
+
+    const dialogos = Array.from(
+      raiz.querySelectorAll<HTMLDialogElement>("[data-spam-popup]"),
+    );
+
+    const controlador = new AbortController();
+
+    const signal = controlador.signal;
+
+    const primeraEntrada = obtenerPrimeraEntrada();
+
+    let temporizadorComprobacion: number | null = null;
+
+    let temporizadorOcultar: number | null = null;
+
+    let eventoActual: HTMLDialogElement | null = null;
+
+    let tiempoRestante = DURACION_AVISO;
+
+    let inicioCuentaAtras = 0;
+
+    let popupAbierto = false;
+
+    let overflowAnterior = "";
+
+    // ================================================
+    // TEMPORIZADORES
+    // ================================================
+
+    function limpiarComprobacion(): void {
+      if (temporizadorComprobacion !== null) {
+        window.clearTimeout(temporizadorComprobacion);
+
+        temporizadorComprobacion = null;
+      }
+    }
+
+    function pausarCuentaAtras(): void {
+      if (temporizadorOcultar === null) {
+        return;
+      }
+
+      window.clearTimeout(temporizadorOcultar);
+
+      temporizadorOcultar = null;
+
+      const transcurrido = Date.now() - inicioCuentaAtras;
+
+      tiempoRestante = Math.max(0, tiempoRestante - transcurrido);
+    }
+
+    function iniciarCuentaAtras(): void {
+      if (!eventoActual || popupAbierto || document.hidden || signal.aborted) {
+        return;
+      }
+
+      if (tiempoRestante <= 0) {
+        ocultarAviso();
+        return;
+      }
+
+      inicioCuentaAtras = Date.now();
+
+      temporizadorOcultar = window.setTimeout(ocultarAviso, tiempoRestante);
+    }
+
+    // ================================================
+    // FAVORITOS
+    // ================================================
+
+    function obtenerFavoritos(): Set<string> {
+      if (!temporadaId) {
+        return new Set<string>();
+      }
+
+      return new Set(obtenerEquiposFavoritos(temporadaId));
+    }
+
+    function obtenerElegibles(): HTMLDialogElement[] {
+      const favoritos = obtenerFavoritos();
+
+      const ahora = obtenerAhoraMadrid();
+
+      return dialogos.filter((dialogo) => {
+        const fin = dialogo.dataset.finLocal;
+
+        if (!fin || fin <= ahora) {
+          return false;
+        }
+
+        if (dialogo.dataset.alcance === "todo-club") {
+          return true;
+        }
+
+        if (dialogo.dataset.alcance !== "equipos") {
+          return false;
+        }
+
+        const equiposIds = (dialogo.dataset.equiposIds ?? "")
+          .split(",")
+          .filter(Boolean);
+
+        return equiposIds.some((id) => favoritos.has(id));
+      });
+    }
+
+    // ================================================
+    // PLANIFICAR SIGUIENTE EVENTO
+    // ================================================
+
+    function planificar(): void {
+      limpiarComprobacion();
+
+      if (eventoActual || document.hidden || signal.aborted) {
+        return;
+      }
+
+      const elegibles = obtenerElegibles();
+
+      if (elegibles.length === 0) {
+        return;
+      }
+
+      const estado = leerEstado();
+
+      const ahora = Date.now();
+
+      const inicioPermitido = primeraEntrada + ESPERA_INICIAL;
+
+      const globalPermitido = estado.ultimoAviso + COOLDOWN_GLOBAL;
+
+      const disponibles = elegibles.map((dialogo) => {
+        const id = dialogo.dataset.eventoId ?? "";
+
+        const ultimaVez = estado.eventos[id] ?? 0;
+
+        return {
+          dialogo,
+          ultimaVez,
+
+          momentoPermitido: Math.max(
+            inicioPermitido,
+            globalPermitido,
+            ultimaVez + COOLDOWN_EVENTO,
+          ),
+        };
+      });
+
+      disponibles.sort(
+        (a, b) =>
+          a.momentoPermitido - b.momentoPermitido || a.ultimaVez - b.ultimaVez,
+      );
+
+      const siguiente = disponibles[0];
+
+      if (!siguiente) {
+        return;
+      }
+
+      if (siguiente.momentoPermitido > ahora) {
+        temporizadorComprobacion = window.setTimeout(
+          planificar,
+          Math.min(60_000, Math.max(250, siguiente.momentoPermitido - ahora)),
+        );
+
+        return;
+      }
+
+      mostrarAviso(siguiente.dialogo);
+    }
+
+    // ================================================
+    // MOSTRAR BANNER
+    // ================================================
+
+    function mostrarAviso(dialogo: HTMLDialogElement): void {
+      if (eventoActual || signal.aborted) {
+        return;
+      }
+
+      const id = dialogo.dataset.eventoId;
+
+      const banner = dialogo.dataset.banner;
+
+      if (!id || !banner) {
+        return;
+      }
+
+      const titulo = dialogo.dataset.titulo || "Evento del C.B. Andratx";
+
+      // Guardar frecuencia de aparición
+      // para todas las páginas.
+
+      const estado = leerEstado();
+
+      const ahora = Date.now();
+
+      estado.ultimoAviso = ahora;
+
+      estado.eventos[id] = ahora;
+
+      guardarEstado(estado);
+
+      eventoActual = dialogo;
+
+      tiempoRestante = DURACION_AVISO;
+
+      popupAbierto = false;
+
+      imagen.src = banner;
+
+      imagen.alt = `Banner de ${titulo}`;
+
+      botonAbrir.setAttribute("aria-label", `Ver información de ${titulo}`);
+
+      franja.hidden = false;
+
+      iniciarCuentaAtras();
+    }
+
+    // ================================================
+    // OCULTAR BANNER
+    // ================================================
+
+    function ocultarAviso(): void {
+      pausarCuentaAtras();
+
+      if (popupAbierto) {
+        return;
+      }
+
+      franja.hidden = true;
+
+      imagen.removeAttribute("src");
+
+      eventoActual = null;
+
+      tiempoRestante = DURACION_AVISO;
+
+      planificar();
+    }
+
+    // ================================================
+    // ABRIR POPUP
+    // ================================================
+
+    function abrirPopup(): void {
+      if (!eventoActual || popupAbierto) {
+        return;
+      }
+
+      pausarCuentaAtras();
+
+      const dialogo = eventoActual;
+
+      overflowAnterior = document.body.style.overflow;
+
+      try {
+        dialogo.showModal();
+      } catch (error) {
+        console.error("No se ha podido abrir el popup del evento:", error);
+
+        iniciarCuentaAtras();
+
+        return;
+      }
+
+      popupAbierto = true;
+
+      document.body.style.overflow = "hidden";
+
+      dialogo
+        .querySelector<HTMLButtonElement>("[data-spam-cerrar-popup]")
+        ?.focus();
+    }
+
+    // ================================================
+    // BOTONES DEL BANNER
+    // ================================================
+
+    botonAbrir.addEventListener("click", abrirPopup, { signal });
+
+    botonCerrar.addEventListener("click", ocultarAviso, { signal });
+
+    // ================================================
+    // POPUPS
+    // ================================================
+
+    for (const dialogo of dialogos) {
+      const cerrar = dialogo.querySelector<HTMLButtonElement>(
+        "[data-spam-cerrar-popup]",
+      );
+
+      cerrar?.addEventListener("click", () => dialogo.close(), { signal });
+
+      dialogo.addEventListener(
+        "click",
+        (evento) => {
+          if (evento.target !== dialogo) {
+            return;
+          }
+
+          const limites = dialogo.getBoundingClientRect();
+
+          const fuera =
+            evento.clientX < limites.left ||
+            evento.clientX > limites.right ||
+            evento.clientY < limites.top ||
+            evento.clientY > limites.bottom;
+
+          if (fuera) {
+            dialogo.close();
+          }
+        },
+        { signal },
+      );
+
+      dialogo.addEventListener(
+        "close",
+        () => {
+          document.body.style.overflow = overflowAnterior;
+
+          popupAbierto = false;
+
+          if (signal.aborted) {
+            return;
+          }
+
+          botonAbrir.focus();
+
+          if (tiempoRestante <= 0) {
+            ocultarAviso();
+          } else {
+            iniciarCuentaAtras();
+          }
+        },
+        { signal },
+      );
+    }
+
+    // ================================================
+    // VISIBILIDAD DE PESTAÑA
+    // ================================================
+
+    document.addEventListener(
+      "visibilitychange",
+      () => {
+        if (document.hidden) {
+          pausarCuentaAtras();
+          limpiarComprobacion();
+        } else if (eventoActual) {
+          iniciarCuentaAtras();
+        } else {
+          planificar();
+        }
+      },
+      { signal },
+    );
+
+    // ================================================
+    // SINCRONIZACIÓN ENTRE PÁGINAS
+    // ================================================
+
+    window.addEventListener(
+      "storage",
+      (evento) => {
+        if (evento.key === CLAVE_ESTADO && !eventoActual) {
+          planificar();
+        }
+      },
+      { signal },
+    );
+
+    // ================================================
+    // ACTUALIZACIONES DE FAVORITOS
+    // ================================================
+
+    const dejarDeEscucharFavoritos = temporadaId
+      ? escucharCambiosFavoritos(temporadaId, () => {
+          if (!eventoActual) {
+            planificar();
+          }
+        })
+      : () => {};
+
+    // ================================================
+    // INICIAR
+    // ================================================
+
+    planificar();
+
+    // ================================================
+    // LIMPIEZA
+    // ================================================
+
+    return () => {
+      controlador.abort();
+
+      limpiarComprobacion();
+
+      pausarCuentaAtras();
+
+      dejarDeEscucharFavoritos();
+
+      for (const dialogo of dialogos) {
+        if (dialogo.open) {
+          dialogo.close();
+        }
+      }
+
+      if (popupAbierto) {
+        document.body.style.overflow = overflowAnterior;
+      }
+    };
+  }
+
+  // ==================================================
+  // INICIALIZACIÓN GLOBAL
+  // ==================================================
+
+  function inicializarSpamEventos(): void {
+    document
+      .querySelectorAll<HTMLElement>("[data-spam-eventos]")
+      .forEach((raiz) => {
+        if (instancias.has(raiz)) {
+          return;
+        }
+
+        const limpiar = inicializarComponente(raiz);
+
+        instancias.set(raiz, limpiar);
+      });
+  }
+
+  function limpiarSpamEventos(): void {
+    for (const limpiar of instancias.values()) {
+      limpiar();
+    }
+
+    instancias.clear();
+  }
+
+  inicializarSpamEventos();
+
+  document.addEventListener("astro:page-load", inicializarSpamEventos);
+
+  document.addEventListener("astro:before-swap", limpiarSpamEventos);
+</script>
