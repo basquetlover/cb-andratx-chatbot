@@ -15,16 +15,30 @@ import type {
   PeriodoPartidosPortada,
 } from "@tipos/PartidoPortada";
 
+// ======================================================
+// PROPIEDADES
+// ======================================================
+
 interface Propiedades {
   datos: PeriodoPartidosPortada;
   mostrarCabecera?: boolean;
   tituloId?: string;
 }
 
+// ======================================================
+// COLORES DEL CLUB
+// ======================================================
+
 const COLORES = {
   azulOscuro: "#003650",
   azulProfundo: "#002B45",
+
+  // COLOR DE LOS PARTIDOS EN CASA
+  azulLocal: "#009FE3",
+
+  // COLOR DE LOS PARTIDOS FUERA
   amarillo: "#FFD21E",
+
   amarilloClaro: "#FFF4A3",
 };
 
@@ -33,6 +47,10 @@ const IMAGENES = {
   fondoPartido: "/img/fondo-partido.png",
   escudoClub: "/favicon.svg",
 };
+
+// ======================================================
+// FECHAS
+// ======================================================
 
 function convertirFecha(fecha: string): Date {
   return new Date(`${fecha}T12:00:00`);
@@ -49,30 +67,45 @@ function formatearFecha(
 }
 
 function numeroDia(fecha: string): string {
-  return formatearFecha(fecha, { day: "2-digit" });
+  return formatearFecha(fecha, {
+    day: "2-digit",
+  });
 }
 
 function mesNumero(fecha: string): string {
-  return formatearFecha(fecha, { month: "2-digit" });
+  return formatearFecha(fecha, {
+    month: "2-digit",
+  });
 }
 
 function mesCorto(fecha: string): string {
-  return formatearFecha(fecha, { month: "short" })
+  return formatearFecha(fecha, {
+    month: "short",
+  })
     .replace(".", "")
     .toUpperCase();
 }
 
 function diaSemana(fecha: string): string {
-  return formatearFecha(fecha, { weekday: "long" })
-    .toUpperCase();
+  return formatearFecha(fecha, {
+    weekday: "long",
+  }).toUpperCase();
 }
 
 function iniciales(nombre: string): string {
-  const palabras = nombre.trim().split(/\s+/).filter(Boolean);
+  const palabras = nombre
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
 
-  if (palabras.length === 0) return "—";
+  if (palabras.length === 0) {
+    return "—";
+  }
+
   if (palabras.length === 1) {
-    return palabras[0].slice(0, 2).toUpperCase();
+    return palabras[0]
+      .slice(0, 2)
+      .toUpperCase();
   }
 
   return (
@@ -81,45 +114,77 @@ function iniciales(nombre: string): string {
   ).toUpperCase();
 }
 
+// ======================================================
+// AGRUPAR PARTIDOS POR DÍA
+// ======================================================
+
 function construirDias(
   datos: PeriodoPartidosPortada,
 ): DiaPartidosPortada[] {
-  const grupos = new Map<string, PartidoPortada[]>();
+  const grupos =
+    new Map<string, PartidoPortada[]>();
 
   for (const partido of datos.partidos) {
-    const lista = grupos.get(partido.fecha) ?? [];
+    const lista =
+      grupos.get(partido.fecha) ?? [];
+
     lista.push(partido);
+
     grupos.set(partido.fecha, lista);
   }
 
   return [...grupos.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
+    .sort(
+      ([a], [b]) => a.localeCompare(b),
+    )
     .map(([fecha, partidos]) => ({
       fecha,
-      esHoy: fecha === datos.fechaActual,
-      partidos: [...partidos].sort((a, b) =>
-        (a.hora ?? "23:59").localeCompare(
-          b.hora ?? "23:59",
-        ),
+
+      esHoy:
+        fecha === datos.fechaActual,
+
+      partidos: [...partidos].sort(
+        (a, b) =>
+          (a.hora ?? "23:59").localeCompare(
+            b.hora ?? "23:59",
+          ),
       ),
     }));
 }
+
+// ======================================================
+// DÍA DE REFERENCIA
+// ======================================================
 
 function obtenerFechaReferencia(
   dias: DiaPartidosPortada[],
   fechaActual: string,
 ): string | null {
-  if (dias.length === 0) return null;
+  if (dias.length === 0) {
+    return null;
+  }
 
-  const hoy = dias.find((dia) => dia.fecha === fechaActual);
-  if (hoy) return hoy.fecha;
+  const hoy = dias.find(
+    (dia) => dia.fecha === fechaActual,
+  );
+
+  if (hoy) {
+    return hoy.fecha;
+  }
 
   const siguiente = dias.find(
     (dia) => dia.fecha > fechaActual,
   );
 
-  return siguiente?.fecha ?? dias[dias.length - 1].fecha;
+  return (
+    siguiente?.fecha ??
+    dias[dias.length - 1].fecha
+  );
 }
+
+// ======================================================
+// ICONOS
+// ======================================================
 
 function IconoUbicacion({
   size = 15,
@@ -145,8 +210,14 @@ function IconoUbicacion({
   );
 }
 
-function IconoCasa({ fuera }: { fuera: boolean }) {
-  if (fuera) return <IconoUbicacion size={14} />;
+function IconoCasa({
+  fuera,
+}: {
+  fuera: boolean;
+}) {
+  if (fuera) {
+    return <IconoUbicacion size={14} />;
+  }
 
   return (
     <svg
@@ -187,10 +258,10 @@ function IconoFlecha({
   );
 }
 
-/*
- * Escudo idéntico en estructura al generador:
- * logo del rival detrás + marco PNG original encima.
- */
+// ======================================================
+// ESCUDO DEL RIVAL
+// ======================================================
+
 function EscudoRival({
   equipo,
 }: {
@@ -238,6 +309,10 @@ function EscudoRival({
   );
 }
 
+// ======================================================
+// ETIQUETA DEL ESTADO
+// ======================================================
+
 function EtiquetaEstado({
   partido,
 }: {
@@ -249,16 +324,19 @@ function EtiquetaEstado({
       fondo: "#EF233C",
       color: "#FFFFFF",
     },
+
     finalizado: {
       texto: "FINALIZADO",
       fondo: "#E2E7ED",
       color: "#003650",
     },
+
     aplazado: {
       texto: "APLAZADO",
       fondo: "#EF233C",
       color: "#FFFFFF",
     },
+
     programado: {
       texto: "PROGRAMADO",
       fondo: "#A7DDFC",
@@ -270,7 +348,7 @@ function EtiquetaEstado({
 
   return (
     <span
-      className="inline-flex items-center rounded-md px-2 py-1 text-[9px] font-black tracking-wide"
+      className="inline-flex shrink-0 items-center rounded-md px-2 py-1 text-[9px] font-black tracking-wide"
       style={{
         backgroundColor: estado.fondo,
         color: estado.color,
@@ -281,21 +359,67 @@ function EtiquetaEstado({
   );
 }
 
-/*
- * TARJETA DE PARTIDO
- *
- * [ FECHA ] [ EQUIPO CBA ] [ ESCUDO + RIVAL ]
- *                              [ UBICACIÓN ]
- *
- * Mantiene siempre la distribución horizontal.
- */
+// ======================================================
+// ETIQUETA DE CATEGORÍA
+// ======================================================
+
+function EtiquetaCategoria({
+  categoria,
+}: {
+  categoria: string | null | undefined;
+}) {
+  const texto = categoria?.trim();
+
+  if (!texto) {
+    return null;
+  }
+
+  return (
+    <span
+      title={texto}
+      className="inline-flex min-w-0 max-w-full items-center rounded-md border border-[#FFD21E]/80 bg-[#002B45]/80 px-2 py-1 text-[9px] font-black uppercase tracking-wide text-[#FFD21E]"
+    >
+      <span className="truncate">
+        {texto}
+      </span>
+    </span>
+  );
+}
+
+// ======================================================
+// ESTADO + CATEGORÍA
+// ======================================================
+
+function EtiquetasPartido({
+  partido,
+}: {
+  partido: PartidoPortada;
+}) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center justify-end gap-1.5">
+      <EtiquetaEstado partido={partido} />
+
+      <EtiquetaCategoria
+        categoria={partido.categoria}
+      />
+    </div>
+  );
+}
+
+// ======================================================
+// TARJETA DE PARTIDO
+// ======================================================
+
 function PartidoTarjeta({
   partido,
 }: {
   partido: PartidoPortada;
 }) {
-  const esLocal = partido.equipoLocal.esClub;
-  const esVisitante = partido.equipoVisitante.esClub;
+  const esLocal =
+    partido.equipoLocal.esClub;
+
+  const esVisitante =
+    partido.equipoVisitante.esClub;
 
   const equipoClub = esLocal
     ? partido.equipoLocal
@@ -309,13 +433,31 @@ function PartidoTarjeta({
       ? partido.equipoLocal
       : partido.equipoVisitante;
 
-  const fuera = !esLocal && esVisitante;
+  const fuera =
+    !esLocal && esVisitante;
+
+  // ==================================================
+  // COLOR CASA / FUERA
+  // ==================================================
+  //
+  // CASA  -> AZUL CBA
+  // FUERA -> AMARILLO CBA
+  //
+  // Se aplica el mismo color a:
+  // 1. Franja vertical derecha.
+  // 2. Contenedor CASA / FUERA.
+
+  const colorLocalVisitante = fuera
+    ? COLORES.amarillo
+    : COLORES.azulLocal;
 
   const tieneResultado =
     partido.puntosLocal !== null &&
     partido.puntosVisitante !== null &&
-    (partido.estado === "finalizado" ||
-      partido.estado === "en-juego");
+    (
+      partido.estado === "finalizado" ||
+      partido.estado === "en-juego"
+    );
 
   const puntosClub = esLocal
     ? partido.puntosLocal
@@ -327,7 +469,10 @@ function PartidoTarjeta({
 
   return (
     <article className="relative isolate overflow-hidden rounded-[18px] border-2 border-white/90 text-white shadow-[0_5px_14px_rgba(0,28,55,0.19)]">
-      {/* Fondo original del generador */}
+      {/* ============================================
+          FONDO DE LA TARJETA
+      ============================================ */}
+
       <img
         src={IMAGENES.fondoPartido}
         alt=""
@@ -337,104 +482,145 @@ function PartidoTarjeta({
         className="pointer-events-none absolute inset-0 h-full w-full object-cover"
       />
 
-      {/* Franja amarilla derecha */}
+      {/* ============================================
+          FRANJA DERECHA
+          CASA: AZUL
+          FUERA: AMARILLO
+      ============================================ */}
+
       <div
         className="absolute inset-y-0 right-0 z-20 w-[5px]"
-        style={{ backgroundColor: COLORES.amarillo }}
+        style={{
+          backgroundColor: colorLocalVisitante,
+        }}
         aria-hidden="true"
       />
 
       <div className="relative z-10 px-3.5 py-3.5 pr-5">
+        {/* ============================================
+            CABECERA
+        ============================================ */}
+
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          {/* CASA / FUERA */}
+
           <span
-            className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-black"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-[10px] font-black"
             style={{
-              backgroundColor: COLORES.amarillo,
-              color: COLORES.azulProfundo,
+              backgroundColor:
+                colorLocalVisitante,
+
+              color:
+                COLORES.azulProfundo,
             }}
           >
             <IconoCasa fuera={fuera} />
+
             {fuera ? "FUERA" : "CASA"}
           </span>
 
-          <EtiquetaEstado partido={partido} />
+          {/* ESTADO Y CATEGORÍA */}
+
+          <EtiquetasPartido
+            partido={partido}
+          />
         </div>
 
-        
-{/* CUATRO COLUMNAS HORIZONTALES */}
-<div className="grid grid-cols-[82px_minmax(0,1fr)_60px_minmax(0,1.35fr)] items-center gap-2.5">
-  {/* COLUMNA 1: FECHA Y HORA */}
-  <div className="flex h-full flex-col items-center justify-center border-r border-white/25 pr-2 text-center">
-    <span className="text-[19px] font-black italic leading-none">
-      {numeroDia(partido.fecha)}
-      <span className="text-sm">/</span>
-      {mesNumero(partido.fecha)}
-    </span>
+        {/* ============================================
+            CUATRO COLUMNAS HORIZONTALES
+        ============================================ */}
 
-    <span
-      className="mt-2 text-[19px] font-black italic leading-none tabular-nums"
-      style={{ color: COLORES.amarillo }}
-    >
-      {partido.hora ?? "--:--"}
-    </span>
-  </div>
+        <div className="grid grid-cols-[82px_minmax(0,1fr)_60px_minmax(0,1.35fr)] items-center gap-2.5">
+          {/* COLUMNA 1: FECHA Y HORA */}
 
-  {/* COLUMNA 2: EQUIPO ANDRATX */}
-  <div className="flex h-full min-w-0 items-center justify-center px-1 text-center">
-    <p className="break-words text-[16px] font-black uppercase italic leading-[1.08] tracking-tight">
-      {equipoClub.nombre}
-    </p>
-  </div>
+          <div className="flex h-full flex-col items-center justify-center border-r border-white/25 pr-2 text-center">
+            <span className="text-[19px] font-black italic leading-none">
+              {numeroDia(partido.fecha)}
 
-  {/* COLUMNA 3: VS / RESULTADO */}
-  <div className="flex h-full items-center justify-center text-center">
-    <span
-      className={`font-black italic leading-none ${
-        tieneResultado ? "text-[15px]" : "text-[21px]"
-      }`}
-      style={{ color: COLORES.amarilloClaro }}
-    >
-      {tieneResultado
-        ? `${puntosClub} - ${puntosRival}`
-        : partido.estado === "aplazado"
-          ? "—"
-          : "VS"}
-    </span>
-  </div>
+              <span className="text-sm">
+                /
+              </span>
 
-  {/* COLUMNA 4: ESCUDO, RIVAL Y UBICACIÓN */}
-  <div className="flex min-w-0 items-center gap-2.5">
-    <EscudoRival equipo={rival} />
+              {mesNumero(partido.fecha)}
+            </span>
 
-    <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
-      <p className="break-words text-[15px] font-black uppercase italic leading-[1.08] tracking-tight">
-        {rival.nombre}
-      </p>
+            <span
+              className="mt-2 text-[19px] font-black italic leading-none tabular-nums"
+              style={{
+                color: COLORES.amarillo,
+              }}
+            >
+              {partido.hora ?? "--:--"}
+            </span>
+          </div>
 
-      
-    </div>
-  </div>
-</div>
+          {/* COLUMNA 2: EQUIPO ANDRATX */}
 
+          <div className="flex h-full min-w-0 items-center justify-center px-1 text-center">
+            <p className="break-words text-[16px] font-black uppercase italic leading-[1.08] tracking-tight">
+              {equipoClub.nombre}
+            </p>
+          </div>
 
-        {(partido.jornada || partido.enlaceFbib) && (
+          {/* COLUMNA 3: VS / RESULTADO */}
+
+          <div className="flex h-full items-center justify-center text-center">
+            <span
+              className={`font-black italic leading-none ${
+                tieneResultado
+                  ? "text-[15px]"
+                  : "text-[21px]"
+              }`}
+              style={{
+                color: COLORES.amarilloClaro,
+              }}
+            >
+              {tieneResultado
+                ? `${puntosClub} - ${puntosRival}`
+                : partido.estado === "aplazado"
+                  ? "—"
+                  : "VS"}
+            </span>
+          </div>
+
+          {/* COLUMNA 4: ESCUDO Y RIVAL */}
+
+          <div className="flex min-w-0 items-center gap-2.5">
+            <EscudoRival equipo={rival} />
+
+            <div className="flex min-w-0 flex-1 flex-col justify-center gap-2">
+              <p className="break-words text-[15px] font-black uppercase italic leading-[1.08] tracking-tight">
+                {rival.nombre}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ============================================
+            PIE DE TARJETA
+        ============================================ */}
+
+        {(partido.jornada ||
+          partido.enlaceFbib) && (
           <footer className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/20 pt-2.5">
             <span className="text-[10px] font-semibold text-white/70">
               {partido.jornada ?? ""}
             </span>
 
             {partido.ubicacion && (
-        <p
-          className="flex items-start gap-1.5 text-[11px] font-bold uppercase leading-tight"
-          style={{ color: COLORES.amarilloClaro }}
-        >
-          <IconoUbicacion size={13} />
+              <p
+                className="flex items-start gap-1.5 text-[11px] font-bold uppercase leading-tight"
+                style={{
+                  color: COLORES.amarilloClaro,
+                }}
+              >
+                <IconoUbicacion size={13} />
 
-          <span className="min-w-0 break-words">
-            {partido.ubicacion}
-          </span>
-        </p>
-      )}
+                <span className="min-w-0 break-words">
+                  {partido.ubicacion}
+                </span>
+              </p>
+            )}
 
             {partido.enlaceFbib && (
               <a
@@ -452,6 +638,10 @@ function PartidoTarjeta({
     </article>
   );
 }
+
+// ======================================================
+// COLUMNA DE UN DÍA
+// ======================================================
 
 function ColumnaDia({
   dia,
@@ -490,6 +680,7 @@ function ColumnaDia({
           <span className="text-3xl font-black leading-none">
             {numeroDia(dia.fecha)}
           </span>
+
           <span className="text-sm font-bold">
             {mesCorto(dia.fecha)}
           </span>
@@ -497,7 +688,9 @@ function ColumnaDia({
 
         <p className="mt-1 text-[11px] font-semibold text-white/75">
           {dia.partidos.length}{" "}
-          {dia.partidos.length === 1 ? "partido" : "partidos"}
+          {dia.partidos.length === 1
+            ? "partido"
+            : "partidos"}
         </p>
       </header>
 
@@ -513,50 +706,103 @@ function ColumnaDia({
   );
 }
 
+// ======================================================
+// COMPONENTE PRINCIPAL
+// ======================================================
+
 export default function PartidosPortada({
   datos,
   mostrarCabecera = true,
   tituloId = "partidos-portada-titulo",
 }: Propiedades) {
-  const dias = useMemo(() => construirDias(datos), [datos]);
+  const dias = useMemo(
+    () => construirDias(datos),
+    [datos],
+  );
 
   const referencia = useMemo(
-    () => obtenerFechaReferencia(dias, datos.fechaActual),
+    () =>
+      obtenerFechaReferencia(
+        dias,
+        datos.fechaActual,
+      ),
     [dias, datos.fechaActual],
   );
 
-  const contenedorRef = useRef<HTMLDivElement | null>(null);
-  const columnaReferenciaRef = useRef<HTMLDivElement | null>(null);
+  const contenedorRef =
+    useRef<HTMLDivElement | null>(null);
 
-  const [puedeIzquierda, setPuedeIzquierda] = useState(false);
-  const [puedeDerecha, setPuedeDerecha] = useState(false);
-  const [hayDesbordamiento, setHayDesbordamiento] =
-    useState(false);
+  const columnaReferenciaRef =
+    useRef<HTMLDivElement | null>(null);
+
+  const [
+    puedeIzquierda,
+    setPuedeIzquierda,
+  ] = useState(false);
+
+  const [
+    puedeDerecha,
+    setPuedeDerecha,
+  ] = useState(false);
+
+  const [
+    hayDesbordamiento,
+    setHayDesbordamiento,
+  ] = useState(false);
+
+  // ======================================================
+  // ACTUALIZAR ESTADO DEL SCROLL
+  // ======================================================
 
   const actualizarScroll = useCallback(() => {
-    const contenedor = contenedorRef.current;
-    if (!contenedor) return;
+    const contenedor =
+      contenedorRef.current;
+
+    if (!contenedor) {
+      return;
+    }
 
     const maximo = Math.max(
       0,
-      contenedor.scrollWidth - contenedor.clientWidth,
+      contenedor.scrollWidth -
+        contenedor.clientWidth,
     );
 
-    setHayDesbordamiento(maximo > 2);
-    setPuedeIzquierda(contenedor.scrollLeft > 2);
-    setPuedeDerecha(contenedor.scrollLeft < maximo - 2);
+    setHayDesbordamiento(
+      maximo > 2,
+    );
+
+    setPuedeIzquierda(
+      contenedor.scrollLeft > 2,
+    );
+
+    setPuedeDerecha(
+      contenedor.scrollLeft < maximo - 2,
+    );
   }, []);
 
-  const centrarDia = useCallback(
-    (behavior: ScrollBehavior = "instant") => {
-      const contenedor = contenedorRef.current;
-      const columna = columnaReferenciaRef.current;
+  // ======================================================
+  // CENTRAR DÍA
+  // ======================================================
 
-      if (!contenedor || !columna) return;
+  const centrarDia = useCallback(
+    (
+      behavior: ScrollBehavior = "instant",
+    ) => {
+      const contenedor =
+        contenedorRef.current;
+
+      const columna =
+        columnaReferenciaRef.current;
+
+      if (!contenedor || !columna) {
+        return;
+      }
 
       const maximo = Math.max(
         0,
-        contenedor.scrollWidth - contenedor.clientWidth,
+        contenedor.scrollWidth -
+          contenedor.clientWidth,
       );
 
       if (maximo <= 2) {
@@ -567,6 +813,7 @@ export default function PartidosPortada({
 
       const rectContenedor =
         contenedor.getBoundingClientRect();
+
       const rectColumna =
         columna.getBoundingClientRect();
 
@@ -580,7 +827,8 @@ export default function PartidosPortada({
         0,
         Math.min(
           maximo,
-          centroColumna - contenedor.clientWidth / 2,
+          centroColumna -
+            contenedor.clientWidth / 2,
         ),
       );
 
@@ -594,29 +842,61 @@ export default function PartidosPortada({
     [actualizarScroll],
   );
 
-  const desplazar = (direccion: -1 | 1) => {
-    const contenedor = contenedorRef.current;
-    if (!contenedor) return;
+  // ======================================================
+  // DESPLAZAMIENTO MANUAL
+  // ======================================================
+
+  const desplazar = (
+    direccion: -1 | 1,
+  ) => {
+    const contenedor =
+      contendorActual();
+
+    function contendorActual() {
+      return contenedorRef.current;
+    }
+
+    if (!contenedor) {
+      return;
+    }
 
     contenedor.scrollBy({
       left:
         direccion *
-        Math.max(400, contenedor.clientWidth * 0.75),
+        Math.max(
+          400,
+          contenedor.clientWidth * 0.75,
+        ),
+
       behavior: "smooth",
     });
   };
 
-  useLayoutEffect(() => {
-    const frame = window.requestAnimationFrame(() => {
-      centrarDia("instant");
-    });
+  // ======================================================
+  // CENTRADO INICIAL
+  // ======================================================
 
-    return () => window.cancelAnimationFrame(frame);
+  useLayoutEffect(() => {
+    const frame =
+      window.requestAnimationFrame(() => {
+        centrarDia("instant");
+      });
+
+    return () =>
+      window.cancelAnimationFrame(frame);
   }, [centrarDia, referencia]);
 
+  // ======================================================
+  // DETECTAR DESBORDAMIENTO
+  // ======================================================
+
   useEffect(() => {
-    const contenedor = contenedorRef.current;
-    if (!contenedor) return;
+    const contenedor =
+      contenedorRef.current;
+
+    if (!contenedor) {
+      return;
+    }
 
     const observer = new ResizeObserver(() => {
       actualizarScroll();
@@ -624,17 +904,24 @@ export default function PartidosPortada({
 
     observer.observe(contenedor);
 
-    const contenido = contenedor.firstElementChild;
-    if (contenido) observer.observe(contenido);
+    const contenido =
+      contenedor.firstElementChild;
 
-    contenedor.addEventListener("scroll", actualizarScroll, {
-      passive: true,
-    });
+    if (contenido) {
+      observer.observe(contenido);
+    }
+
+    contenedor.addEventListener(
+      "scroll",
+      actualizarScroll,
+      { passive: true },
+    );
 
     actualizarScroll();
 
     return () => {
       observer.disconnect();
+
       contenedor.removeEventListener(
         "scroll",
         actualizarScroll,
@@ -642,7 +929,12 @@ export default function PartidosPortada({
     };
   }, [actualizarScroll]);
 
-  const totalPartidos = datos.partidos.length;
+  const totalPartidos =
+    datos.partidos.length;
+
+  // ======================================================
+  // RENDERIZADO
+  // ======================================================
 
   return (
     <section
@@ -650,6 +942,8 @@ export default function PartidosPortada({
       aria-labelledby={tituloId}
     >
       <div className="mx-auto w-full">
+        {/* CABECERA OPCIONAL */}
+
         {mostrarCabecera && (
           <header className="mb-7 flex flex-col items-center gap-4 px-5 text-center sm:mb-9">
             <img
@@ -663,6 +957,7 @@ export default function PartidosPortada({
               className="text-4xl font-black uppercase italic leading-[0.96] tracking-tighter text-[#002B45] sm:text-6xl"
             >
               PARTIDOS
+
               <span className="block text-[#009FE3]">
                 DE LA SEMANA
               </span>
@@ -675,19 +970,28 @@ export default function PartidosPortada({
             <p className="text-xl font-black text-on-surface">
               No hay partidos programados
             </p>
+
             <p className="mt-2 text-sm text-on-surface-variant">
               No encontramos partidos para el periodo actual.
             </p>
           </div>
         ) : (
           <>
+            {/* RESUMEN DE PARTIDOS */}
+
             <div className="mx-auto mb-4 flex max-w-[1800px] flex-wrap items-center justify-between gap-3 px-4 sm:px-8">
               <p className="text-xs font-black uppercase tracking-widest text-on-secondary-fixed sm:text-sm">
                 {totalPartidos}{" "}
-                {totalPartidos === 1 ? "PARTIDO" : "PARTIDOS"}
+                {totalPartidos === 1
+                  ? "PARTIDO"
+                  : "PARTIDOS"}
+
                 {" · "}
+
                 {dias.length}{" "}
-                {dias.length === 1 ? "DÍA" : "DÍAS"}
+                {dias.length === 1
+                  ? "DÍA"
+                  : "DÍAS"}
               </p>
 
               {hayDesbordamiento && (
@@ -697,49 +1001,72 @@ export default function PartidosPortada({
               )}
             </div>
 
+            {/* CARRUSEL */}
+
             <div className="relative w-full">
-              {/* Desvanecimiento hacia el color de la web */}
+              {/* DEGRADADO IZQUIERDO */}
+
               <div
                 className="pointer-events-none absolute inset-y-0 left-0 z-20 w-12 transition-opacity duration-200 sm:w-24"
                 style={{
-                  opacity: puedeIzquierda ? 1 : 0,
+                  opacity:
+                    puedeIzquierda ? 1 : 0,
+
                   background:
                     "linear-gradient(to right,var(--md-sys-color-surface,#fff),transparent)",
                 }}
                 aria-hidden="true"
               />
 
+              {/* DEGRADADO DERECHO */}
+
               <div
                 className="pointer-events-none absolute inset-y-0 right-0 z-20 w-12 transition-opacity duration-200 sm:w-24"
                 style={{
-                  opacity: puedeDerecha ? 1 : 0,
+                  opacity:
+                    puedeDerecha ? 1 : 0,
+
                   background:
                     "linear-gradient(to left,var(--md-sys-color-surface,#fff),transparent)",
                 }}
                 aria-hidden="true"
               />
 
+              {/* FLECHA IZQUIERDA */}
+
               {puedeIzquierda && (
                 <button
                   type="button"
-                  onClick={() => desplazar(-1)}
+                  onClick={() =>
+                    desplazar(-1)
+                  }
                   aria-label="Ver días anteriores"
                   className="absolute left-2 top-11 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface shadow-md transition-colors hover:bg-surface-container-high sm:left-4"
                 >
-                  <IconoFlecha direccion="izquierda" />
+                  <IconoFlecha
+                    direccion="izquierda"
+                  />
                 </button>
               )}
+
+              {/* FLECHA DERECHA */}
 
               {puedeDerecha && (
                 <button
                   type="button"
-                  onClick={() => desplazar(1)}
+                  onClick={() =>
+                    desplazar(1)
+                  }
                   aria-label="Ver días posteriores"
                   className="absolute right-2 top-11 z-30 flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant bg-surface-container-lowest text-on-surface shadow-md transition-colors hover:bg-surface-container-high sm:right-4"
                 >
-                  <IconoFlecha direccion="derecha" />
+                  <IconoFlecha
+                    direccion="derecha"
+                  />
                 </button>
               )}
+
+              {/* CONTENEDOR DESPLAZABLE */}
 
               <div
                 ref={contenedorRef}
@@ -765,7 +1092,9 @@ export default function PartidosPortada({
                     >
                       <ColumnaDia
                         dia={dia}
-                        referencia={dia.fecha === referencia}
+                        referencia={
+                          dia.fecha === referencia
+                        }
                       />
                     </div>
                   ))}
@@ -774,6 +1103,8 @@ export default function PartidosPortada({
             </div>
           </>
         )}
+
+        {/* VER CALENDARIO COMPLETO */}
 
         <div className="mt-5 flex justify-center px-4">
           <a
