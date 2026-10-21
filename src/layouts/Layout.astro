@@ -56,6 +56,18 @@ Astro.response.headers.set("Cache-Control", "no-store, max-age=0");
 <!doctype html>
 <html lang="es" class="min-h-full">
   <head>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-697ZCW3WJ0"
+    ></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+
+      gtag("config", "G-697ZCW3WJ0");
+    </script>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -120,6 +132,18 @@ Astro.response.headers.set("Cache-Control", "no-store, max-age=0");
 
     <script src="/scripts/analytics.js" defer></script>
   </head>
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-697ZCW3WJ0"
+  ></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+    gtag("js", new Date());
+
+    gtag("config", "G-697ZCW3WJ0");
+  </script>
 
   <body class="flex min-h-dvh flex-col">
     <!-- AVISOS DE EVENTOS Y MENÚ SUPERIOR -->
