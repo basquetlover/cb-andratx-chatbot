@@ -1,3 +1,4 @@
+
 export type EstadoPartidoPortada =
   | "programado"
   | "en-juego"
@@ -6,13 +7,8 @@ export type EstadoPartidoPortada =
 
 export interface EquipoPartidoPortada {
   id: string | null;
-
   nombre: string;
-
-  escudo:
-    | string
-    | null;
-
+  escudo: string | null;
   esClub: boolean;
 }
 
@@ -20,70 +16,37 @@ export interface PartidoPortada {
   id: string;
 
   fecha: string;
+  hora: string | null;
 
-  hora:
-    | string
-    | null;
+  jornada: string | null;
+  estado: EstadoPartidoPortada;
 
-  jornada:
-    | string
-    | null;
+  // Categoría real del partido (FBIB o CBA).
+  categoria?: string | null;
 
-  estado:
-    EstadoPartidoPortada;
+  equipoLocal: EquipoPartidoPortada;
+  equipoVisitante: EquipoPartidoPortada;
 
-  equipoLocal:
-    EquipoPartidoPortada;
+  puntosLocal: number | null;
+  puntosVisitante: number | null;
 
-  equipoVisitante:
-    EquipoPartidoPortada;
-
-  puntosLocal:
-    | number
-    | null;
-
-  puntosVisitante:
-    | number
-    | null;
-
-  ubicacion:
-    | string
-    | null;
-
-  enlaceFbib:
-    | string
-    | null;
+  ubicacion: string | null;
+  enlaceFbib: string | null;
 }
 
 export interface PeriodoPartidosPortada {
-  /*
-   * Instantes completos en formato ISO.
-   *
-   * El periodo comienza un martes a las
-   * 20:00 y termina el martes siguiente
-   * a las 20:00.
-   */
+  // Martes 20:00 a martes siguiente 20:00.
   inicio: string;
   fin: string;
 
-  /*
-   * Fecha actual en Europe/Madrid y
-   * formato YYYY-MM-DD.
-   *
-   * Se utiliza para centrar el día
-   * actual aunque no tenga partidos.
-   */
+  // Fecha en Europe/Madrid, YYYY-MM-DD.
   fechaActual: string;
 
-  partidos:
-    PartidoPortada[];
+  partidos: PartidoPortada[];
 }
 
 export interface DiaPartidosPortada {
   fecha: string;
-
   esHoy: boolean;
-
-  partidos:
-    PartidoPortada[];
+  partidos: PartidoPortada[];
 }
