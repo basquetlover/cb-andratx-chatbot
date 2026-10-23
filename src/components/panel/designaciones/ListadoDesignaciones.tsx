@@ -1243,10 +1243,10 @@ export default function ListadoDesignaciones({
             </span>
           </p>
 
-          <p className="text-xs text-on-surface-variant">
+          {/* <p className="text-xs text-on-surface-variant">
             Los partidos FBIB sin designar se consultan
             sin guardarse en Supabase.
-          </p>
+          </p> */}
         </div>
 
         {!puedeEditar && (
