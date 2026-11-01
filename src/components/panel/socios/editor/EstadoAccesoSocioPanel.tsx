@@ -1,228 +1,117 @@
+
 import {
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
 import type {
   CarnetTemporadaSocio,
   SocioPanel,
+  ResultadoDesbloquearAccesoSocio,
+  RespuestaDesbloquearAccesoSocio,
 } from "@tipos/SocioPanel";
 
 interface Propiedades {
   socio: SocioPanel;
-
-  alActualizar: (
-    socio: SocioPanel,
-  ) => void;
-
   puedeEditar?: boolean;
-}
-
-interface ResultadoDesbloqueo {
-  socioId: string;
-  carnetId: string;
-
-  desbloqueado: boolean;
-
-  intentosFallidos: number;
-
-  bloqueadoHasta:
-    | string
-    | null;
-
-  accesoBloqueado: boolean;
-}
-
-interface RespuestaDesbloqueo {
-  ok: boolean;
-
-  data:
-    | ResultadoDesbloqueo
-    | null;
-
-  error: string | null;
+  alActualizar: (socio: SocioPanel) => void;
 }
 
 function formatearFechaHora(
-  fecha:
-    | string
-    | null,
+  fecha: string | null,
 ): string {
   if (!fecha) {
     return "Nunca";
   }
 
-  const fechaConvertida =
-    new Date(fecha);
+  const fechaConvertida = new Date(fecha);
 
-  if (
-    Number.isNaN(
-      fechaConvertida.getTime(),
-    )
-  ) {
+  if (!Number.isFinite(fechaConvertida.getTime())) {
     return fecha;
   }
 
-  return new Intl.DateTimeFormat(
-    "es-ES",
-    {
-      dateStyle: "medium",
-      timeStyle: "short",
-
-      timeZone:
-        "Europe/Madrid",
-    },
-  ).format(
-    fechaConvertida,
-  );
+  return new Intl.DateTimeFormat("es-ES", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Madrid",
+  }).format(fechaConvertida);
 }
 
 function actualizarCarnetEnSocio(
   socio: SocioPanel,
-  resultado:
-    ResultadoDesbloqueo,
+  resultado: ResultadoDesbloquearAccesoSocio,
 ): SocioPanel {
-  const carnetActual =
-    socio.carnetActual;
+  const actualizarCarnet = (
+    carnet: CarnetTemporadaSocio,
+  ): CarnetTemporadaSocio => {
+    if (carnet.id !== resultado.carnetId) {
+      return carnet;
+    }
 
-  if (
-    !carnetActual ||
-    carnetActual.id !==
-      resultado.carnetId
-  ) {
-    return socio;
-  }
-
-  const carnetActualizado:
-    CarnetTemporadaSocio = {
-      ...carnetActual,
-
-      intentosFallidos:
-        resultado.intentosFallidos,
-
-      bloqueadoHasta:
-        resultado.bloqueadoHasta,
-
-      accesoBloqueado:
-        resultado.accesoBloqueado,
-
-      updatedAt:
-        new Date().toISOString(),
+    return {
+      ...carnet,
+      intentosFallidos: resultado.intentosFallidos,
+      bloqueadoHasta: resultado.bloqueadoHasta,
+      accesoBloqueado: resultado.accesoBloqueado,
+      updatedAt: new Date().toISOString(),
     };
+  };
 
   return {
     ...socio,
-
-    carnetActual:
-      carnetActualizado,
-
-    carnets:
-      socio.carnets.map(
-        (carnet) =>
-          carnet.id ===
-          resultado.carnetId
-            ? carnetActualizado
-            : carnet,
-      ),
+    carnetActual: socio.carnetActual
+      ? actualizarCarnet(socio.carnetActual)
+      : null,
+    carnets: socio.carnets.map(actualizarCarnet),
   };
 }
 
 export default function EstadoAccesoSocioPanel({
   socio,
+  puedeEditar = false,
   alActualizar,
-  puedeEditar = true,
 }: Propiedades) {
-  const [
-    desbloqueando,
-    setDesbloqueando,
-  ] = useState(false);
+  const [desbloqueando, setDesbloqueando] =
+    useState(false);
 
-  const [
-    error,
-    setError,
-  ] = useState<
-    string | null
-  >(null);
+  const [error, setError] =
+    useState<string | null>(null);
 
-  const [
-    mensaje,
-    setMensaje,
-  ] = useState<
-    string | null
-  >(null);
+  const [mensaje, setMensaje] =
+    useState<string | null>(null);
 
-  const carnetActual =
-    socio.carnetActual;
+  const carnetActual = socio.carnetActual;
 
   const intentosFallidos =
-    carnetActual
-      ?.intentosFallidos ??
-    0;
+    carnetActual?.intentosFallidos ?? 0;
 
   const bloqueadoHasta =
-    carnetActual
-      ?.bloqueadoHasta ??
-    null;
+    carnetActual?.bloqueadoHasta ?? null;
 
   const ultimoAccesoAt =
-    carnetActual
-      ?.ultimoAccesoAt ??
-    null;
+    carnetActual?.ultimoAccesoAt ?? null;
 
   const accesoBloqueado =
-    carnetActual
-      ?.accesoBloqueado ??
-    false;
-
-  const tieneBloqueoRegistrado =
-    Boolean(
-      bloqueadoHasta,
-    );
+    carnetActual?.accesoBloqueado ?? false;
 
   const tieneIntentosFallidos =
     intentosFallidos > 0;
 
+  const tieneBloqueoRegistrado =
+    Boolean(bloqueadoHasta);
+
   const permiteRestablecer =
-    Boolean(
-      carnetActual,
-    ) &&
     puedeEditar &&
+    carnetActual !== null &&
     (
       tieneIntentosFallidos ||
       tieneBloqueoRegistrado
     );
 
-  const descripcionCarnet =
-    useMemo(
-      () => {
-        if (!carnetActual) {
-          return null;
-        }
-
-        return [
-          carnetActual.numeroCarnet,
-          carnetActual
-            .temporada.nombre,
-        ]
-          .filter(Boolean)
-          .join(" · ");
-      },
-      [
-        carnetActual,
-      ],
-    );
-
   useEffect(() => {
     setError(null);
     setMensaje(null);
-    setDesbloqueando(false);
-  }, [
-    socio.id,
-    carnetActual?.id,
-    intentosFallidos,
-    bloqueadoHasta,
-  ]);
+  }, [socio.id, carnetActual?.id]);
 
   async function desbloquear() {
     if (
@@ -238,27 +127,29 @@ export default function EstadoAccesoSocioPanel({
     setMensaje(null);
 
     try {
-      const respuesta =
-        await fetch(
-          `/api/panel/socios/${encodeURIComponent(
-            socio.id,
-          )}/desbloquear-acceso`,
-          {
-            method: "POST",
-
-            credentials:
-              "same-origin",
-
-            headers: {
-              Accept:
-                "application/json",
-            },
+      /*
+       * RUTA CORRECTA:
+       *
+       * /api/panel/socios/[id]/
+       * carnets/desbloquear-acceso
+       */
+      const respuesta = await fetch(
+        `/api/panel/socios/${encodeURIComponent(
+          socio.id,
+        )}/carnets/desbloquear-acceso`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers: {
+            Accept: "application/json",
           },
-        );
+        },
+      );
 
       const contenido =
         (await respuesta.json()) as
-          RespuestaDesbloqueo;
+          RespuestaDesbloquearAccesoSocio;
 
       if (
         !respuesta.ok ||
@@ -266,87 +157,72 @@ export default function EstadoAccesoSocioPanel({
         !contenido.data
       ) {
         throw new Error(
-          contenido.error ??
+          contenido.error ||
             "No se ha podido desbloquear el acceso.",
+        );
+      }
+
+      const resultado = contenido.data;
+
+      if (
+        resultado.socioId !== socio.id ||
+        resultado.carnetId !== carnetActual.id
+      ) {
+        throw new Error(
+          "La respuesta no corresponde al carnet seleccionado.",
         );
       }
 
       const socioActualizado =
         actualizarCarnetEnSocio(
           socio,
-          contenido.data,
+          resultado,
         );
 
-      alActualizar(
-        socioActualizado,
-      );
+      alActualizar(socioActualizado);
 
       setMensaje(
-        contenido.data.desbloqueado
-          ? "El acceso al carnet se ha desbloqueado correctamente."
-          : "El carnet no tenía ningún bloqueo de acceso.",
+        "El bloqueo temporal y los intentos fallidos se han restablecido correctamente.",
       );
-    } catch (error) {
+    } catch (errorCapturado) {
       console.error(
-        "Error desbloqueando el acceso al carnet:",
-        error,
+        "Error desbloqueando el acceso del socio:",
+        errorCapturado,
       );
 
       setError(
-        error instanceof Error
-          ? error.message
+        errorCapturado instanceof Error
+          ? errorCapturado.message
           : "No se ha podido desbloquear el acceso.",
       );
     } finally {
-      setDesbloqueando(
-        false,
-      );
+      setDesbloqueando(false);
     }
   }
 
   if (!carnetActual) {
     return (
-      <section className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
-        <div className="border-b border-outline-variant/60 px-5 py-5 sm:px-6">
-          <div className="flex items-start gap-4">
-            <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-surface-container text-on-surface-variant">
-              <span
-                className="inline-block h-6 w-6 bg-current mask-center mask-contain mask-no-repeat"
-                style={{
-                  maskImage:
-                    "url('/iconos/panel/seguridad.svg')",
+      <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6">
+        <div className="flex items-start gap-4">
+          <span
+            className="inline-block h-10 w-10 shrink-0 bg-outline mask-center mask-contain mask-no-repeat"
+            style={{
+              maskImage:
+                "url('/iconos/panel/seguridad.svg')",
+              WebkitMaskImage:
+                "url('/iconos/panel/seguridad.svg')",
+            }}
+            aria-hidden="true"
+          />
 
-                  WebkitMaskImage:
-                    "url('/iconos/panel/seguridad.svg')",
-                }}
-                aria-hidden="true"
-              />
-            </span>
+          <div>
+            <h2 className="text-xl font-bold text-on-surface">
+              Acceso del socio
+            </h2>
 
-            <div className="min-w-0">
-              <h2 className="text-xl font-bold text-on-surface">
-                Acceso del socio
-              </h2>
-
-              <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-                No existe un carnet para la
-                temporada activa.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <div className="p-5 sm:p-6">
-          <div className="rounded-2xl border border-outline-variant/60 bg-surface-container-low p-4">
-            <p className="font-bold text-on-surface">
-              Sin acceso disponible
-            </p>
-
-            <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-              El socio necesita un carnet
-              para la temporada activa antes
-              de poder iniciar sesión en su
-              área privada.
+            <p className="mt-2 text-sm text-on-surface-variant">
+              Este socio no tiene carnet para la
+              temporada activa.
             </p>
           </div>
         </div>
@@ -356,7 +232,7 @@ export default function EstadoAccesoSocioPanel({
 
   return (
     <section className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm">
-      <div className="border-b border-outline-variant/60 px-5 py-5 sm:px-6">
+      <header className="border-b border-outline-variant/60 p-5 sm:p-6">
         <div className="flex items-start gap-4">
           <span
             className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${
@@ -372,7 +248,6 @@ export default function EstadoAccesoSocioPanel({
               style={{
                 maskImage:
                   "url('/iconos/panel/seguridad.svg')",
-
                 WebkitMaskImage:
                   "url('/iconos/panel/seguridad.svg')",
               }}
@@ -386,20 +261,19 @@ export default function EstadoAccesoSocioPanel({
             </h2>
 
             <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-              Consulta los intentos de inicio
-              de sesión y desbloquea
-              manualmente el acceso cuando
-              sea necesario.
+              Consulta los intentos de acceso y
+              restablece los bloqueos temporales
+              del carnet.
             </p>
 
-            {descripcionCarnet && (
-              <p className="mt-2 font-mono text-xs font-bold text-primary">
-                {descripcionCarnet}
-              </p>
-            )}
+            <p className="mt-2 font-mono text-xs font-bold text-primary">
+              {carnetActual.numeroCarnet}
+              {" · "}
+              {carnetActual.temporada.nombre}
+            </p>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="grid gap-5 p-5 sm:p-6">
         <div
@@ -426,20 +300,20 @@ export default function EstadoAccesoSocioPanel({
             <div>
               <p className="font-bold">
                 {accesoBloqueado
-                  ? "Acceso bloqueado temporalmente"
+                  ? "Acceso temporalmente bloqueado"
                   : tieneIntentosFallidos
                     ? "Hay intentos fallidos registrados"
-                    : "Acceso disponible"}
+                    : "Sin bloqueos temporales"}
               </p>
 
               <p className="mt-1 text-sm leading-6 opacity-85">
                 {accesoBloqueado
-                  ? `El socio no podrá iniciar sesión con este carnet hasta el ${formatearFechaHora(
+                  ? `El carnet no podrá utilizarse hasta el ${formatearFechaHora(
                       bloqueadoHasta,
-                    )}, salvo que un administrador lo desbloquee.`
+                    )}, salvo que un administrador restablezca el acceso.`
                   : tieneIntentosFallidos
-                    ? "El socio todavía puede acceder, pero existen intentos de inicio de sesión incorrectos."
-                    : "No existen bloqueos ni intentos fallidos pendientes para este carnet."}
+                    ? "Existen intentos incorrectos, pero el acceso no está bloqueado temporalmente."
+                    : "No existen intentos fallidos ni bloqueos temporales registrados."}
               </p>
             </div>
           </div>
@@ -458,9 +332,7 @@ export default function EstadoAccesoSocioPanel({
                   : "text-on-surface"
               }`}
             >
-              {
-                intentosFallidos
-              }
+              {intentosFallidos}
             </dd>
           </div>
 
@@ -471,9 +343,7 @@ export default function EstadoAccesoSocioPanel({
 
             <dd className="mt-1 text-sm font-bold text-on-surface">
               {bloqueadoHasta
-                ? formatearFechaHora(
-                    bloqueadoHasta,
-                  )
+                ? formatearFechaHora(bloqueadoHasta)
                 : "Sin bloqueo"}
             </dd>
           </div>
@@ -484,17 +354,15 @@ export default function EstadoAccesoSocioPanel({
             </dt>
 
             <dd className="mt-1 text-sm font-bold text-on-surface">
-              {formatearFechaHora(
-                ultimoAccesoAt,
-              )}
+              {formatearFechaHora(ultimoAccesoAt)}
             </dd>
           </div>
         </dl>
 
         {error && (
           <p
-            className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm text-on-error-container"
             role="alert"
+            className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm text-on-error-container"
           >
             {error}
           </p>
@@ -502,8 +370,8 @@ export default function EstadoAccesoSocioPanel({
 
         {mensaje && (
           <p
-            className="rounded-xl border border-success/30 bg-success-container px-4 py-3 text-sm text-on-success-container"
             role="status"
+            className="rounded-xl border border-success/30 bg-success-container px-4 py-3 text-sm text-on-success-container"
           >
             {mensaje}
           </p>
@@ -511,22 +379,17 @@ export default function EstadoAccesoSocioPanel({
 
         <div className="flex flex-col gap-3 border-t border-outline-variant/60 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs leading-5 text-on-surface-variant">
-            Esta acción elimina el bloqueo
-            temporal y reinicia los intentos
-            fallidos. No cambia la contraseña
-            ni el estado administrativo del
-            carnet.
+            Esta acción reinicia los intentos
+            fallidos y elimina el bloqueo temporal.
+            No cambia la contraseña ni el estado
+            administrativo del carnet.
           </p>
 
           {permiteRestablecer && (
             <button
               type="button"
-              onClick={
-                desbloquear
-              }
-              disabled={
-                desbloqueando
-              }
+              onClick={() => void desbloquear()}
+              disabled={desbloqueando}
               className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {desbloqueando && (
@@ -545,13 +408,10 @@ export default function EstadoAccesoSocioPanel({
           )}
 
           {!puedeEditar &&
-            (
-              tieneIntentosFallidos ||
-              tieneBloqueoRegistrado
-            ) && (
+            (tieneIntentosFallidos ||
+              tieneBloqueoRegistrado) && (
               <p className="text-sm font-semibold text-on-surface-variant">
-                No tienes permiso para
-                desbloquear este acceso.
+                No tienes permiso para restablecer el acceso.
               </p>
             )}
         </div>

@@ -1,5 +1,9 @@
+
 ---
 import EditorSocioPanel from "@components/panel/socios/editor/EditorSocioPanel";
+
+import EliminarSocioPanel from "@components/panel/socios/editor/EliminarSocioPanel";
+
 import LayoutPanel from "@layouts/LayoutPanel.astro";
 
 import {
@@ -32,17 +36,13 @@ export const prerender = false;
 const socioId =
   Astro.params.id?.trim() ?? "";
 
-const rutaActual =
-  socioId
-    ? `/panel/socios/${encodeURIComponent(
-        socioId,
-      )}`
-    : "/panel/socios";
+const rutaActual = socioId
+  ? `/panel/socios/${encodeURIComponent(socioId)}`
+  : "/panel/socios";
 
-const tokenSesion =
-  Astro.cookies.get(
-    NOMBRE_COOKIE_SESION,
-  )?.value;
+const tokenSesion = Astro.cookies.get(
+  NOMBRE_COOKIE_SESION,
+)?.value;
 
 if (!tokenSesion) {
   return Astro.redirect(
@@ -55,10 +55,7 @@ if (!tokenSesion) {
 let sesion;
 
 try {
-  sesion =
-    await obtenerUsuarioSesion(
-      tokenSesion,
-    );
+  sesion = await obtenerUsuarioSesion(tokenSesion);
 } catch (error) {
   console.error(
     "Error comprobando la sesión en el editor de socios:",
@@ -73,9 +70,7 @@ try {
 if (!sesion) {
   Astro.cookies.delete(
     NOMBRE_COOKIE_SESION,
-    {
-      path: "/",
-    },
+    { path: "/" },
   );
 
   return Astro.redirect(
@@ -89,15 +84,11 @@ let puedeVer = false;
 let puedeEditar = false;
 
 try {
-  [
-    puedeVer,
-    puedeEditar,
-  ] = await Promise.all([
+  [puedeVer, puedeEditar] = await Promise.all([
     comprobarPermisoUsuario(
       sesion.acceso,
       "socios.ver",
     ),
-
     comprobarPermisoUsuario(
       sesion.acceso,
       "socios.editar",
@@ -120,30 +111,20 @@ if (!puedeVer) {
   );
 }
 
-let socio: SocioPanel | null =
-  null;
+let socio: SocioPanel | null = null;
 
-let opciones:
-  OpcionesSociosPanel | null =
-  null;
+let opciones: OpcionesSociosPanel | null = null;
 
 let noEncontrado = false;
-let errorCarga: string | null =
-  null;
+let errorCarga: string | null = null;
 
 if (!socioId) {
   noEncontrado = true;
   Astro.response.status = 404;
 } else {
   try {
-    [
-      socio,
-      opciones,
-    ] = await Promise.all([
-      obtenerSocioPanel(
-        socioId,
-      ),
-
+    [socio, opciones] = await Promise.all([
+      obtenerSocioPanel(socioId),
       obtenerOpcionesSociosPanel(),
     ]);
 
@@ -161,8 +142,7 @@ if (!socioId) {
       typeof error === "object" &&
       error !== null &&
       "status" in error &&
-      typeof error.status ===
-        "number"
+      typeof error.status === "number"
         ? error.status
         : 500;
 
@@ -176,8 +156,7 @@ if (!socioId) {
           : "No se ha podido cargar la información del socio.";
 
       Astro.response.status =
-        estado >= 400 &&
-        estado <= 599
+        estado >= 400 && estado <= 599
           ? estado
           : 500;
     }
@@ -185,8 +164,7 @@ if (!socioId) {
 }
 
 const nombreSocio =
-  socio?.nombreCompleto?.trim() ||
-  "Socio";
+  socio?.nombreCompleto?.trim() || "Socio";
 ---
 
 <LayoutPanel
@@ -274,13 +252,25 @@ const nombreSocio =
         </div>
       </section>
     ) : (
-      <EditorSocioPanel
-        client:load
-        socioInicial={socio}
-        opciones={opciones}
-        puedeEditar={puedeEditar}
-        puedeCrearCarnet={puedeEditar}
-      />
+      <div class="grid gap-6">
+        <EditorSocioPanel
+          client:load
+          socioInicial={socio}
+          opciones={opciones}
+          puedeEditar={puedeEditar}
+          puedeCrearCarnet={puedeEditar}
+        />
+
+        {
+          puedeEditar && (
+            <EliminarSocioPanel
+              client:load
+              socioId={socio.id}
+              nombreSocio={socio.nombreCompleto}
+            />
+          )
+        }
+      </div>
     )
   }
 </LayoutPanel>

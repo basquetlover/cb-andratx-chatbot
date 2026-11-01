@@ -1,8 +1,8 @@
-import {
-  useMemo,
-} from "react";
+
+import { useMemo } from "react";
 
 import TarjetaCarnetSocioPanel from "./TarjetaCarnetSocioPanel";
+import EliminarCarnetSocioPanel from "./EliminarCarnetSocioPanel";
 
 import type {
   CarnetTemporadaSocio,
@@ -14,18 +14,14 @@ interface Propiedades {
   tiposSocio: string[];
   puedeEditar: boolean;
 
-  alActualizar: (
-    socio: SocioPanel,
-  ) => void;
+  alActualizar: (socio: SocioPanel) => void;
 }
 
 function obtenerMarcaTiempo(
-  carnet:
-    CarnetTemporadaSocio,
+  carnet: CarnetTemporadaSocio,
 ): number {
   const fecha =
-    carnet.temporada
-      .fechaInicio ||
+    carnet.temporada.fechaInicio ||
     carnet.fechaAlta ||
     carnet.createdAt ||
     carnet.updatedAt;
@@ -34,73 +30,33 @@ function obtenerMarcaTiempo(
     return 0;
   }
 
-  const marcaTiempo =
-    new Date(
-      fecha,
-    ).getTime();
+  const marcaTiempo = new Date(fecha).getTime();
 
-  return Number.isNaN(
-    marcaTiempo,
-  )
+  return Number.isNaN(marcaTiempo)
     ? 0
     : marcaTiempo;
 }
 
 function ordenarCarnets(
-  carnets:
-    CarnetTemporadaSocio[],
+  carnets: CarnetTemporadaSocio[],
 ): CarnetTemporadaSocio[] {
-  return [...carnets].sort(
-    (
-      carnetA,
-      carnetB,
-    ) => {
-      const activaA =
-        carnetA.temporada
-          .activa
-          ? 1
-          : 0;
+  return [...carnets].sort((carnetA, carnetB) => {
+    const activaA = carnetA.temporada.activa ? 1 : 0;
+    const activaB = carnetB.temporada.activa ? 1 : 0;
 
-      const activaB =
-        carnetB.temporada
-          .activa
-          ? 1
-          : 0;
+    if (activaA !== activaB) {
+      return activaB - activaA;
+    }
 
-      if (
-        activaA !== activaB
-      ) {
-        return (
-          activaB -
-          activaA
-        );
-      }
+    const fechaA = obtenerMarcaTiempo(carnetA);
+    const fechaB = obtenerMarcaTiempo(carnetB);
 
-      const fechaA =
-        obtenerMarcaTiempo(
-          carnetA,
-        );
+    if (fechaA !== fechaB) {
+      return fechaB - fechaA;
+    }
 
-      const fechaB =
-        obtenerMarcaTiempo(
-          carnetB,
-        );
-
-      if (
-        fechaA !== fechaB
-      ) {
-        return (
-          fechaB -
-          fechaA
-        );
-      }
-
-      return (
-        carnetB.numeroSocio -
-        carnetA.numeroSocio
-      );
-    },
-  );
+    return carnetB.numeroSocio - carnetA.numeroSocio;
+  });
 }
 
 export default function CarnetsSocioPanel({
@@ -109,37 +65,25 @@ export default function CarnetsSocioPanel({
   puedeEditar,
   alActualizar,
 }: Propiedades) {
-  const carnetsOrdenados =
-    useMemo(
-      () =>
-        ordenarCarnets(
-          socio.carnets,
-        ),
-      [socio.carnets],
-    );
+  const carnetsOrdenados = useMemo(
+    () => ordenarCarnets(socio.carnets),
+    [socio.carnets],
+  );
 
   const carnetActivo =
     carnetsOrdenados.find(
       (carnet) =>
-        carnet.estado ===
-          "activo" &&
-        carnet.temporada
-          .activa,
+        carnet.estado === "activo" &&
+        carnet.temporada.activa,
     ) ?? null;
 
-  const totalActivos =
-    carnetsOrdenados.filter(
-      (carnet) =>
-        carnet.estado ===
-        "activo",
-    ).length;
+  const totalActivos = carnetsOrdenados.filter(
+    (carnet) => carnet.estado === "activo",
+  ).length;
 
-  const totalBloqueados =
-    carnetsOrdenados.filter(
-      (carnet) =>
-        carnet.estado ===
-        "bloqueado",
-    ).length;
+  const totalBloqueados = carnetsOrdenados.filter(
+    (carnet) => carnet.estado === "bloqueado",
+  ).length;
 
   return (
     <section
@@ -161,16 +105,18 @@ export default function CarnetsSocioPanel({
             </h2>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-on-surface-variant">
-              Cada temporada dispone de su propio número de socio, número de carnet y estado de acceso. Los carnets anteriores se conservan como historial.
+              Cada temporada dispone de su propio
+              número de socio, número de carnet y
+              estado de acceso. Los carnets anteriores
+              se conservan como historial mientras
+              no se eliminen expresamente.
             </p>
           </div>
 
           <div className="grid grid-cols-3 gap-2 sm:min-w-80">
             <div className="rounded-xl bg-surface-container-low px-3 py-3 text-center">
               <p className="text-xl font-black text-on-surface">
-                {
-                  carnetsOrdenados.length
-                }
+                {carnetsOrdenados.length}
               </p>
 
               <p className="mt-0.5 text-xs text-on-surface-variant">
@@ -190,9 +136,7 @@ export default function CarnetsSocioPanel({
 
             <div className="rounded-xl bg-error-container px-3 py-3 text-center text-on-error-container">
               <p className="text-xl font-black">
-                {
-                  totalBloqueados
-                }
+                {totalBloqueados}
               </p>
 
               <p className="mt-0.5 text-xs">
@@ -210,25 +154,17 @@ export default function CarnetsSocioPanel({
               </p>
 
               <p className="mt-1 font-mono text-lg font-black tracking-wide">
-                {
-                  carnetActivo.numeroCarnet
-                }
+                {carnetActivo.numeroCarnet}
               </p>
 
               <p className="mt-1 text-xs font-bold">
-                Socio nº{" "}
-                {
-                  carnetActivo.numeroSocio
-                }
+                Socio nº {carnetActivo.numeroSocio}
               </p>
             </div>
 
             <div className="text-sm sm:text-right">
               <p className="font-semibold">
-                {
-                  carnetActivo.temporada
-                    .nombre
-                }
+                {carnetActivo.temporada.nombre}
               </p>
 
               <p className="mt-0.5 text-xs opacity-80">
@@ -240,43 +176,59 @@ export default function CarnetsSocioPanel({
         ) : (
           <div className="mt-5 rounded-xl border border-tertiary/30 bg-tertiary-container px-4 py-4 text-on-tertiary-container">
             <p className="text-sm font-bold">
-              No existe un carnet activo para la temporada actual
+              No existe un carnet activo para la
+              temporada actual
             </p>
 
             <p className="mt-1 text-xs leading-5 opacity-85">
-              Puedes crear un carnet nuevo o revisar el estado del carnet correspondiente a la temporada activa.
+              Puedes crear un carnet nuevo o revisar
+              el estado del carnet correspondiente a
+              la temporada activa.
             </p>
           </div>
         )}
       </header>
 
-      {carnetsOrdenados.length >
-      0 ? (
+      {carnetsOrdenados.length > 0 ? (
         <div className="grid gap-5">
-          {carnetsOrdenados.map(
-            (carnet) => (
+          {carnetsOrdenados.map((carnet) => (
+            <div key={carnet.id} className="grid gap-2">
               <TarjetaCarnetSocioPanel
-                key={
-                  carnet.id
-                }
-                socioId={
-                  socio.id
-                }
-                carnet={
-                  carnet
-                }
-                tiposSocio={
-                  tiposSocio
-                }
-                puedeEditar={
-                  puedeEditar
-                }
-                alActualizar={
-                  alActualizar
-                }
+                socioId={socio.id}
+                carnet={carnet}
+                tiposSocio={tiposSocio}
+                puedeEditar={puedeEditar}
+                alActualizar={alActualizar}
               />
-            ),
-          )}
+
+              {puedeEditar && (
+                <div className="flex flex-col gap-3 rounded-xl border border-error/20 bg-error-container/15 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-on-surface">
+                      Eliminar este carnet
+                    </p>
+
+                    <p className="mt-1 text-xs leading-5 text-on-surface-variant">
+                      Se eliminará únicamente el
+                      carnet de la temporada{" "}
+                      <span className="font-semibold">
+                        {carnet.temporada.nombre}
+                      </span>
+                      . El socio se conservará.
+                    </p>
+                  </div>
+
+                  <div className="shrink-0">
+                    <EliminarCarnetSocioPanel
+                      socioId={socio.id}
+                      carnet={carnet}
+                      alActualizar={alActualizar}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       ) : (
         <div className="rounded-2xl border border-dashed border-outline-variant bg-surface-container-low p-8 text-center sm:p-10">
@@ -285,7 +237,6 @@ export default function CarnetsSocioPanel({
             style={{
               maskImage:
                 "url('/iconos/panel/carnet.svg')",
-
               WebkitMaskImage:
                 "url('/iconos/panel/carnet.svg')",
             }}
@@ -297,14 +248,21 @@ export default function CarnetsSocioPanel({
           </h3>
 
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-on-surface-variant">
-            Este socio todavía no ha sido asociado a ninguna temporada. Puedes crear su primer carnet desde el formulario correspondiente.
+            Este socio todavía no tiene ningún carnet
+            asociado a una temporada. Puedes crear
+            su primer carnet desde el formulario
+            correspondiente.
           </p>
         </div>
       )}
 
       <div className="rounded-xl border border-outline-variant/60 bg-surface-container-low px-4 py-3">
         <p className="text-xs leading-5 text-on-surface-variant">
-          El número de socio y el número de carnet se asignan de nuevo en cada temporada. La contraseña de acceso permanece igual a la establecida con el primer carnet. Bloquear o caducar un carnet no genera una contraseña nueva.
+          El número de socio y el número de carnet se
+          asignan de nuevo en cada temporada. Se
+          conserva el historial mientras no se elimine
+          un carnet expresamente. Eliminar un carnet
+          no elimina la ficha del socio.
         </p>
       </div>
     </section>

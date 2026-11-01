@@ -1,6 +1,15 @@
-import { supabaseServidor } from "../../supabase/servidor";
 
-import { obtenerSocioPanel } from "./obtenerSocioPanel";
+import {
+  supabaseServidor,
+} from "../../supabase/servidor";
+
+import {
+  obtenerSupabasePrivilegiado,
+} from "../../supabase/privilegiado";
+
+import {
+  obtenerSocioPanel,
+} from "./obtenerSocioPanel";
 
 import {
   enviarBienvenidaSocioSiCorresponde,
@@ -22,6 +31,7 @@ interface FilaCarnetExistente {
   socio_id: string;
   temporada_id: string;
 
+  tipo_socio: string | null;
   estado: EstadoCarnetSocio;
 
   fecha_alta: string;
@@ -78,7 +88,9 @@ function convertirTextoNullable(
   return valor.trim() || null;
 }
 
-function esFechaValida(valor: unknown): valor is string {
+function esFechaValida(
+  valor: unknown,
+): valor is string {
   if (
     typeof valor !== "string" ||
     !/^\d{4}-\d{2}-\d{2}$/.test(valor)
@@ -86,7 +98,9 @@ function esFechaValida(valor: unknown): valor is string {
     return false;
   }
 
-  const fecha = new Date(`${valor}T00:00:00.000Z`);
+  const fecha = new Date(
+    `${valor}T00:00:00.000Z`,
+  );
 
   return (
     Number.isFinite(fecha.getTime()) &&
@@ -94,10 +108,102 @@ function esFechaValida(valor: unknown): valor is string {
   );
 }
 
-function obtenerVersionAcceso(valor: number): number {
-  return Number.isSafeInteger(valor) && valor >= 1
+function obtenerVersionAcceso(
+  valor: number,
+): number {
+  return (
+    Number.isSafeInteger(valor) &&
+    valor >= 1
+  )
     ? valor
     : 1;
+}
+
+function esTipoFamiliar(
+  tipo: string | null | undefined,
+): boolean {
+  return (
+    tipo?.trim().toLowerCase() === "familiar"
+  );
+}
+
+/*
+ * Protección de los familiares vinculados.
+ *
+ * Si el carnet es Familiar y se quiere cambiar
+ * a otro tipo, comprobamos primero si conserva
+ * personas adicionales.
+ *
+ * Esta consulta usa el cliente privado porque
+ * la tabla de familiares tiene RLS habilitado
+ * y no dispone de políticas públicas.
+ */
+async function comprobarCambioTipoFamiliar(
+  carnetId: string,
+  tipoAnterior: string | null,
+  tipoNuevo: string,
+): Promise<void> {
+  if (
+    !esTipoFamiliar(tipoAnterior) ||
+    esTipoFamiliar(tipoNuevo)
+  ) {
+    return;
+  }
+
+  let cliente;
+
+  try {
+    cliente = obtenerSupabasePrivilegiado();
+  } catch (error) {
+    console.error(
+      "Error preparando la consulta de familiares:",
+      error,
+    );
+
+    throw new ErrorActualizarCarnetSocioPanel(
+      "No se ha podido comprobar si el carnet contiene familiares vinculados.",
+      500,
+    );
+  }
+
+  const {
+    data,
+    error,
+  } = await cliente
+    .from("socios_carnet_familiares")
+    .select("id")
+    .eq("carnet_id", carnetId)
+    .limit(1);
+
+  if (error) {
+    console.error(
+      "Error comprobando los familiares antes de cambiar el tipo de carnet:",
+      {
+        carnetId,
+        codigo: error.code,
+        mensaje: error.message,
+      },
+    );
+
+    throw new ErrorActualizarCarnetSocioPanel(
+      "No se han podido comprobar los familiares del carnet.",
+      500,
+    );
+  }
+
+  if ((data?.length ?? 0) > 0) {
+    throw new ErrorActualizarCarnetSocioPanel(
+      "Este carnet tiene familiares incluidos. Antes de cambiarlo a otro tipo, quita sus familiares desde el apartado de gestión familiar.",
+      409,
+      [
+        {
+          campo: "tipoSocio",
+          mensaje:
+            "Elimina primero los familiares vinculados a este carnet.",
+        },
+      ],
+    );
+  }
 }
 
 export async function actualizarCarnetSocioPanel(
@@ -107,13 +213,19 @@ export async function actualizarCarnetSocioPanel(
   usuarioId: string,
 ): Promise<SocioPanel> {
   const socioIdLimpio =
-    typeof socioId === "string" ? socioId.trim() : "";
+    typeof socioId === "string"
+      ? socioId.trim()
+      : "";
 
   const carnetIdLimpio =
-    typeof carnetId === "string" ? carnetId.trim() : "";
+    typeof carnetId === "string"
+      ? carnetId.trim()
+      : "";
 
   const usuarioIdLimpio =
-    typeof usuarioId === "string" ? usuarioId.trim() : "";
+    typeof usuarioId === "string"
+      ? usuarioId.trim()
+      : "";
 
   if (!socioIdLimpio) {
     throw new ErrorActualizarCarnetSocioPanel(
@@ -147,6 +259,12 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
+  /*
+   * Obtener el carnet original.
+   *
+   * Incluimos tipo_socio para comprobar
+   * posibles cambios de modalidad.
+   */
   const {
     data: carnetEncontrado,
     error: errorCarnet,
@@ -156,6 +274,7 @@ export async function actualizarCarnetSocioPanel(
       id,
       socio_id,
       temporada_id,
+      tipo_socio,
       estado,
       fecha_alta,
       fecha_caducidad,
@@ -185,7 +304,8 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
-  const carnet = carnetEncontrado as FilaCarnetExistente;
+  const carnet =
+    carnetEncontrado as FilaCarnetExistente;
 
   if (!esFechaValida(carnet.fecha_alta)) {
     throw new ErrorActualizarCarnetSocioPanel(
@@ -195,16 +315,22 @@ export async function actualizarCarnetSocioPanel(
   }
 
   /*
-   * Se utiliza siempre la fecha de alta original.
-   * El valor recibido desde el formulario se ignora.
+   * La fecha de alta siempre es la
+   * fecha original de creación.
+   *
+   * Ignoramos cualquier intento de
+   * cambiarla desde el navegador.
    */
-  const datosValidados: ActualizarCarnetTemporadaSocio = {
-    ...datos,
-    fechaAlta: carnet.fecha_alta,
-  };
+  const datosValidados:
+    ActualizarCarnetTemporadaSocio = {
+      ...datos,
+      fechaAlta: carnet.fecha_alta,
+    };
 
   const errores =
-    validarActualizacionCarnetSocio(datosValidados);
+    validarActualizacionCarnetSocio(
+      datosValidados,
+    );
 
   if (errores.length > 0) {
     throw new ErrorActualizarCarnetSocioPanel(
@@ -214,23 +340,50 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
-  const tipoSocio = datosValidados.tipoSocio.trim();
+  const tipoSocio =
+    datosValidados.tipoSocio.trim();
 
   const fechaCaducidad =
     datosValidados.fechaCaducidad.trim();
 
   const motivoBloqueo =
     datosValidados.estado === "bloqueado"
-      ? convertirTextoNullable(datosValidados.motivoBloqueo)
+      ? convertirTextoNullable(
+          datosValidados.motivoBloqueo,
+        )
       : null;
 
+  /*
+   * NUEVA REGLA:
+   *
+   * No se puede abandonar la modalidad
+   * Familiar si existen familiares
+   * vinculados.
+   *
+   * No se elimina ninguna persona
+   * automáticamente al cambiar el tipo.
+   */
+  await comprobarCambioTipoFamiliar(
+    carnetIdLimpio,
+    carnet.tipo_socio,
+    tipoSocio,
+  );
+
+  /*
+   * Comprobar las fechas de la temporada.
+   */
   const {
     data: temporadaEncontrada,
     error: errorTemporada,
   } = await supabaseServidor
     .from("temporadas")
-    .select("id, fecha_inicio, fecha_fin")
-    .eq("id", carnet.temporada_id)
+    .select(
+      "id, fecha_inicio, fecha_fin",
+    )
+    .eq(
+      "id",
+      carnet.temporada_id,
+    )
     .maybeSingle();
 
   if (errorTemporada) {
@@ -253,7 +406,8 @@ export async function actualizarCarnetSocioPanel(
   if (
     !esFechaValida(temporada.fecha_inicio) ||
     !esFechaValida(temporada.fecha_fin) ||
-    temporada.fecha_fin < temporada.fecha_inicio
+    temporada.fecha_fin <
+      temporada.fecha_inicio
   ) {
     throw new ErrorActualizarCarnetSocioPanel(
       "La temporada no tiene configuradas correctamente sus fechas.",
@@ -261,7 +415,10 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
-  if (fechaCaducidad > temporada.fecha_fin) {
+  if (
+    fechaCaducidad >
+    temporada.fecha_fin
+  ) {
     throw new ErrorActualizarCarnetSocioPanel(
       "La fecha de caducidad no puede superar el final de la temporada.",
       400,
@@ -275,7 +432,10 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
-  if (fechaCaducidad < temporada.fecha_inicio) {
+  if (
+    fechaCaducidad <
+    temporada.fecha_inicio
+  ) {
     throw new ErrorActualizarCarnetSocioPanel(
       "La fecha de caducidad no puede ser anterior al inicio de la temporada.",
       400,
@@ -289,6 +449,9 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
+  /*
+   * Comprobar que existe el socio.
+   */
   const {
     data: socioEncontrado,
     error: errorSocio,
@@ -312,11 +475,18 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
-  const socio = socioEncontrado as FilaSocio;
-  const ahora = new Date().toISOString();
+  const socio =
+    socioEncontrado as FilaSocio;
 
+  const ahora =
+    new Date().toISOString();
+
+  /*
+   * Mantener la lógica actual de estados.
+   */
   const cambiaEstado =
-    datosValidados.estado !== carnet.estado;
+    datosValidados.estado !==
+    carnet.estado;
 
   const seActiva =
     datosValidados.estado === "activo" &&
@@ -326,35 +496,49 @@ export async function actualizarCarnetSocioPanel(
     datosValidados.estado === "bloqueado";
 
   const versionActual =
-    obtenerVersionAcceso(carnet.version_acceso);
+    obtenerVersionAcceso(
+      carnet.version_acceso,
+    );
 
-  const versionAcceso = cambiaEstado
-    ? versionActual + 1
-    : versionActual;
+  const versionAcceso =
+    cambiaEstado
+      ? versionActual + 1
+      : versionActual;
 
-  const activadoAt = seActiva
-    ? ahora
-    : carnet.activado_at;
+  const activadoAt =
+    seActiva
+      ? ahora
+      : carnet.activado_at;
 
-  const activadoPor = seActiva
-    ? usuarioIdLimpio
-    : carnet.activado_por;
+  const activadoPor =
+    seActiva
+      ? usuarioIdLimpio
+      : carnet.activado_por;
 
-  const bloqueadoAt = seBloquea
-    ? carnet.estado === "bloqueado"
-      ? carnet.bloqueado_at ?? ahora
-      : ahora
-    : null;
+  const bloqueadoAt =
+    seBloquea
+      ? carnet.estado === "bloqueado"
+        ? carnet.bloqueado_at ?? ahora
+        : ahora
+      : null;
 
-  const bloqueadoPor = seBloquea
-    ? carnet.estado === "bloqueado"
-      ? carnet.bloqueado_por ?? usuarioIdLimpio
-      : usuarioIdLimpio
-    : null;
+  const bloqueadoPor =
+    seBloquea
+      ? carnet.estado === "bloqueado"
+        ? carnet.bloqueado_por ??
+          usuarioIdLimpio
+        : usuarioIdLimpio
+      : null;
 
   /*
-   * fecha_alta y created_at no se actualizan.
-   * Tampoco se modifican la numeración ni la contraseña.
+   * Actualizar carnet.
+   *
+   * No modificar:
+   * - fecha_alta
+   * - created_at
+   * - numero_socio
+   * - numero_carnet
+   * - contraseña
    */
   const {
     data: carnetActualizado,
@@ -364,6 +548,7 @@ export async function actualizarCarnetSocioPanel(
     .update({
       tipo_socio: tipoSocio,
       estado: datosValidados.estado,
+
       fecha_caducidad: fechaCaducidad,
       motivo_bloqueo: motivoBloqueo,
 
@@ -379,7 +564,10 @@ export async function actualizarCarnetSocioPanel(
       updated_at: ahora,
     })
     .eq("id", carnet.id)
-    .eq("socio_id", socioIdLimpio)
+    .eq(
+      "socio_id",
+      socioIdLimpio,
+    )
     .select("id")
     .maybeSingle();
 
@@ -397,6 +585,10 @@ export async function actualizarCarnetSocioPanel(
     );
   }
 
+  /*
+   * Mantener el envío de bienvenida
+   * al activar el carnet.
+   */
   if (
     socio.activo &&
     datosValidados.estado === "activo" &&
@@ -408,11 +600,6 @@ export async function actualizarCarnetSocioPanel(
         carnet.id,
       );
     } catch (error) {
-      /*
-       * El cambio del carnet se mantiene aunque falle
-       * el envío del correo. Si no se registra el envío,
-       * podrá intentarse de nuevo posteriormente.
-       */
       console.error(
         `El carnet ${carnet.id} se ha actualizado, pero no se ha podido enviar su correo de acceso:`,
         error,
@@ -420,5 +607,7 @@ export async function actualizarCarnetSocioPanel(
     }
   }
 
-  return obtenerSocioPanel(socioIdLimpio);
+  return obtenerSocioPanel(
+    socioIdLimpio,
+  );
 }

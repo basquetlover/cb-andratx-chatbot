@@ -296,7 +296,7 @@ export default function SocioPublico({
           </div>
 
           <p
-            className="mt-[1%] text-[clamp(2.25rem,12vw,4.3rem)] font-black italic leading-none tracking-tight text-[#ffc801]"
+            className="mt-[1%] text-[2.5rem] font-black italic leading-none tracking-tight text-[#ffc801]"
             style={{
               textShadow:
                 "0 4px 0 rgba(0, 36, 80, 0.75), 0 7px 14px rgba(0, 0, 0, 0.3)",

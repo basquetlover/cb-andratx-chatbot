@@ -1,3 +1,4 @@
+
 import {
   useMemo,
   useState,
@@ -7,6 +8,7 @@ import CarnetsSocioPanel from "./CarnetsSocioPanel";
 import DatosSocioPanel from "./DatosSocioPanel";
 import EstadoAccesoSocioPanel from "./EstadoAccesoSocioPanel";
 import FormularioNuevoCarnetSocio from "./FormularioNuevoCarnetSocio";
+import FamiliaresCarnetsSocioPanel from "./FamiliaresCarnetsSocioPanel";
 
 import type {
   OpcionesSociosPanel,
@@ -24,29 +26,18 @@ interface Propiedades {
   puedeCrearCarnet: boolean;
 }
 
-interface OpcionSeccion {
-  id: SeccionEditorSocio;
-  nombre: string;
-  descripcion: string;
-  icono: string;
-}
-
-const secciones: OpcionSeccion[] = [
+const secciones = [
   {
-    id: "datos",
+    id: "datos" as const,
     nombre: "Datos del socio",
-    descripcion:
-      "Información personal y acceso",
-    icono:
-      "/iconos/panel/usuario.svg",
+    descripcion: "Información personal y acceso",
+    icono: "/iconos/panel/usuario.svg",
   },
   {
-    id: "carnets",
+    id: "carnets" as const,
     nombre: "Carnets",
-    descripcion:
-      "Temporadas e historial",
-    icono:
-      "/iconos/panel/carnet.svg",
+    descripcion: "Temporadas e historial",
+    icono: "/iconos/panel/carnet.svg",
   },
 ];
 
@@ -56,88 +47,56 @@ export default function EditorSocioPanel({
   puedeEditar,
   puedeCrearCarnet,
 }: Propiedades) {
-  const [
-    socio,
-    setSocio,
-  ] = useState<SocioPanel>(
-    socioInicial,
-  );
+  const [socio, setSocio] =
+    useState<SocioPanel>(socioInicial);
 
-  const [
-    seccionActiva,
-    setSeccionActiva,
-  ] =
-    useState<SeccionEditorSocio>(
-      "datos",
-    );
+  const [seccionActiva, setSeccionActiva] =
+    useState<SeccionEditorSocio>("datos");
 
   const [
     mostrandoFormularioCarnet,
     setMostrandoFormularioCarnet,
   ] = useState(false);
 
-  const carnetActual =
-    socio.carnetActual;
+  const carnetActual = socio.carnetActual;
 
   const numeroSocioActual =
-    carnetActual?.numeroSocio ??
-    null;
+    carnetActual?.numeroSocio ?? null;
 
   const accesoBloqueado =
-    carnetActual
-      ?.accesoBloqueado ??
-    false;
+    carnetActual?.accesoBloqueado ?? false;
 
   const intentosFallidos =
-    carnetActual
-      ?.intentosFallidos ??
-    0;
+    carnetActual?.intentosFallidos ?? 0;
 
-  const tiposSocio =
-    useMemo(
-      () =>
-        opciones.tiposSocio.map(
-          (tipo) =>
-            tipo.valor,
-        ),
-      [
-        opciones.tiposSocio,
-      ],
-    );
+  const tiposSocio = useMemo(
+    () =>
+      opciones.tiposSocio.map(
+        (tipo) => tipo.valor,
+      ),
+    [opciones.tiposSocio],
+  );
 
   function actualizarSocio(
     socioActualizado: SocioPanel,
   ) {
-    setSocio(
-      socioActualizado,
-    );
+    setSocio(socioActualizado);
   }
 
   function registrarCarnetCreado(
     socioActualizado: SocioPanel,
   ) {
-    setSocio(
-      socioActualizado,
-    );
-
-    setMostrandoFormularioCarnet(
-      false,
-    );
+    setSocio(socioActualizado);
+    setMostrandoFormularioCarnet(false);
   }
 
   function cambiarSeccion(
     seccion: SeccionEditorSocio,
   ) {
-    setSeccionActiva(
-      seccion,
-    );
+    setSeccionActiva(seccion);
 
-    if (
-      seccion !== "carnets"
-    ) {
-      setMostrandoFormularioCarnet(
-        false,
-      );
+    if (seccion !== "carnets") {
+      setMostrandoFormularioCarnet(false);
     }
   }
 
@@ -152,7 +111,6 @@ export default function EditorSocioPanel({
                 style={{
                   maskImage:
                     "url('/iconos/panel/usuario.svg')",
-
                   WebkitMaskImage:
                     "url('/iconos/panel/usuario.svg')",
                 }}
@@ -161,25 +119,18 @@ export default function EditorSocioPanel({
             </div>
 
             <div className="min-w-0">
-              {numeroSocioActual !==
-              null ? (
+              {numeroSocioActual !== null ? (
                 <p className="text-xs font-bold uppercase tracking-wide text-primary">
-                  Socio número{" "}
-                  {
-                    numeroSocioActual
-                  }
+                  Socio número {numeroSocioActual}
                 </p>
               ) : (
                 <p className="text-xs font-bold uppercase tracking-wide text-on-surface-variant">
-                  Sin carnet para la
-                  temporada activa
+                  Sin carnet para la temporada activa
                 </p>
               )}
 
               <h1 className="mt-1 wrap-break-word text-2xl font-black text-on-surface sm:text-3xl">
-                {
-                  socio.nombreCompleto
-                }
+                {socio.nombreCompleto}
               </h1>
 
               <p className="mt-1 break-all text-sm text-on-surface-variant">
@@ -215,8 +166,7 @@ export default function EditorSocioPanel({
                 className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-bold ${
                   accesoBloqueado
                     ? "border-error/30 bg-error-container text-on-error-container"
-                    : intentosFallidos >
-                        0
+                    : intentosFallidos > 0
                       ? "border-tertiary/30 bg-tertiary-container text-on-tertiary-container"
                       : "border-success/30 bg-success-container text-on-success-container"
                 }`}
@@ -225,8 +175,7 @@ export default function EditorSocioPanel({
                   className={`h-2 w-2 rounded-full ${
                     accesoBloqueado
                       ? "bg-error"
-                      : intentosFallidos >
-                          0
+                      : intentosFallidos > 0
                         ? "bg-tertiary"
                         : "bg-success"
                   }`}
@@ -235,11 +184,9 @@ export default function EditorSocioPanel({
 
                 {accesoBloqueado
                   ? "Acceso bloqueado"
-                  : intentosFallidos >
-                      0
+                  : intentosFallidos > 0
                     ? `${intentosFallidos} ${
-                        intentosFallidos ===
-                        1
+                        intentosFallidos === 1
                           ? "intento fallido"
                           : "intentos fallidos"
                       }`
@@ -249,9 +196,7 @@ export default function EditorSocioPanel({
 
             {carnetActual && (
               <span className="inline-flex rounded-full border border-primary/30 bg-primary-container px-3 py-1.5 font-mono text-sm font-bold text-on-primary-container">
-                {
-                  carnetActual.numeroCarnet
-                }
+                {carnetActual.numeroCarnet}
               </span>
             )}
           </div>
@@ -264,29 +209,26 @@ export default function EditorSocioPanel({
             </p>
 
             <p className="mt-1">
-              No podrá iniciar sesión ni
-              consultar ningún carnet hasta
-              que vuelva a activarse.
+              No podrá iniciar sesión ni consultar
+              ningún carnet hasta que vuelva a
+              activarse.
             </p>
           </div>
         )}
 
-        {socio.activo &&
-          !carnetActual && (
-            <div className="border-t border-tertiary/30 bg-tertiary-container px-5 py-4 text-sm text-on-tertiary-container sm:px-6">
-              <p className="font-bold">
-                No tiene carnet para la
-                temporada activa
-              </p>
+        {socio.activo && !carnetActual && (
+          <div className="border-t border-tertiary/30 bg-tertiary-container px-5 py-4 text-sm text-on-tertiary-container sm:px-6">
+            <p className="font-bold">
+              No tiene carnet para la temporada activa
+            </p>
 
-              <p className="mt-1">
-                Puedes crear uno desde la
-                sección de carnets si el
-                socio debe tener acceso esta
-                temporada.
-              </p>
-            </div>
-          )}
+            <p className="mt-1">
+              Puedes crear uno desde la sección
+              de carnets si el socio debe tener
+              acceso esta temporada.
+            </p>
+          </div>
+        )}
 
         {socio.activo &&
           carnetActual &&
@@ -298,11 +240,9 @@ export default function EditorSocioPanel({
               </p>
 
               <p className="mt-1">
-                Se han producido demasiados
-                intentos de inicio de sesión
-                incorrectos. Un administrador
-                puede desbloquear el acceso
-                desde los datos del socio.
+                Se han producido demasiados intentos
+                incorrectos. Un administrador puede
+                desbloquearlo desde los datos del socio.
               </p>
             </div>
           )}
@@ -312,94 +252,74 @@ export default function EditorSocioPanel({
         className="grid gap-2 rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-2 shadow-sm sm:grid-cols-2"
         aria-label="Secciones del socio"
       >
-        {secciones.map(
-          (seccion) => {
-            const seleccionada =
-              seccionActiva ===
-              seccion.id;
+        {secciones.map((seccion) => {
+          const seleccionada =
+            seccionActiva === seccion.id;
 
-            return (
-              <button
-                key={seccion.id}
-                type="button"
-                onClick={() =>
-                  cambiarSeccion(
-                    seccion.id,
-                  )
-                }
-                className={`flex min-h-16 items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors ${
-                  seleccionada
-                    ? "bg-primary text-on-primary shadow-sm"
-                    : "text-on-surface hover:bg-surface-container-low"
-                }`}
-                aria-current={
-                  seleccionada
-                    ? "page"
-                    : undefined
-                }
-              >
-                <span
-                  className="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat"
-                  style={{
-                    maskImage: `url('${seccion.icono}')`,
+          return (
+            <button
+              key={seccion.id}
+              type="button"
+              onClick={() =>
+                cambiarSeccion(seccion.id)
+              }
+              className={`flex min-h-16 items-center gap-3 rounded-xl px-4 py-3 text-left transition-colors ${
+                seleccionada
+                  ? "bg-primary text-on-primary shadow-sm"
+                  : "text-on-surface hover:bg-surface-container-low"
+              }`}
+              aria-current={
+                seleccionada
+                  ? "page"
+                  : undefined
+              }
+            >
+              <span
+                className="inline-block h-6 w-6 shrink-0 bg-current mask-center mask-contain mask-no-repeat"
+                style={{
+                  maskImage: `url('${seccion.icono}')`,
+                  WebkitMaskImage: `url('${seccion.icono}')`,
+                }}
+                aria-hidden="true"
+              />
 
-                    WebkitMaskImage: `url('${seccion.icono}')`,
-                  }}
-                  aria-hidden="true"
-                />
-
-                <span className="min-w-0">
-                  <span className="block font-bold">
-                    {
-                      seccion.nombre
-                    }
-                  </span>
-
-                  <span
-                    className={`mt-0.5 block text-xs ${
-                      seleccionada
-                        ? "text-on-primary/80"
-                        : "text-on-surface-variant"
-                    }`}
-                  >
-                    {
-                      seccion.descripcion
-                    }
-                  </span>
+              <span className="min-w-0">
+                <span className="block font-bold">
+                  {seccion.nombre}
                 </span>
-              </button>
-            );
-          },
-        )}
+
+                <span
+                  className={`mt-0.5 block text-xs ${
+                    seleccionada
+                      ? "text-on-primary/80"
+                      : "text-on-surface-variant"
+                  }`}
+                >
+                  {seccion.descripcion}
+                </span>
+              </span>
+            </button>
+          );
+        })}
       </nav>
 
-      {seccionActiva ===
-        "datos" && (
+      {seccionActiva === "datos" && (
         <div className="grid gap-6">
           <DatosSocioPanel
             socio={socio}
-            puedeEditar={
-              puedeEditar
-            }
-            alActualizar={
-              actualizarSocio
-            }
+            puedeEditar={puedeEditar}
+            alActualizar={actualizarSocio}
           />
 
           <EstadoAccesoSocioPanel
             socio={socio}
-            puedeEditar={
-              puedeEditar
-            }
-            alActualizar={
-              actualizarSocio
-            }
+            puedeEditar={puedeEditar}
+            alActualizar={actualizarSocio}
           />
         </div>
       )}
 
-      {seccionActiva ===
-        "carnets" && (
+      {seccionActiva === "carnets" && (
         <div className="grid gap-6">
           {puedeCrearCarnet &&
             !mostrandoFormularioCarnet && (
@@ -410,22 +330,18 @@ export default function EditorSocioPanel({
                   </h2>
 
                   <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-                    Crea el carnet del socio
-                    para una nueva temporada.
-                    Se generarán un nuevo
-                    número de socio y una
-                    nueva contraseña
-                    vinculados exclusivamente
-                    a ese carnet.
+                    Crea el carnet del socio para una
+                    nueva temporada. Se generarán
+                    un nuevo número de socio y una
+                    nueva contraseña vinculados
+                    exclusivamente a ese carnet.
                   </p>
                 </div>
 
                 <button
                   type="button"
                   onClick={() =>
-                    setMostrandoFormularioCarnet(
-                      true,
-                    )
+                    setMostrandoFormularioCarnet(true)
                   }
                   className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary/90"
                 >
@@ -444,37 +360,27 @@ export default function EditorSocioPanel({
           {puedeCrearCarnet &&
             mostrandoFormularioCarnet && (
               <FormularioNuevoCarnetSocio
-                socioId={
-                  socio.id
-                }
-                temporadas={
-                  opciones.temporadas
-                }
-                tiposSocio={
-                  tiposSocio
-                }
-                alCrear={
-                  registrarCarnetCreado
-                }
+                socioId={socio.id}
+                temporadas={opciones.temporadas}
+                tiposSocio={tiposSocio}
+                alCrear={registrarCarnetCreado}
                 alCancelar={() =>
-                  setMostrandoFormularioCarnet(
-                    false,
-                  )
+                  setMostrandoFormularioCarnet(false)
                 }
               />
             )}
 
           <CarnetsSocioPanel
             socio={socio}
-            tiposSocio={
-              tiposSocio
-            }
-            puedeEditar={
-              puedeEditar
-            }
-            alActualizar={
-              actualizarSocio
-            }
+            tiposSocio={tiposSocio}
+            puedeEditar={puedeEditar}
+            alActualizar={actualizarSocio}
+          />
+
+          {/* Solo muestra los carnets de tipo Familiar. */}
+          <FamiliaresCarnetsSocioPanel
+            socio={socio}
+            puedeEditar={puedeEditar}
           />
         </div>
       )}

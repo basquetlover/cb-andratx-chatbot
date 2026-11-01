@@ -1,3 +1,4 @@
+
 import {
   useEffect,
   useRef,
@@ -5,7 +6,18 @@ import {
   type FormEvent,
 } from "react";
 
+import FamiliaresFormularioAlta, {
+  validarNombresFamiliares,
+  vincularFamiliaresAlNuevoCarnet,
+} from "./FamiliaresFormularioAlta";
+
 type EstadoCarnet = "pendiente" | "activo";
+
+type EstadoVinculacion =
+  | "pendiente"
+  | "guardando"
+  | "completo"
+  | "error";
 
 interface TemporadaOpcion {
   id: string;
@@ -17,6 +29,7 @@ interface TemporadaOpcion {
 
 interface CredencialesCreadas {
   socioId: string;
+  carnetId: string;
   email: string;
   numeroSocio: number;
   numeroCarnet: string;
@@ -47,22 +60,16 @@ const TIPOS_SOCIO_INICIALES = [
 ];
 
 const claseCampo =
-  "h-11 w-full rounded-xl border border-outline-variant " +
-  "bg-surface-container-low px-3 text-sm text-on-surface " +
-  "outline-none focus:border-primary focus:ring-2 " +
-  "focus:ring-primary/20 disabled:opacity-60";
+  "min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-low px-3 py-2 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:opacity-60";
 
 const claseEtiqueta =
   "text-sm font-bold text-on-surface";
 
 const claseSeccion =
-  "overflow-hidden rounded-2xl border border-outline-variant/60 " +
-  "bg-surface-container-lowest shadow-sm";
+  "overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-lowest shadow-sm";
 
 const claseBotonSecundario =
-  "inline-flex min-h-11 items-center justify-center rounded-xl " +
-  "border border-outline-variant px-5 py-3 text-sm font-bold " +
-  "text-on-surface transition-colors hover:bg-surface-container";
+  "inline-flex min-h-11 items-center justify-center rounded-xl border border-outline-variant px-5 py-3 text-sm font-bold text-on-surface transition-colors hover:bg-surface-container";
 
 function esObjeto(
   valor: unknown,
@@ -74,24 +81,21 @@ function esObjeto(
   );
 }
 
-function convertirTexto(valor: unknown): string {
-  return typeof valor === "string" || typeof valor === "number"
+function texto(valor: unknown): string {
+  return (
+    typeof valor === "string" ||
+    typeof valor === "number"
+  )
     ? String(valor).trim()
     : "";
 }
 
-function convertirNumero(valor: unknown): number | null {
-  if (
-    typeof valor !== "string" &&
-    typeof valor !== "number"
-  ) {
-    return null;
-  }
+function numero(valor: unknown): number | null {
+  const convertido = Number(valor);
 
-  const numero = Number(valor);
-
-  return Number.isSafeInteger(numero) && numero >= 1
-    ? numero
+  return Number.isSafeInteger(convertido) &&
+    convertido >= 1
+    ? convertido
     : null;
 }
 
@@ -130,7 +134,7 @@ function formatearFecha(fecha: string): string {
   );
 
   if (!Number.isFinite(fechaConvertida.getTime())) {
-    return "Se asignará al crear el carnet";
+    return fecha;
   }
 
   return new Intl.DateTimeFormat("es-ES", {
@@ -148,7 +152,7 @@ function convertirTemporada(
     return null;
   }
 
-  const id = convertirTexto(valor.id);
+  const id = texto(valor.id);
 
   if (!id) {
     return null;
@@ -156,11 +160,11 @@ function convertirTemporada(
 
   return {
     id,
-    nombre: convertirTexto(valor.nombre) || "Temporada",
-    fechaInicio: convertirTexto(
+    nombre: texto(valor.nombre) || "Temporada",
+    fechaInicio: texto(
       valor.fechaInicio ?? valor.fecha_inicio,
     ),
-    fechaFin: convertirTexto(
+    fechaFin: texto(
       valor.fechaFin ?? valor.fecha_fin,
     ),
     activa: valor.activa === true,
@@ -192,21 +196,20 @@ function extraerOpciones(valor: unknown): {
     : [];
 
   const temporadaActiva =
-    convertirTemporada(
-      opciones.temporadaActiva ?? opciones.temporada_activa,
-    ) ??
+    convertirTemporada(opciones.temporadaActiva) ??
     temporadas.find((temporada) => temporada.activa) ??
     null;
 
   const tiposSocio = Array.isArray(opciones.tiposSocio)
     ? opciones.tiposSocio.flatMap((elemento) => {
         if (typeof elemento === "string") {
-          const tipo = elemento.trim();
-          return tipo ? [tipo] : [];
+          return elemento.trim()
+            ? [elemento.trim()]
+            : [];
         }
 
         if (esObjeto(elemento)) {
-          const tipo = convertirTexto(
+          const tipo = texto(
             elemento.valor ?? elemento.nombre,
           );
 
@@ -235,32 +238,40 @@ function extraerCredenciales(
     ? valor.socio
     : null;
 
+  const carnet = esObjeto(valor.carnet)
+    ? valor.carnet
+    : null;
+
   const credenciales = esObjeto(valor.credenciales)
     ? valor.credenciales
     : null;
 
-  if (!socio || !credenciales) {
+  if (!socio || !carnet || !credenciales) {
     return null;
   }
 
-  const socioId = convertirTexto(socio.id);
-  const email = convertirTexto(credenciales.email);
+  const socioId = texto(socio.id);
+  const carnetId = texto(carnet.id);
+  const email = texto(credenciales.email);
 
-  const numeroSocio = convertirNumero(
-    credenciales.numeroSocio ?? credenciales.numero_socio,
+  const numeroSocio = numero(
+    credenciales.numeroSocio ??
+      credenciales.numero_socio,
   );
 
-  const numeroCarnet = convertirTexto(
-    credenciales.numeroCarnet ?? credenciales.numero_carnet,
+  const numeroCarnet = texto(
+    credenciales.numeroCarnet ??
+      credenciales.numero_carnet,
   );
 
-  const passwordCarnet = convertirTexto(
+  const passwordCarnet = texto(
     credenciales.passwordCarnet ??
       credenciales.password_carnet,
   );
 
   if (
     !socioId ||
+    !carnetId ||
     !email ||
     numeroSocio === null ||
     !numeroCarnet ||
@@ -271,17 +282,18 @@ function extraerCredenciales(
 
   return {
     socioId,
+    carnetId,
     email,
     numeroSocio,
     numeroCarnet,
     passwordCarnet,
-    emailEnviado:
-      valor.emailEnviado === true ||
-      valor.email_enviado === true,
+    emailEnviado: valor.emailEnviado === true,
   };
 }
 
-function extraerErroresCampo(valor: unknown): ErrorCampo[] {
+function extraerErrores(
+  valor: unknown,
+): ErrorCampo[] {
   if (!Array.isArray(valor)) {
     return [];
   }
@@ -291,10 +303,12 @@ function extraerErroresCampo(valor: unknown): ErrorCampo[] {
       return [];
     }
 
-    const campo = convertirTexto(elemento.campo);
-    const mensaje = convertirTexto(elemento.mensaje);
+    const campo = texto(elemento.campo);
+    const mensaje = texto(elemento.mensaje);
 
-    return campo && mensaje ? [{ campo, mensaje }] : [];
+    return campo && mensaje
+      ? [{ campo, mensaje }]
+      : [];
   });
 }
 
@@ -303,17 +317,25 @@ export default function FormularioNuevoSocio() {
   const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState("");
   const [telefono, setTelefono] = useState("");
-  const [observaciones, setObservaciones] = useState("");
-  const [socioActivo, setSocioActivo] = useState(true);
+  const [observaciones, setObservaciones] =
+    useState("");
+  const [socioActivo, setSocioActivo] =
+    useState(true);
 
-  const [temporadaId, setTemporadaId] = useState("");
-  const [tipoSocio, setTipoSocio] = useState("General");
+  const [temporadaId, setTemporadaId] =
+    useState("");
+
+  const [tipoSocio, setTipoSocio] =
+    useState("General");
 
   const [estadoCarnet, setEstadoCarnet] =
     useState<EstadoCarnet>("activo");
 
-  const [fechaAlta, setFechaAlta] = useState("");
-  const [fechaCaducidad, setFechaCaducidad] = useState("");
+  const [fechaAlta, setFechaAlta] =
+    useState("");
+
+  const [fechaCaducidad, setFechaCaducidad] =
+    useState("");
 
   const [temporadas, setTemporadas] =
     useState<TemporadaOpcion[]>([]);
@@ -321,15 +343,23 @@ export default function FormularioNuevoSocio() {
   const [tiposSocio, setTiposSocio] =
     useState<string[]>(TIPOS_SOCIO_INICIALES);
 
+  const [nombresFamiliares, setNombresFamiliares] =
+    useState<string[]>([]);
+
   const [cargandoOpciones, setCargandoOpciones] =
     useState(true);
 
   const [errorOpciones, setErrorOpciones] =
     useState<string | null>(null);
 
-  const [intentoOpciones, setIntentoOpciones] = useState(0);
-  const [guardando, setGuardando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [intentoOpciones, setIntentoOpciones] =
+    useState(0);
+
+  const [guardando, setGuardando] =
+    useState(false);
+
+  const [error, setError] =
+    useState<string | null>(null);
 
   const [erroresCampo, setErroresCampo] =
     useState<ErrorCampo[]>([]);
@@ -337,20 +367,46 @@ export default function FormularioNuevoSocio() {
   const [credenciales, setCredenciales] =
     useState<CredencialesCreadas | null>(null);
 
+  const [estadoVinculacion, setEstadoVinculacion] =
+    useState<EstadoVinculacion>("pendiente");
+
+  const [errorFamiliares, setErrorFamiliares] =
+    useState<string | null>(null);
+
   const [textoCopiado, setTextoCopiado] =
     useState<string | null>(null);
 
   const enviandoRef = useRef(false);
-  const temporizadorCopiadoRef = useRef<number | null>(null);
 
-  const temporadaSeleccionada = temporadas.find(
-    (temporada) => temporada.id === temporadaId,
-  );
+  const temporadaSeleccionada =
+    temporadas.find(
+      (temporada) => temporada.id === temporadaId,
+    );
+
+  const carnetFamiliar =
+    tipoSocio.trim().toLowerCase() === "familiar";
+
+  const titular =
+    [nombre.trim(), apellidos.trim()]
+      .filter(Boolean)
+      .join(" ");
+
+  const errorNombres = carnetFamiliar
+    ? validarNombresFamiliares(
+        nombresFamiliares,
+        titular,
+      )
+    : null;
+
+  const requiereVincular =
+    carnetFamiliar &&
+    nombresFamiliares.some(
+      (familiar) => familiar.trim().length > 0,
+    );
 
   useEffect(() => {
-    function actualizarFecha() {
+    const actualizarFecha = () =>
       setFechaAlta(obtenerFechaMadrid());
-    }
 
     actualizarFecha();
 
@@ -359,19 +415,17 @@ export default function FormularioNuevoSocio() {
       60_000,
     );
 
-    window.addEventListener("focus", actualizarFecha);
+    window.addEventListener(
+      "focus",
+      actualizarFecha,
+    );
 
     return () => {
       window.clearInterval(intervalo);
-      window.removeEventListener("focus", actualizarFecha);
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (temporizadorCopiadoRef.current !== null) {
-        window.clearTimeout(temporizadorCopiadoRef.current);
-      }
+      window.removeEventListener(
+        "focus",
+        actualizarFecha,
+      );
     };
   }, []);
 
@@ -386,8 +440,8 @@ export default function FormularioNuevoSocio() {
         const respuesta = await fetch(
           "/api/panel/socios/opciones",
           {
-            method: "GET",
             credentials: "same-origin",
+            cache: "no-store",
             headers: {
               Accept: "application/json",
             },
@@ -396,7 +450,8 @@ export default function FormularioNuevoSocio() {
         );
 
         const contenido =
-          (await respuesta.json()) as RespuestaApi;
+          (await respuesta.json()) as
+            RespuestaApi;
 
         if (
           !respuesta.ok ||
@@ -409,7 +464,9 @@ export default function FormularioNuevoSocio() {
           );
         }
 
-        const opciones = extraerOpciones(contenido.data);
+        const opciones = extraerOpciones(
+          contenido.data,
+        );
 
         if (controlador.signal.aborted) {
           return;
@@ -422,18 +479,22 @@ export default function FormularioNuevoSocio() {
           setTipoSocio(opciones.tiposSocio[0]);
         }
 
-        const temporadaInicial = opciones.temporadaActiva;
+        const temporada =
+          opciones.temporadaActiva ??
+          opciones.temporadas[0];
 
-        setTemporadaId(temporadaInicial?.id ?? "");
-        setFechaCaducidad(temporadaInicial?.fechaFin ?? "");
-      } catch (errorCarga) {
+        setTemporadaId(temporada?.id ?? "");
+        setFechaCaducidad(
+          temporada?.fechaFin ?? "",
+        );
+      } catch (capturado) {
         if (controlador.signal.aborted) {
           return;
         }
 
         setErrorOpciones(
-          errorCarga instanceof Error
-            ? errorCarga.message
+          capturado instanceof Error
+            ? capturado.message
             : "No se han podido cargar las opciones.",
         );
       } finally {
@@ -445,35 +506,30 @@ export default function FormularioNuevoSocio() {
 
     void cargarOpciones();
 
-    return () => {
-      controlador.abort();
-    };
+    return () => controlador.abort();
   }, [intentoOpciones]);
 
-  function cambiarTemporada(nuevaTemporadaId: string) {
-    setTemporadaId(nuevaTemporadaId);
+  function cambiarTemporada(id: string) {
+    setTemporadaId(id);
 
     const temporada = temporadas.find(
-      (elemento) => elemento.id === nuevaTemporadaId,
+      (elemento) => elemento.id === id,
     );
 
-    setFechaCaducidad(temporada?.fechaFin ?? "");
-    setErroresCampo([]);
+    setFechaCaducidad(
+      temporada?.fechaFin ?? "",
+    );
+
     setError(null);
-  }
-
-  function obtenerErrorCampo(campo: string): string | null {
-    return (
-      erroresCampo.find(
-        (elemento) =>
-          elemento.campo === campo ||
-          elemento.campo.endsWith(`.${campo}`),
-      )?.mensaje ?? null
-    );
+    setErroresCampo([]);
   }
 
   function mostrarErrorCampo(campo: string) {
-    const mensaje = obtenerErrorCampo(campo);
+    const mensaje = erroresCampo.find(
+      (elemento) =>
+        elemento.campo === campo ||
+        elemento.campo.endsWith(`.${campo}`),
+    )?.mensaje;
 
     return mensaje ? (
       <span className="text-xs text-error">
@@ -482,9 +538,34 @@ export default function FormularioNuevoSocio() {
     ) : null;
   }
 
+  async function guardarFamiliares(
+    datos: CredencialesCreadas,
+  ): Promise<void> {
+    setEstadoVinculacion("guardando");
+    setErrorFamiliares(null);
+
+    try {
+      await vincularFamiliaresAlNuevoCarnet({
+        socioId: datos.socioId,
+        carnetId: datos.carnetId,
+        nombres: nombresFamiliares,
+      });
+
+      setEstadoVinculacion("completo");
+    } catch (capturado) {
+      setEstadoVinculacion("error");
+
+      setErrorFamiliares(
+        capturado instanceof Error
+          ? capturado.message
+          : "No se han podido guardar los familiares.",
+      );
+    }
+  }
+
   async function guardarSocio(
     evento: FormEvent<HTMLFormElement>,
-  ): Promise<void> {
+  ) {
     evento.preventDefault();
 
     if (
@@ -497,7 +578,14 @@ export default function FormularioNuevoSocio() {
     }
 
     if (!temporadaId) {
-      setError("Debes seleccionar una temporada.");
+      setError(
+        "Debes seleccionar una temporada.",
+      );
+      return;
+    }
+
+    if (errorNombres) {
+      setError(errorNombres);
       return;
     }
 
@@ -510,36 +598,37 @@ export default function FormularioNuevoSocio() {
     setFechaAlta(fechaActual);
 
     try {
-      const respuesta = await fetch("/api/panel/socios", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          nombre: nombre.trim(),
-          apellidos: apellidos.trim(),
-          email: email.trim().toLowerCase(),
-          telefono: telefono.trim() || null,
-          observaciones: observaciones.trim() || null,
-          activo: socioActivo,
-          carnet: {
-            temporadaId,
-            tipoSocio,
-            estado: estadoCarnet,
-
-            // Se mantiene la estructura actual de la petición.
-            // El servidor calcula su propia fecha al guardar.
-            fechaAlta: fechaActual,
-
-            fechaCaducidad,
+      const respuesta = await fetch(
+        "/api/panel/socios",
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-        }),
-      });
+          body: JSON.stringify({
+            nombre: nombre.trim(),
+            apellidos: apellidos.trim(),
+            email: email.trim().toLowerCase(),
+            telefono: telefono.trim() || null,
+            observaciones:
+              observaciones.trim() || null,
+            activo: socioActivo,
+            carnet: {
+              temporadaId,
+              tipoSocio,
+              estado: estadoCarnet,
+              fechaAlta: fechaActual,
+              fechaCaducidad,
+            },
+          }),
+        },
+      );
 
       const contenido =
-        (await respuesta.json()) as RespuestaApi;
+        (await respuesta.json()) as
+          RespuestaApi;
 
       if (
         !respuesta.ok ||
@@ -547,7 +636,7 @@ export default function FormularioNuevoSocio() {
         !contenido.data
       ) {
         setErroresCampo(
-          extraerErroresCampo(contenido.errores),
+          extraerErrores(contenido.errores),
         );
 
         throw new Error(
@@ -556,20 +645,29 @@ export default function FormularioNuevoSocio() {
         );
       }
 
-      const nuevasCredenciales =
-        extraerCredenciales(contenido.data);
+      const datos = extraerCredenciales(
+        contenido.data,
+      );
 
-      if (!nuevasCredenciales) {
+      if (!datos) {
         throw new Error(
-          "El socio se ha creado, pero no se han podido mostrar sus credenciales. Revisa el listado antes de volver a enviarlo.",
+          "El socio puede haberse creado, pero la API no ha devuelto todos sus datos. Consulta el listado antes de repetir el alta.",
         );
       }
 
-      setCredenciales(nuevasCredenciales);
-    } catch (errorGuardado) {
+      // El socio ya existe. Conservamos sus credenciales
+      // antes de comenzar a registrar familiares.
+      setCredenciales(datos);
+
+      if (requiereVincular) {
+        await guardarFamiliares(datos);
+      } else {
+        setEstadoVinculacion("completo");
+      }
+    } catch (capturado) {
       setError(
-        errorGuardado instanceof Error
-          ? errorGuardado.message
+        capturado instanceof Error
+          ? capturado.message
           : "No se ha podido crear el socio.",
       );
     } finally {
@@ -578,69 +676,39 @@ export default function FormularioNuevoSocio() {
     }
   }
 
-  async function copiarTexto(
-    valor: string,
-    identificador: string,
-  ): Promise<void> {
+  async function copiarTexto(valor: string) {
     try {
       await navigator.clipboard.writeText(valor);
-      setError(null);
-      setTextoCopiado(identificador);
-
-      if (temporizadorCopiadoRef.current !== null) {
-        window.clearTimeout(temporizadorCopiadoRef.current);
-      }
-
-      temporizadorCopiadoRef.current = window.setTimeout(
-        () => {
-          setTextoCopiado(null);
-          temporizadorCopiadoRef.current = null;
-        },
-        1800,
-      );
+      setTextoCopiado(valor);
     } catch {
       setError(
-        "No se ha podido copiar el texto. Selecciónalo y cópialo manualmente.",
+        "No se ha podido copiar este dato.",
       );
     }
   }
 
   if (credenciales) {
-    const camposCredenciales = [
-      {
-        id: "email",
-        etiqueta: "Usuario",
-        valor: credenciales.email,
-      },
-      {
-        id: "numero-socio",
-        etiqueta: "Número de socio de la temporada",
-        valor: String(credenciales.numeroSocio),
-      },
-      {
-        id: "carnet",
-        etiqueta: "Número de carnet",
-        valor: credenciales.numeroCarnet,
-      },
-      {
-        id: "password",
-        etiqueta: "Contraseña del carnet",
-        valor: credenciales.passwordCarnet,
-      },
+    const datos = [
+      ["Usuario", credenciales.email],
+      ["Número de socio", String(credenciales.numeroSocio)],
+      ["Número de carnet", credenciales.numeroCarnet],
+      ["Contraseña", credenciales.passwordCarnet],
     ];
 
     return (
       <section className="mx-auto max-w-3xl overflow-hidden rounded-2xl border border-success/40 bg-surface-container-lowest shadow-sm">
-        <header className="bg-success px-6 py-6 text-on-success">
-          <p className="text-sm font-bold uppercase tracking-wider opacity-80">
+        <header className="bg-success p-6 text-on-success">
+          <p className="text-xs font-bold uppercase tracking-wide">
             Socio creado
           </p>
+
           <h2 className="mt-1 text-2xl font-bold">
             Credenciales del carnet
           </h2>
-          <p className="mt-2 text-sm leading-6 opacity-90">
-            Estas credenciales pertenecen al carnet de la
-            temporada seleccionada.
+
+          <p className="mt-2 text-sm">
+            Conserva estos datos para el acceso
+            del socio.
           </p>
         </header>
 
@@ -648,62 +716,90 @@ export default function FormularioNuevoSocio() {
           {error && (
             <p
               role="alert"
-              className="rounded-xl border border-error/40 bg-error-container p-4 text-sm text-on-error-container"
+              className="rounded-xl border border-error/30 bg-error-container p-4 text-sm text-on-error-container"
             >
               {error}
             </p>
           )}
 
           <div className="rounded-2xl border border-primary/30 bg-primary-fixed p-5 text-on-primary-fixed">
-            <dl className="divide-y divide-on-primary-fixed/20">
-              {camposCredenciales.map((campo) => (
-                <div
-                  key={campo.id}
-                  className="py-4 first:pt-0 last:pb-0"
-                >
-                  <dt className="text-xs font-bold uppercase tracking-wide opacity-70">
-                    {campo.etiqueta}
-                  </dt>
-                  <dd className="mt-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <span className="break-all font-mono text-lg font-bold">
-                      {campo.valor}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        void copiarTexto(campo.valor, campo.id)
-                      }
-                      aria-label={`Copiar ${campo.etiqueta.toLowerCase()}`}
-                      className="w-fit shrink-0 rounded-lg border border-on-primary-fixed/30 px-3 py-1.5 text-xs font-bold"
-                    >
-                      {textoCopiado === campo.id
-                        ? "Copiado"
-                        : "Copiar"}
-                    </button>
-                  </dd>
+            {datos.map(([etiqueta, valor]) => (
+              <div
+                key={etiqueta}
+                className="flex flex-col justify-between gap-3 border-b border-on-primary-fixed/20 py-4 last:border-0 sm:flex-row sm:items-center"
+              >
+                <div>
+                  <p className="text-xs font-bold uppercase opacity-70">
+                    {etiqueta}
+                  </p>
+
+                  <p className="mt-1 break-all font-mono text-lg font-bold">
+                    {valor}
+                  </p>
                 </div>
-              ))}
-            </dl>
+
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copiarTexto(valor)
+                  }
+                  className="w-fit rounded-lg border border-on-primary-fixed/30 px-3 py-2 text-xs font-bold"
+                >
+                  {textoCopiado === valor
+                    ? "Copiado"
+                    : "Copiar"}
+                </button>
+              </div>
+            ))}
           </div>
 
-          <p
-            role="status"
-            className={`rounded-xl border px-4 py-3 text-sm ${
-              credenciales.emailEnviado
-                ? "border-success/30 bg-success/10 text-success"
-                : "border-outline-variant bg-surface-container-low text-on-surface-variant"
-            }`}
-          >
+          <p className="rounded-xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
             {credenciales.emailEnviado
-              ? "El correo con las credenciales de este carnet se ha enviado correctamente."
-              : "El correo todavía no se ha enviado. Conserva estas credenciales para poder facilitárselas al socio."}
+              ? "El correo de bienvenida se ha enviado correctamente."
+              : "No consta el envío del correo. Facilita las credenciales al socio por otro medio si es necesario."}
           </p>
 
-          <p className="rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-xs leading-5 text-on-surface-variant">
-            Cada temporada tendrá su propio número de socio,
-            carnet y contraseña. Los carnets anteriores se
-            conservarán como historial.
-          </p>
+          {requiereVincular && (
+            <div
+              role="status"
+              className={`rounded-xl border p-4 text-sm ${
+                estadoVinculacion === "completo"
+                  ? "border-success/30 bg-success-container text-on-success-container"
+                  : estadoVinculacion === "error"
+                    ? "border-error/30 bg-error-container text-on-error-container"
+                    : "border-outline-variant bg-surface-container-low text-on-surface"
+              }`}
+            >
+              <p className="font-bold">
+                {estadoVinculacion === "completo"
+                  ? "Familiares registrados correctamente"
+                  : estadoVinculacion === "error"
+                    ? "Socio creado, familiares pendientes"
+                    : "Registrando familiares..."}
+              </p>
+
+              {errorFamiliares && (
+                <p className="mt-2">
+                  {errorFamiliares}
+                </p>
+              )}
+
+              {estadoVinculacion === "error" && (
+                <button
+                  type="button"
+                  disabled={guardando}
+                  onClick={() =>
+                    void guardarFamiliares(
+                      credenciales,
+                    )
+                  }
+                  className="mt-3 rounded-lg border border-current px-3 py-2 text-xs font-bold disabled:opacity-50"
+                >
+                  Reintentar vinculación
+                </button>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <a
@@ -712,11 +808,12 @@ export default function FormularioNuevoSocio() {
             >
               Volver al listado
             </a>
+
             <a
               href={`/panel/socios/${encodeURIComponent(
                 credenciales.socioId,
               )}`}
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary"
             >
               Abrir ficha del socio
             </a>
@@ -729,35 +826,33 @@ export default function FormularioNuevoSocio() {
   return (
     <form
       onSubmit={guardarSocio}
-      className="grid gap-5"
       aria-busy={guardando}
+      className="grid gap-5"
     >
       {error && (
-        <div
+        <p
           role="alert"
-          className="rounded-2xl border border-error/40 bg-error-container p-5 text-on-error-container"
+          className="rounded-xl border border-error/30 bg-error-container p-4 text-sm text-on-error-container"
         >
-          <p className="font-bold">No se ha podido guardar</p>
-          <p className="mt-1 text-sm">{error}</p>
-        </div>
+          {error}
+        </p>
       )}
 
       {errorOpciones && (
         <div
           role="alert"
-          className="rounded-2xl border border-error/40 bg-error-container p-5 text-on-error-container"
+          className="rounded-xl border border-error/30 bg-error-container p-4 text-sm text-on-error-container"
         >
-          <p className="font-bold">
-            No se han podido cargar las opciones
-          </p>
-          <p className="mt-1 text-sm">{errorOpciones}</p>
+          <p>{errorOpciones}</p>
+
           <button
             type="button"
             onClick={() =>
-              setIntentoOpciones((valor) => valor + 1)
+              setIntentoOpciones(
+                (valor) => valor + 1,
+              )
             }
-            disabled={cargandoOpciones}
-            className="mt-3 rounded-lg border border-current px-4 py-2 text-sm font-bold disabled:opacity-50"
+            className="mt-3 rounded-lg border border-current px-4 py-2 text-xs font-bold"
           >
             Volver a intentarlo
           </button>
@@ -765,13 +860,14 @@ export default function FormularioNuevoSocio() {
       )}
 
       <section className={claseSeccion}>
-        <header className="border-b border-outline-variant/60 px-5 py-5 sm:px-6">
+        <header className="border-b border-outline-variant/60 p-5 sm:p-6">
           <h2 className="text-xl font-bold text-on-surface">
             Datos del socio
           </h2>
+
           <p className="mt-1 text-sm text-on-surface-variant">
-            Estos datos identifican a la persona y se mantienen
-            entre temporadas.
+            Estos datos identifican al titular y
+            se mantienen entre temporadas.
           </p>
         </header>
 
@@ -780,7 +876,10 @@ export default function FormularioNuevoSocio() {
           className="grid min-w-0 gap-5 p-5 sm:grid-cols-2 sm:p-6"
         >
           <label className="grid gap-1.5">
-            <span className={claseEtiqueta}>Nombre</span>
+            <span className={claseEtiqueta}>
+              Nombre
+            </span>
+
             <input
               type="text"
               value={nombre}
@@ -796,7 +895,10 @@ export default function FormularioNuevoSocio() {
           </label>
 
           <label className="grid gap-1.5">
-            <span className={claseEtiqueta}>Apellidos</span>
+            <span className={claseEtiqueta}>
+              Apellidos
+            </span>
+
             <input
               type="text"
               value={apellidos}
@@ -815,6 +917,7 @@ export default function FormularioNuevoSocio() {
             <span className={claseEtiqueta}>
               Correo electrónico
             </span>
+
             <input
               type="email"
               value={email}
@@ -830,7 +933,10 @@ export default function FormularioNuevoSocio() {
           </label>
 
           <label className="grid gap-1.5">
-            <span className={claseEtiqueta}>Teléfono</span>
+            <span className={claseEtiqueta}>
+              Teléfono
+            </span>
+
             <input
               type="tel"
               value={telefono}
@@ -848,14 +954,17 @@ export default function FormularioNuevoSocio() {
             <span className={claseEtiqueta}>
               Observaciones internas
             </span>
+
             <textarea
+              rows={4}
               value={observaciones}
               onChange={(evento) =>
-                setObservaciones(evento.target.value)
+                setObservaciones(
+                  evento.target.value,
+                )
               }
               maxLength={2000}
-              rows={4}
-              className="resize-y rounded-xl border border-outline-variant bg-surface-container-low px-3 py-3 text-sm text-on-surface outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+              className="w-full resize-y rounded-xl border border-outline-variant bg-surface-container-low px-3 py-3 text-sm text-on-surface outline-none focus:border-primary"
             />
             {mostrarErrorCampo("observaciones")}
           </label>
@@ -865,15 +974,20 @@ export default function FormularioNuevoSocio() {
               <span className="block text-sm font-bold text-on-surface">
                 Socio activo
               </span>
+
               <span className="mt-1 block text-xs text-on-surface-variant">
-                Si se desactiva, no podrá utilizar ningún carnet.
+                Si se desactiva, no podrá acceder a
+                ninguno de sus carnets.
               </span>
             </span>
+
             <input
               type="checkbox"
               checked={socioActivo}
               onChange={(evento) =>
-                setSocioActivo(evento.target.checked)
+                setSocioActivo(
+                  evento.target.checked,
+                )
               }
               className="h-5 w-5 accent-primary"
             />
@@ -882,17 +996,14 @@ export default function FormularioNuevoSocio() {
       </section>
 
       <section className={claseSeccion}>
-        <header className="border-b border-outline-variant/60 px-5 py-5 sm:px-6">
+        <header className="border-b border-outline-variant/60 p-5 sm:p-6">
           <h2 className="text-xl font-bold text-on-surface">
             Primer carnet
           </h2>
+
           <p className="mt-1 text-sm text-on-surface-variant">
-            Se asignará automáticamente el siguiente número
-            disponible de la temporada.
-          </p>
-          <p className="mt-2 text-xs leading-5 text-on-surface-variant">
-            El número de carnet será también su contraseña
-            de acceso.
+            El número de socio y el de carnet se
+            asignan automáticamente.
           </p>
         </header>
 
@@ -905,11 +1016,16 @@ export default function FormularioNuevoSocio() {
           className="grid min-w-0 gap-5 p-5 sm:grid-cols-2 sm:p-6"
         >
           <label className="grid gap-1.5 sm:col-span-2">
-            <span className={claseEtiqueta}>Temporada</span>
+            <span className={claseEtiqueta}>
+              Temporada
+            </span>
+
             <select
               value={temporadaId}
               onChange={(evento) =>
-                cambiarTemporada(evento.target.value)
+                cambiarTemporada(
+                  evento.target.value,
+                )
               }
               required
               className={claseCampo}
@@ -919,26 +1035,20 @@ export default function FormularioNuevoSocio() {
                   ? "Cargando temporadas..."
                   : "Selecciona una temporada"}
               </option>
+
               {temporadas.map((temporada) => (
                 <option
                   key={temporada.id}
                   value={temporada.id}
                 >
                   {temporada.nombre}
-                  {temporada.activa ? " · Activa" : ""}
+                  {temporada.activa
+                    ? " · Activa"
+                    : ""}
                 </option>
               ))}
             </select>
             {mostrarErrorCampo("temporadaId")}
-
-            {!cargandoOpciones &&
-              !errorOpciones &&
-              temporadas.length === 0 && (
-                <span className="text-xs text-error">
-                  No hay temporadas disponibles para crear
-                  el carnet.
-                </span>
-              )}
 
             {temporadaSeleccionada && (
               <span className="text-xs text-on-surface-variant">
@@ -950,7 +1060,6 @@ export default function FormularioNuevoSocio() {
                 {formatearFecha(
                   temporadaSeleccionada.fechaFin,
                 )}
-                .
               </span>
             )}
           </label>
@@ -959,20 +1068,27 @@ export default function FormularioNuevoSocio() {
             <span className={claseEtiqueta}>
               Tipo de socio
             </span>
+
             <select
               value={tipoSocio}
               onChange={(evento) =>
-                setTipoSocio(evento.target.value)
+                setTipoSocio(
+                  evento.target.value,
+                )
               }
               required
               className={claseCampo}
             >
               {tiposSocio.map((tipo) => (
-                <option key={tipo} value={tipo}>
+                <option
+                  key={tipo}
+                  value={tipo}
+                >
                   {tipo}
                 </option>
               ))}
             </select>
+
             {mostrarErrorCampo("tipoSocio")}
           </label>
 
@@ -980,64 +1096,79 @@ export default function FormularioNuevoSocio() {
             <span className={claseEtiqueta}>
               Estado inicial
             </span>
+
             <select
               value={estadoCarnet}
               onChange={(evento) => {
-                const estado = evento.target.value;
+                const valor = evento.target.value;
 
                 if (
-                  estado === "activo" ||
-                  estado === "pendiente"
+                  valor === "activo" ||
+                  valor === "pendiente"
                 ) {
-                  setEstadoCarnet(estado);
+                  setEstadoCarnet(valor);
                 }
               }}
               className={claseCampo}
             >
-              <option value="activo">Activo</option>
-              <option value="pendiente">Pendiente</option>
+              <option value="activo">
+                Activo
+              </option>
+
+              <option value="pendiente">
+                Pendiente
+              </option>
             </select>
-            {mostrarErrorCampo("estado")}
           </label>
 
-          <div className="grid content-start gap-1.5">
-            <span
-              id="etiqueta-fecha-alta-socio"
-              className={claseEtiqueta}
-            >
+          <div className="grid gap-1.5">
+            <span className={claseEtiqueta}>
               Fecha de alta
             </span>
-            <output
-              aria-labelledby="etiqueta-fecha-alta-socio"
-              className="flex min-h-11 items-center rounded-xl border border-outline-variant bg-surface-container px-3 py-2 text-sm font-semibold text-on-surface"
-            >
+
+            <output className="flex min-h-11 items-center rounded-xl border border-outline-variant bg-surface-container px-3 text-sm text-on-surface">
               {formatearFecha(fechaAlta)}
             </output>
-            <p className="text-xs leading-5 text-on-surface-variant">
-              Se asignará automáticamente el día en que
-              crees el carnet.
+
+            <p className="text-xs text-on-surface-variant">
+              Se asigna al crear el carnet.
             </p>
-            {mostrarErrorCampo("fechaAlta")}
           </div>
 
-          <label className="grid content-start gap-1.5">
+          <label className="grid gap-1.5">
             <span className={claseEtiqueta}>
               Fecha de caducidad
             </span>
+
             <input
               type="date"
               value={fechaCaducidad}
               onChange={(evento) =>
-                setFechaCaducidad(evento.target.value)
+                setFechaCaducidad(
+                  evento.target.value,
+                )
               }
               max={
-                temporadaSeleccionada?.fechaFin || undefined
+                temporadaSeleccionada?.fechaFin ||
+                undefined
               }
               required
               className={claseCampo}
             />
+
             {mostrarErrorCampo("fechaCaducidad")}
           </label>
+
+          {carnetFamiliar && (
+            <div className="sm:col-span-2">
+              <FamiliaresFormularioAlta
+                nombres={nombresFamiliares}
+                onChange={setNombresFamiliares}
+                disabled={guardando}
+                titular={titular}
+              />
+            </div>
+          )}
         </fieldset>
       </section>
 
@@ -1055,9 +1186,10 @@ export default function FormularioNuevoSocio() {
             guardando ||
             cargandoOpciones ||
             Boolean(errorOpciones) ||
-            !temporadaId
+            !temporadaId ||
+            Boolean(errorNombres)
           }
-          className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-6 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim disabled:cursor-not-allowed disabled:opacity-50"
+          className="min-h-11 rounded-xl bg-primary px-6 py-3 text-sm font-bold text-on-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           {guardando
             ? "Creando socio..."
