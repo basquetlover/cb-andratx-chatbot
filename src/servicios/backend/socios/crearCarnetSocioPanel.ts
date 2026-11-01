@@ -1,10 +1,6 @@
-import {
-  supabaseServidor,
-} from "../../supabase/servidor";
+import { supabaseServidor } from "../../supabase/servidor";
 
-import {
-  crearHashPasswordSocio,
-} from "./passwordSocio";
+import { crearHashPasswordSocio } from "./passwordSocio";
 
 import {
   generarNumeroCarnetSocio,
@@ -13,16 +9,17 @@ import {
   obtenerSiguienteNumeroSocioTemporada,
 } from "./numeroCarnetSocio";
 
-import {
-  obtenerSocioPanel,
-} from "./obtenerSocioPanel";
+import { obtenerSocioPanel } from "./obtenerSocioPanel";
 
 import {
   enviarBienvenidaSocioSiCorresponde,
 } from "./enviarBienvenidaSocioSiCorresponde";
 
+import {
+  validarCreacionCarnetSocio,
+} from "./validarDatosSocio";
+
 import type {
-  CarnetTemporadaSocio,
   CrearCarnetTemporadaSocio,
   ErrorCampoSocio,
   ResultadoCrearCarnetSocio,
@@ -42,15 +39,9 @@ interface FilaTemporada {
   activa: boolean | null;
 }
 
-interface FilaCarnetCreado {
-  id: string;
-}
-
 interface ErrorSupabase {
   code?: string;
   message?: string;
-  details?: string;
-  constraint?: string;
 }
 
 interface CarnetInsertado {
@@ -60,168 +51,122 @@ interface CarnetInsertado {
   passwordCarnet: string;
 }
 
-const MAXIMOS_INTENTOS_NUMERACION =
-  5;
+interface DatosInsercionCarnet {
+  socioId: string;
+  temporada: FilaTemporada;
+  tipoSocio: string;
+  estado: "pendiente" | "activo";
+  fechaAlta: string;
+  fechaCaducidad: string;
+  usuarioId: string;
+  ahora: string;
+}
 
-export class ErrorCrearCarnetSocioPanel
-  extends Error {
+const MAXIMOS_INTENTOS_NUMERACION = 5;
+
+export class ErrorCrearCarnetSocioPanel extends Error {
   status: number;
   errores: ErrorCampoSocio[];
 
   constructor(
     mensaje: string,
     status: number,
-    errores:
-      ErrorCampoSocio[] = [],
+    errores: ErrorCampoSocio[] = [],
   ) {
     super(mensaje);
 
-    this.name =
-      "ErrorCrearCarnetSocioPanel";
-
+    this.name = "ErrorCrearCarnetSocioPanel";
     this.status = status;
     this.errores = errores;
   }
 }
 
-function esErrorDuplicado(
-  error: unknown,
-): boolean {
+function obtenerFechaMadrid(fecha: Date): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(fecha);
+
+  const anio = partes.find(
+    (parte) => parte.type === "year",
+  )?.value;
+
+  const mes = partes.find(
+    (parte) => parte.type === "month",
+  )?.value;
+
+  const dia = partes.find(
+    (parte) => parte.type === "day",
+  )?.value;
+
+  if (!anio || !mes || !dia) {
+    throw new ErrorCrearCarnetSocioPanel(
+      "No se ha podido determinar la fecha actual de creación del carnet.",
+      500,
+    );
+  }
+
+  return `${anio}-${mes}-${dia}`;
+}
+
+function esFechaValida(valor: string | null): valor is string {
   if (
-    typeof error !== "object" ||
-    error === null
+    typeof valor !== "string" ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(valor)
   ) {
     return false;
   }
 
-  const errorSupabase =
-    error as ErrorSupabase;
+  const fecha = new Date(`${valor}T00:00:00.000Z`);
 
   return (
-    errorSupabase.code ===
-      "23505" ||
+    Number.isFinite(fecha.getTime()) &&
+    fecha.toISOString().slice(0, 10) === valor
+  );
+}
+
+function esErrorDuplicado(error: unknown): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const errorSupabase = error as ErrorSupabase;
+
+  return (
+    errorSupabase.code === "23505" ||
     errorSupabase.message
       ?.toLowerCase()
-      .includes("duplicate") ===
-      true
+      .includes("duplicate") === true
   );
 }
 
-function esFechaValida(
-  fecha: string,
-): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(
-    fecha,
+function errorCarnetDuplicado(): ErrorCrearCarnetSocioPanel {
+  return new ErrorCrearCarnetSocioPanel(
+    "El socio ya tiene un carnet para esta temporada.",
+    409,
+    [
+      {
+        campo: "temporadaId",
+        mensaje:
+          "Ya existe un carnet de este socio en la temporada seleccionada.",
+      },
+    ],
   );
-}
-
-function validarDatos(
-  datos:
-    CrearCarnetTemporadaSocio,
-): ErrorCampoSocio[] {
-  const errores:
-    ErrorCampoSocio[] = [];
-
-  if (
-    !datos.temporadaId?.trim()
-  ) {
-    errores.push({
-      campo: "temporadaId",
-      mensaje:
-        "Debes seleccionar una temporada.",
-    });
-  }
-
-  if (
-    !datos.tipoSocio?.trim()
-  ) {
-    errores.push({
-      campo: "tipoSocio",
-      mensaje:
-        "Debes seleccionar un tipo de socio.",
-    });
-  }
-
-  if (
-    datos.estado !==
-      "pendiente" &&
-    datos.estado !==
-      "activo"
-  ) {
-    errores.push({
-      campo: "estado",
-      mensaje:
-        "El estado inicial del carnet no es válido.",
-    });
-  }
-
-  if (
-    !esFechaValida(
-      datos.fechaAlta,
-    )
-  ) {
-    errores.push({
-      campo: "fechaAlta",
-      mensaje:
-        "La fecha de alta no es válida.",
-    });
-  }
-
-  if (
-    !esFechaValida(
-      datos.fechaCaducidad,
-    )
-  ) {
-    errores.push({
-      campo: "fechaCaducidad",
-      mensaje:
-        "La fecha de caducidad no es válida.",
-    });
-  }
-
-  if (
-    esFechaValida(
-      datos.fechaAlta,
-    ) &&
-    esFechaValida(
-      datos.fechaCaducidad,
-    ) &&
-    datos.fechaCaducidad <
-      datos.fechaAlta
-  ) {
-    errores.push({
-      campo: "fechaCaducidad",
-      mensaje:
-        "La fecha de caducidad no puede ser anterior a la fecha de alta.",
-    });
-  }
-
-  return errores;
 }
 
 async function existeCarnetSocioTemporada(
   socioId: string,
   temporadaId: string,
 ): Promise<boolean> {
-  const {
-    data,
-    error,
-  } =
-    await supabaseServidor
-      .from(
-        "socios_temporadas",
-      )
-      .select("id")
-      .eq(
-        "socio_id",
-        socioId,
-      )
-      .eq(
-        "temporada_id",
-        temporadaId,
-      )
-      .limit(1)
-      .maybeSingle();
+  const { data, error } = await supabaseServidor
+    .from("socios_temporadas")
+    .select("id")
+    .eq("socio_id", socioId)
+    .eq("temporada_id", temporadaId)
+    .limit(1)
+    .maybeSingle();
 
   if (error) {
     throw new ErrorCrearCarnetSocioPanel(
@@ -242,21 +187,10 @@ async function insertarCarnet({
   fechaCaducidad,
   usuarioId,
   ahora,
-}: {
-  socioId: string;
-  temporada: FilaTemporada;
-  tipoSocio: string;
-  estado:
-    | "pendiente"
-    | "activo";
-  fechaAlta: string;
-  fechaCaducidad: string;
-  usuarioId: string;
-  ahora: string;
-}): Promise<CarnetInsertado> {
+}: DatosInsercionCarnet): Promise<CarnetInsertado> {
   if (
-    !temporada.fecha_inicio ||
-    !temporada.fecha_fin
+    !esFechaValida(temporada.fecha_inicio) ||
+    !esFechaValida(temporada.fecha_fin)
   ) {
     throw new ErrorCrearCarnetSocioPanel(
       "La temporada no tiene configuradas correctamente sus fechas.",
@@ -264,180 +198,95 @@ async function insertarCarnet({
     );
   }
 
-  const codigoTemporada =
-    obtenerCodigoTemporadaSocio(
-      temporada.fecha_inicio,
-      temporada.fecha_fin,
-    );
+  const codigoTemporada = obtenerCodigoTemporadaSocio(
+    temporada.fecha_inicio,
+    temporada.fecha_fin,
+  );
 
-  const carnetActivo =
-    estado === "activo";
+  const carnetActivo = estado === "activo";
 
   for (
     let intento = 1;
-    intento <=
-    MAXIMOS_INTENTOS_NUMERACION;
+    intento <= MAXIMOS_INTENTOS_NUMERACION;
     intento += 1
   ) {
     const numeroSocio =
-      await obtenerSiguienteNumeroSocioTemporada(
-        temporada.id,
-      );
+      await obtenerSiguienteNumeroSocioTemporada(temporada.id);
 
-    const numeroCarnet =
-      generarNumeroCarnetSocio(
-        codigoTemporada,
-        numeroSocio,
-      );
+    const numeroCarnet = generarNumeroCarnetSocio(
+      codigoTemporada,
+      numeroSocio,
+    );
 
     const passwordCarnet =
-      generarPasswordCarnetSocio(
-        numeroCarnet,
-      );
+      generarPasswordCarnetSocio(numeroCarnet);
 
     const passwordHash =
-      await crearHashPasswordSocio(
-        passwordCarnet,
-      );
+      await crearHashPasswordSocio(passwordCarnet);
 
-    const {
-      data,
-      error,
-    } =
-      await supabaseServidor
-        .from(
-          "socios_temporadas",
-        )
-        .insert({
-          socio_id:
-            socioId,
+    const { data, error } = await supabaseServidor
+      .from("socios_temporadas")
+      .insert({
+        socio_id: socioId,
+        temporada_id: temporada.id,
 
-          temporada_id:
-            temporada.id,
+        numero_socio: numeroSocio,
+        numero_carnet: numeroCarnet,
 
-          numero_socio:
-            numeroSocio,
+        password_hash: passwordHash,
+        password_updated_at: ahora,
 
-          numero_carnet:
-            numeroCarnet,
+        intentos_fallidos: 0,
+        bloqueado_hasta: null,
+        ultimo_acceso_at: null,
 
-          password_hash:
-            passwordHash,
+        email_bienvenida_enviado_at: null,
 
-          password_updated_at:
-            ahora,
+        tipo_socio: tipoSocio,
+        estado,
 
-          intentos_fallidos:
-            0,
+        fecha_alta: fechaAlta,
+        fecha_caducidad: fechaCaducidad,
 
-          bloqueado_hasta:
-            null,
+        motivo_bloqueo: null,
 
-          ultimo_acceso_at:
-            null,
+        activado_at: carnetActivo ? ahora : null,
+        activado_por: carnetActivo ? usuarioId : null,
 
-          email_bienvenida_enviado_at:
-            null,
+        bloqueado_at: null,
+        bloqueado_por: null,
 
-          tipo_socio:
-            tipoSocio,
+        version_acceso: 1,
 
-          estado,
+        creado_por: usuarioId,
+        actualizado_por: usuarioId,
 
-          fecha_alta:
-            fechaAlta,
-
-          fecha_caducidad:
-            fechaCaducidad,
-
-          motivo_bloqueo:
-            null,
-
-          activado_at:
-            carnetActivo
-              ? ahora
-              : null,
-
-          activado_por:
-            carnetActivo
-              ? usuarioId
-              : null,
-
-          bloqueado_at:
-            null,
-
-          bloqueado_por:
-            null,
-
-          version_acceso:
-            1,
-
-          creado_por:
-            usuarioId,
-
-          actualizado_por:
-            usuarioId,
-
-          created_at:
-            ahora,
-
-          updated_at:
-            ahora,
-        })
-        .select("id")
-        .single();
+        created_at: ahora,
+        updated_at: ahora,
+      })
+      .select("id")
+      .single();
 
     if (!error && data) {
-      const fila =
-        data as FilaCarnetCreado;
-
       return {
-        id: fila.id,
+        id: data.id,
         numeroSocio,
         numeroCarnet,
         passwordCarnet,
       };
     }
 
-    if (
-      error &&
-      esErrorDuplicado(error)
-    ) {
-      /*
-       * Antes de reintentar comprobamos si
-       * el conflicto es porque otro proceso
-       * ya creó el carnet del mismo socio.
-       */
-      const yaExiste =
-        await existeCarnetSocioTemporada(
-          socioId,
-          temporada.id,
-        );
+    if (error && esErrorDuplicado(error)) {
+      const yaExiste = await existeCarnetSocioTemporada(
+        socioId,
+        temporada.id,
+      );
 
       if (yaExiste) {
-        throw new ErrorCrearCarnetSocioPanel(
-          "El socio ya tiene un carnet para esta temporada.",
-          409,
-          [
-            {
-              campo:
-                "temporadaId",
-              mensaje:
-                "Ya existe un carnet de este socio en la temporada seleccionada.",
-            },
-          ],
-        );
+        throw errorCarnetDuplicado();
       }
 
-      /*
-       * Si el conflicto era únicamente por
-       * el número, volvemos a calcular el
-       * máximo de la temporada y reintentamos.
-       */
-      if (
-        intento <
-        MAXIMOS_INTENTOS_NUMERACION
-      ) {
+      if (intento < MAXIMOS_INTENTOS_NUMERACION) {
         continue;
       }
 
@@ -449,8 +298,7 @@ async function insertarCarnet({
 
     throw new ErrorCrearCarnetSocioPanel(
       `No se ha podido crear el carnet: ${
-        error?.message ??
-        "Error desconocido"
+        error?.message ?? "Error desconocido"
       }`,
       500,
     );
@@ -464,12 +312,14 @@ async function insertarCarnet({
 
 export async function crearCarnetSocioPanel(
   socioId: string,
-  datos:
-    CrearCarnetTemporadaSocio,
+  datos: CrearCarnetTemporadaSocio,
   usuarioId: string,
 ): Promise<ResultadoCrearCarnetSocio> {
   const socioIdLimpio =
-    socioId.trim();
+    typeof socioId === "string" ? socioId.trim() : "";
+
+  const usuarioIdLimpio =
+    typeof usuarioId === "string" ? usuarioId.trim() : "";
 
   if (!socioIdLimpio) {
     throw new ErrorCrearCarnetSocioPanel(
@@ -478,14 +328,43 @@ export async function crearCarnetSocioPanel(
     );
   }
 
-  const errores =
-    validarDatos(
-      datos,
+  if (!usuarioIdLimpio) {
+    throw new ErrorCrearCarnetSocioPanel(
+      "No se ha podido identificar al administrador.",
+      401,
     );
+  }
 
   if (
-    errores.length > 0
+    typeof datos !== "object" ||
+    datos === null ||
+    Array.isArray(datos)
   ) {
+    throw new ErrorCrearCarnetSocioPanel(
+      "Los datos del carnet no son válidos.",
+      400,
+    );
+  }
+
+  /*
+   * La fecha de alta la determina el servidor.
+   * Cualquier fecha de alta recibida del navegador se ignora.
+   *
+   * Se utiliza el mismo instante para obtener la fecha local
+   * y registrar las marcas de creación y actualización.
+   */
+  const instanteCreacion = new Date();
+  const ahora = instanteCreacion.toISOString();
+  const fechaAlta = obtenerFechaMadrid(instanteCreacion);
+
+  const datosValidados: CrearCarnetTemporadaSocio = {
+    ...datos,
+    fechaAlta,
+  };
+
+  const errores = validarCreacionCarnetSocio(datosValidados);
+
+  if (errores.length > 0) {
     throw new ErrorCrearCarnetSocioPanel(
       "Revisa los datos del carnet.",
       400,
@@ -493,38 +372,17 @@ export async function crearCarnetSocioPanel(
     );
   }
 
-  const temporadaId =
-    datos.temporadaId.trim();
-
-  const tipoSocio =
-    datos.tipoSocio.trim();
-
-  const fechaAlta =
-    datos.fechaAlta.trim();
-
+  const temporadaId = datosValidados.temporadaId.trim();
+  const tipoSocio = datosValidados.tipoSocio.trim();
   const fechaCaducidad =
-    datos.fechaCaducidad.trim();
+    datosValidados.fechaCaducidad.trim();
 
-  const ahora =
-    new Date().toISOString();
-
-  const {
-    data:
-      socioEncontrado,
-    error:
-      errorSocio,
-  } = await supabaseServidor
-    .from("socios")
-    .select(`
-      id,
-      email,
-      activo
-    `)
-    .eq(
-      "id",
-      socioIdLimpio,
-    )
-    .maybeSingle();
+  const { data: socioEncontrado, error: errorSocio } =
+    await supabaseServidor
+      .from("socios")
+      .select("id, email, activo")
+      .eq("id", socioIdLimpio)
+      .maybeSingle();
 
   if (errorSocio) {
     throw new ErrorCrearCarnetSocioPanel(
@@ -540,48 +398,21 @@ export async function crearCarnetSocioPanel(
     );
   }
 
-  const socio =
-    socioEncontrado as
-      FilaSocio;
+  const socio = socioEncontrado as FilaSocio;
 
   if (
-    await existeCarnetSocioTemporada(
-      socio.id,
-      temporadaId,
-    )
+    await existeCarnetSocioTemporada(socio.id, temporadaId)
   ) {
-    throw new ErrorCrearCarnetSocioPanel(
-      "El socio ya tiene un carnet para esta temporada.",
-      409,
-      [
-        {
-          campo:
-            "temporadaId",
-          mensaje:
-            "Ya existe un carnet de este socio en la temporada seleccionada.",
-        },
-      ],
-    );
+    throw errorCarnetDuplicado();
   }
 
   const {
-    data:
-      temporadaEncontrada,
-    error:
-      errorTemporada,
+    data: temporadaEncontrada,
+    error: errorTemporada,
   } = await supabaseServidor
     .from("temporadas")
-    .select(`
-      id,
-      nombre,
-      fecha_inicio,
-      fecha_fin,
-      activa
-    `)
-    .eq(
-      "id",
-      temporadaId,
-    )
+    .select("id, nombre, fecha_inicio, fecha_fin, activa")
+    .eq("id", temporadaId)
     .maybeSingle();
 
   if (errorTemporada) {
@@ -597,22 +428,19 @@ export async function crearCarnetSocioPanel(
       404,
       [
         {
-          campo:
-            "temporadaId",
-          mensaje:
-            "La temporada seleccionada no existe.",
+          campo: "temporadaId",
+          mensaje: "La temporada seleccionada no existe.",
         },
       ],
     );
   }
 
-  const temporada =
-    temporadaEncontrada as
-      FilaTemporada;
+  const temporada = temporadaEncontrada as FilaTemporada;
 
   if (
-    !temporada.fecha_inicio ||
-    !temporada.fecha_fin
+    !esFechaValida(temporada.fecha_inicio) ||
+    !esFechaValida(temporada.fecha_fin) ||
+    temporada.fecha_fin < temporada.fecha_inicio
   ) {
     throw new ErrorCrearCarnetSocioPanel(
       "La temporada no tiene configuradas correctamente sus fechas.",
@@ -620,35 +448,41 @@ export async function crearCarnetSocioPanel(
     );
   }
 
-  if (
-    fechaAlta <
-    temporada.fecha_inicio
-  ) {
+  if (fechaAlta < temporada.fecha_inicio) {
     throw new ErrorCrearCarnetSocioPanel(
-      "La fecha de alta no puede ser anterior al inicio de la temporada.",
+      "No se puede crear el carnet porque la temporada todavía no ha comenzado. La fecha de alta debe ser el día de creación.",
       400,
       [
         {
-          campo:
-            "fechaAlta",
+          campo: "temporadaId",
           mensaje:
-            "La fecha de alta no puede ser anterior al inicio de la temporada.",
+            "Selecciona una temporada cuyo periodo incluya la fecha de hoy.",
         },
       ],
     );
   }
 
-  if (
-    fechaCaducidad >
-    temporada.fecha_fin
-  ) {
+  if (fechaAlta > temporada.fecha_fin) {
+    throw new ErrorCrearCarnetSocioPanel(
+      "No se puede crear el carnet porque la temporada ya ha finalizado. La fecha de alta debe ser el día de creación.",
+      400,
+      [
+        {
+          campo: "temporadaId",
+          mensaje:
+            "Selecciona una temporada cuyo periodo incluya la fecha de hoy.",
+        },
+      ],
+    );
+  }
+
+  if (fechaCaducidad > temporada.fecha_fin) {
     throw new ErrorCrearCarnetSocioPanel(
       "La fecha de caducidad no puede superar el final de la temporada.",
       400,
       [
         {
-          campo:
-            "fechaCaducidad",
+          campo: "fechaCaducidad",
           mensaje:
             "La fecha de caducidad no puede superar el final de la temporada.",
         },
@@ -656,38 +490,20 @@ export async function crearCarnetSocioPanel(
     );
   }
 
-  const carnetInsertado =
-    await insertarCarnet({
-      socioId:
-        socio.id,
-
-      temporada,
-
-      tipoSocio,
-
-      estado:
-        datos.estado,
-
-      fechaAlta,
-      fechaCaducidad,
-
-      usuarioId,
-      ahora,
-    });
+  const carnetInsertado = await insertarCarnet({
+    socioId: socio.id,
+    temporada,
+    tipoSocio,
+    estado: datosValidados.estado,
+    fechaAlta,
+    fechaCaducidad,
+    usuarioId: usuarioIdLimpio,
+    ahora,
+  });
 
   let emailEnviado = false;
 
-  /*
-   * El segundo argumento identifica el
-   * carnet exacto cuyas credenciales deben
-   * enviarse. Corregiremos esa función en
-   * su archivo correspondiente.
-   */
-  if (
-    socio.activo &&
-    datos.estado ===
-      "activo"
-  ) {
+  if (socio.activo && datosValidados.estado === "activo") {
     try {
       const resultadoEnvio =
         await enviarBienvenidaSocioSiCorresponde(
@@ -697,8 +513,7 @@ export async function crearCarnetSocioPanel(
 
       emailEnviado =
         resultadoEnvio.enviado ||
-        resultadoEnvio.motivo ===
-          "ya-enviado";
+        resultadoEnvio.motivo === "ya-enviado";
     } catch (error) {
       console.error(
         `El carnet ${carnetInsertado.id} se ha creado, pero no se ha podido enviar su correo de acceso:`,
@@ -707,17 +522,11 @@ export async function crearCarnetSocioPanel(
     }
   }
 
-  const socioActualizado =
-    await obtenerSocioPanel(
-      socio.id,
-    );
+  const socioActualizado = await obtenerSocioPanel(socio.id);
 
-  const carnet =
-    socioActualizado.carnets.find(
-      (elemento) =>
-        elemento.id ===
-        carnetInsertado.id,
-    );
+  const carnet = socioActualizado.carnets.find(
+    (elemento) => elemento.id === carnetInsertado.id,
+  );
 
   if (!carnet) {
     throw new ErrorCrearCarnetSocioPanel(
@@ -727,27 +536,14 @@ export async function crearCarnetSocioPanel(
   }
 
   return {
-    socio:
-      socioActualizado,
-
-    carnet:
-      carnet as
-        CarnetTemporadaSocio,
-
+    socio: socioActualizado,
+    carnet,
     credenciales: {
-      email:
-        socio.email,
-
-      numeroSocio:
-        carnetInsertado.numeroSocio,
-
-      numeroCarnet:
-        carnetInsertado.numeroCarnet,
-
-      passwordCarnet:
-        carnetInsertado.passwordCarnet,
+      email: socio.email,
+      numeroSocio: carnetInsertado.numeroSocio,
+      numeroCarnet: carnetInsertado.numeroCarnet,
+      passwordCarnet: carnetInsertado.passwordCarnet,
     },
-
     emailEnviado,
   };
 }

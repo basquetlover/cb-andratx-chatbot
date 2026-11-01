@@ -1,11 +1,12 @@
 import {
   useEffect,
+  useId,
+  useRef,
   useState,
   type FormEvent,
 } from "react";
 
 import type {
-  CredencialesCarnetSocio,
   ResultadoCrearCarnetSocio,
   SocioPanel,
 } from "@tipos/SocioPanel";
@@ -20,16 +21,9 @@ export interface TemporadaDisponibleCarnet {
 
 interface Propiedades {
   socioId: string;
-
-  temporadas:
-    TemporadaDisponibleCarnet[];
-
+  temporadas: TemporadaDisponibleCarnet[];
   tiposSocio: string[];
-
-  alCrear: (
-    socio: SocioPanel,
-  ) => void;
-
+  alCrear: (socio: SocioPanel) => void;
   alCancelar: () => void;
 }
 
@@ -40,14 +34,97 @@ interface ErrorCampo {
 
 interface RespuestaCreacion {
   ok: boolean;
-
-  data:
-    | ResultadoCrearCarnetSocio
-    | null;
-
+  data: ResultadoCrearCarnetSocio | null;
   error: string | null;
-
   errores?: ErrorCampo[];
+}
+
+const claseCampo =
+  "h-11 w-full rounded-xl border border-outline-variant " +
+  "bg-surface-container-low px-3 text-sm text-on-surface " +
+  "outline-none focus:border-primary focus:ring-2 " +
+  "focus:ring-primary/20";
+
+const claseEtiqueta =
+  "text-sm font-bold text-on-surface";
+
+function obtenerFechaMadrid(): string {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const anio = partes.find(
+    (parte) => parte.type === "year",
+  )?.value;
+
+  const mes = partes.find(
+    (parte) => parte.type === "month",
+  )?.value;
+
+  const dia = partes.find(
+    (parte) => parte.type === "day",
+  )?.value;
+
+  return anio && mes && dia
+    ? `${anio}-${mes}-${dia}`
+    : "";
+}
+
+function formatearFecha(fecha: string): string {
+  if (!fecha) {
+    return "Se asignará al crear el carnet";
+  }
+
+  const fechaConvertida = new Date(
+    `${fecha}T12:00:00.000Z`,
+  );
+
+  if (!Number.isFinite(fechaConvertida.getTime())) {
+    return "Fecha no disponible";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(fechaConvertida);
+}
+
+function obtenerTemporadaInicial(
+  temporadas: TemporadaDisponibleCarnet[],
+): TemporadaDisponibleCarnet | undefined {
+  return (
+    temporadas.find((temporada) => temporada.activa) ??
+    temporadas[0]
+  );
+}
+
+function extraerErroresCampo(valor: unknown): ErrorCampo[] {
+  if (!Array.isArray(valor)) {
+    return [];
+  }
+
+  return valor.flatMap((elemento) => {
+    if (
+      typeof elemento !== "object" ||
+      elemento === null ||
+      typeof elemento.campo !== "string" ||
+      typeof elemento.mensaje !== "string"
+    ) {
+      return [];
+    }
+
+    return [
+      {
+        campo: elemento.campo,
+        mensaje: elemento.mensaje,
+      },
+    ];
+  });
 }
 
 export default function FormularioNuevoCarnetSocio({
@@ -57,229 +134,192 @@ export default function FormularioNuevoCarnetSocio({
   alCrear,
   alCancelar,
 }: Propiedades) {
-  const [
-    temporadaId,
-    setTemporadaId,
-  ] = useState(
-    temporadas[0]?.id ?? "",
+  const idFechaAlta = useId();
+  const temporadaInicial = obtenerTemporadaInicial(temporadas);
+
+  const [temporadaId, setTemporadaId] = useState(
+    temporadaInicial?.id ?? "",
   );
 
-  const [
-    tipoSocio,
-    setTipoSocio,
-  ] = useState(
-    tiposSocio[0] ??
-      "General",
+  const [tipoSocio, setTipoSocio] = useState(
+    tiposSocio[0] ?? "General",
   );
 
-  const [
-    estado,
-    setEstado,
-  ] = useState<
-    "pendiente" | "activo"
-  >("activo");
+  const [estado, setEstado] =
+    useState<"pendiente" | "activo">("activo");
 
-  const [
-    fechaAlta,
-    setFechaAlta,
-  ] = useState(
-    temporadas[0]
-      ?.fechaInicio ?? "",
+  const [fechaAlta, setFechaAlta] = useState("");
+
+  const [fechaCaducidad, setFechaCaducidad] = useState(
+    temporadaInicial?.fechaFin ?? "",
   );
 
-  const [
-    fechaCaducidad,
-    setFechaCaducidad,
-  ] = useState(
-    temporadas[0]
-      ?.fechaFin ?? "",
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [erroresCampo, setErroresCampo] =
+    useState<ErrorCampo[]>([]);
+
+  const [resultadoCreacion, setResultadoCreacion] =
+    useState<ResultadoCrearCarnetSocio | null>(null);
+
+  const [copiado, setCopiado] =
+    useState<string | null>(null);
+
+  const enviandoRef = useRef(false);
+  const temporizadorCopiadoRef = useRef<number | null>(null);
+
+  const opcionesTipoSocio =
+    tiposSocio.length > 0 ? tiposSocio : ["General"];
+
+  const temporadaSeleccionada = temporadas.find(
+    (temporada) => temporada.id === temporadaId,
   );
-
-  const [
-    guardando,
-    setGuardando,
-  ] = useState(false);
-
-  const [
-    error,
-    setError,
-  ] =
-    useState<string | null>(
-      null,
-    );
-
-  const [
-    erroresCampo,
-    setErroresCampo,
-  ] = useState<
-    ErrorCampo[]
-  >([]);
-
-  const [
-    resultadoCreacion,
-    setResultadoCreacion,
-  ] =
-    useState<ResultadoCrearCarnetSocio | null>(
-      null,
-    );
-
-  const [
-    copiado,
-    setCopiado,
-  ] =
-    useState<string | null>(
-      null,
-    );
 
   useEffect(() => {
-    if (
-      temporadas.length === 0
-    ) {
+    function actualizarFecha() {
+      setFechaAlta(obtenerFechaMadrid());
+    }
+
+    actualizarFecha();
+
+    const intervalo = window.setInterval(
+      actualizarFecha,
+      60_000,
+    );
+
+    window.addEventListener("focus", actualizarFecha);
+
+    return () => {
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", actualizarFecha);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (temporizadorCopiadoRef.current !== null) {
+        window.clearTimeout(temporizadorCopiadoRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (resultadoCreacion) {
+      return;
+    }
+
+    if (temporadas.length === 0) {
       setTemporadaId("");
-      setFechaAlta("");
       setFechaCaducidad("");
-
       return;
     }
 
-    const temporadaActual =
-      temporadas.find(
-        (temporada) =>
-          temporada.id ===
-          temporadaId,
-      );
+    const existeTemporada = temporadas.some(
+      (temporada) => temporada.id === temporadaId,
+    );
 
-    if (temporadaActual) {
+    if (existeTemporada) {
       return;
     }
 
-    const primeraTemporada =
-      temporadas[0];
+    const siguienteTemporada =
+      obtenerTemporadaInicial(temporadas);
 
-    setTemporadaId(
-      primeraTemporada.id,
-    );
-
-    setFechaAlta(
-      primeraTemporada.fechaInicio,
-    );
-
-    setFechaCaducidad(
-      primeraTemporada.fechaFin,
-    );
-  }, [
-    temporadas,
-    temporadaId,
-  ]);
+    setTemporadaId(siguienteTemporada?.id ?? "");
+    setFechaCaducidad(siguienteTemporada?.fechaFin ?? "");
+  }, [temporadas, temporadaId, resultadoCreacion]);
 
   useEffect(() => {
-    if (
-      tiposSocio.includes(
-        tipoSocio,
-      )
-    ) {
+    if (tiposSocio.length === 0) {
+      setTipoSocio("General");
       return;
     }
 
-    setTipoSocio(
-      tiposSocio[0] ??
-        "General",
-    );
-  }, [
-    tiposSocio,
-    tipoSocio,
-  ]);
-
-  function cambiarTemporada(
-    nuevaTemporadaId: string,
-  ): void {
-    setTemporadaId(
-      nuevaTemporadaId,
-    );
-
-    const temporada =
-      temporadas.find(
-        (elemento) =>
-          elemento.id ===
-          nuevaTemporadaId,
-      );
-
-    if (!temporada) {
-      return;
+    if (!tiposSocio.includes(tipoSocio)) {
+      setTipoSocio(tiposSocio[0]);
     }
+  }, [tiposSocio, tipoSocio]);
 
-    setFechaAlta(
-      temporada.fechaInicio,
+  function cambiarTemporada(nuevaTemporadaId: string): void {
+    setTemporadaId(nuevaTemporadaId);
+
+    const temporada = temporadas.find(
+      (elemento) => elemento.id === nuevaTemporadaId,
     );
 
-    setFechaCaducidad(
-      temporada.fechaFin,
-    );
+    setFechaCaducidad(temporada?.fechaFin ?? "");
+    setError(null);
+    setErroresCampo([]);
   }
 
-  function obtenerErrorCampo(
-    campo: string,
-  ): string | null {
+  function obtenerErrorCampo(campo: string): string | null {
     return (
       erroresCampo.find(
         (elemento) =>
-          elemento.campo ===
-            campo ||
-          elemento.campo.endsWith(
-            `.${campo}`,
-          ),
+          elemento.campo === campo ||
+          elemento.campo.endsWith(`.${campo}`),
       )?.mensaje ?? null
     );
   }
 
+  function mostrarErrorCampo(campo: string) {
+    const mensaje = obtenerErrorCampo(campo);
+
+    return mensaje ? (
+      <span className="text-xs text-error">
+        {mensaje}
+      </span>
+    ) : null;
+  }
+
   async function crearCarnet(
-    evento:
-      FormEvent<HTMLFormElement>,
+    evento: FormEvent<HTMLFormElement>,
   ): Promise<void> {
     evento.preventDefault();
 
     if (
-      guardando ||
+      enviandoRef.current ||
       resultadoCreacion ||
       !temporadaId
     ) {
       return;
     }
 
+    enviandoRef.current = true;
     setGuardando(true);
     setError(null);
     setErroresCampo([]);
 
+    const fechaActual = obtenerFechaMadrid();
+    setFechaAlta(fechaActual);
+
     try {
-      const respuesta =
-        await fetch(
-          `/api/panel/socios/${encodeURIComponent(
-            socioId,
-          )}/carnets`,
-          {
-            method: "POST",
-            credentials:
-              "same-origin",
-            headers: {
-              Accept:
-                "application/json",
-              "Content-Type":
-                "application/json",
-            },
-            body:
-              JSON.stringify({
-                temporadaId,
-                tipoSocio,
-                estado,
-                fechaAlta,
-                fechaCaducidad,
-              }),
+      const respuesta = await fetch(
+        `/api/panel/socios/${encodeURIComponent(socioId)}/carnets`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
           },
-        );
+          body: JSON.stringify({
+            temporadaId,
+            tipoSocio,
+            estado,
+
+            // La API actual espera este campo.
+            // El servidor lo sustituye por su fecha de creación.
+            fechaAlta: fechaActual,
+
+            fechaCaducidad,
+          }),
+        },
+      );
 
       const contenido =
-        (await respuesta.json()) as
-          RespuestaCreacion;
+        (await respuesta.json()) as RespuestaCreacion;
 
       if (
         !respuesta.ok ||
@@ -287,11 +327,7 @@ export default function FormularioNuevoCarnetSocio({
         !contenido.data
       ) {
         setErroresCampo(
-          Array.isArray(
-            contenido.errores,
-          )
-            ? contenido.errores
-            : [],
+          extraerErroresCampo(contenido.errores),
         );
 
         throw new Error(
@@ -300,27 +336,31 @@ export default function FormularioNuevoCarnetSocio({
         );
       }
 
-      setResultadoCreacion(
-        contenido.data,
-      );
-
-      alCrear(
-        contenido.data.socio,
-      );
-    } catch (error) {
-      console.error(
-        "Error creando el carnet del socio:",
-        error,
-      );
-
+      /*
+       * Se mantienen visibles las credenciales.
+       * El editor actual cierra este formulario al recibir
+       * alCrear, por lo que se llama al pulsar Cerrar.
+       */
+      setResultadoCreacion(contenido.data);
+    } catch (errorCreacion) {
       setError(
-        error instanceof Error
-          ? error.message
+        errorCreacion instanceof Error
+          ? errorCreacion.message
           : "No se ha podido crear el carnet.",
       );
     } finally {
+      enviandoRef.current = false;
       setGuardando(false);
     }
+  }
+
+  function cerrarResultado(): void {
+    if (!resultadoCreacion) {
+      return;
+    }
+
+    alCrear(resultadoCreacion.socio);
+    alCancelar();
   }
 
   async function copiarTexto(
@@ -328,76 +368,27 @@ export default function FormularioNuevoCarnetSocio({
     identificador: string,
   ): Promise<void> {
     try {
-      await navigator.clipboard.writeText(
-        texto,
-      );
+      await navigator.clipboard.writeText(texto);
 
-      setCopiado(
-        identificador,
-      );
+      setError(null);
+      setCopiado(identificador);
 
-      window.setTimeout(
+      if (temporizadorCopiadoRef.current !== null) {
+        window.clearTimeout(temporizadorCopiadoRef.current);
+      }
+
+      temporizadorCopiadoRef.current = window.setTimeout(
         () => {
-          setCopiado(
-            (actual) =>
-              actual ===
-              identificador
-                ? null
-                : actual,
-          );
+          setCopiado(null);
+          temporizadorCopiadoRef.current = null;
         },
         1800,
       );
-    } catch (error) {
-      console.error(
-        "No se ha podido copiar el texto:",
-        error,
-      );
-
+    } catch {
       setError(
-        "No se ha podido copiar el valor.",
+        "No se ha podido copiar el valor. Selecciónalo y cópialo manualmente.",
       );
     }
-  }
-
-  function renderizarCredencial({
-    etiqueta,
-    valor,
-    identificador,
-  }: {
-    etiqueta: string;
-    valor: string;
-    identificador: string;
-  }) {
-    return (
-      <div className="border-t border-on-primary-fixed/20 pt-4 first:border-t-0 first:pt-0">
-        <dt className="text-xs font-bold uppercase tracking-wide opacity-70">
-          {etiqueta}
-        </dt>
-
-        <dd className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="break-all font-mono text-xl font-bold">
-            {valor}
-          </span>
-
-          <button
-            type="button"
-            onClick={() =>
-              void copiarTexto(
-                valor,
-                identificador,
-              )
-            }
-            className="w-fit rounded-lg border border-on-primary-fixed/30 px-3 py-1.5 text-xs font-bold"
-          >
-            {copiado ===
-            identificador
-              ? "Copiado"
-              : "Copiar"}
-          </button>
-        </dd>
-      </div>
-    );
   }
 
   if (resultadoCreacion) {
@@ -405,49 +396,39 @@ export default function FormularioNuevoCarnetSocio({
       carnet,
       credenciales,
       emailEnviado,
+      socio,
     } = resultadoCreacion;
 
-    const datosAcceso:
-      Array<{
-        etiqueta: string;
-        valor: string;
-        identificador: string;
-      }> = [
-        {
-          etiqueta:
-            "Usuario",
-          valor:
-            credenciales.email,
-          identificador:
-            "email",
-        },
-        {
-          etiqueta:
-            "Número de socio de la temporada",
-          valor:
-            String(
-              credenciales.numeroSocio,
-            ),
-          identificador:
-            "numero-socio",
-        },
-        {
-          etiqueta:
-            "Número del nuevo carnet",
-          valor:
-            credenciales.numeroCarnet,
-          identificador:
-            "numero-carnet",
-        },
-        {
-          etiqueta:
-            "Contraseña del nuevo carnet",
-          valor:
-            credenciales.passwordCarnet,
-          identificador:
-            "password",
-        },
-      ];
+    const datosAcceso = [
+      {
+        etiqueta: "Usuario",
+        valor: credenciales.email,
+        identificador: "email",
+      },
+      {
+        etiqueta: "Número de socio de la temporada",
+        valor: String(credenciales.numeroSocio),
+        identificador: "numero-socio",
+      },
+      {
+        etiqueta: "Número del nuevo carnet",
+        valor: credenciales.numeroCarnet,
+        identificador: "numero-carnet",
+      },
+      {
+        etiqueta: "Contraseña del nuevo carnet",
+        valor: credenciales.passwordCarnet,
+        identificador: "password",
+      },
+    ];
+
+    const mensajeCorreo = emailEnviado
+      ? "El correo con las nuevas credenciales se ha enviado correctamente."
+      : !socio.activo
+        ? "El socio está desactivado. El correo no se envía mientras permanezca desactivado."
+        : carnet.estado === "pendiente"
+          ? "El carnet está pendiente. Se intentará enviar el correo cuando se active."
+          : "No consta el envío del correo. Conserva estas credenciales para facilitárselas al socio.";
 
     return (
       <section className="overflow-hidden rounded-2xl border border-success/40 bg-surface-container-lowest shadow-sm">
@@ -455,69 +436,102 @@ export default function FormularioNuevoCarnetSocio({
           <p className="text-xs font-bold uppercase tracking-wider opacity-80">
             Carnet creado
           </p>
-
           <h3 className="mt-1 text-xl font-bold">
             Nueva temporada añadida
           </h3>
-
           <p className="mt-2 text-sm leading-6 opacity-90">
-            Se han generado unas credenciales
-            nuevas para este carnet.
+            {carnet.temporada.nombre}
           </p>
         </header>
 
         <div className="grid gap-4 p-5">
+          {error && (
+            <p
+              role="alert"
+              className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm text-on-error-container"
+            >
+              {error}
+            </p>
+          )}
+
+          <div className="grid gap-3 rounded-xl border border-outline-variant bg-surface-container-low p-4 sm:grid-cols-2">
+            <div>
+              <p className="text-xs text-on-surface-variant">
+                Fecha de alta
+              </p>
+              <p className="mt-1 text-sm font-bold text-on-surface">
+                {formatearFecha(carnet.fechaAlta)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-on-surface-variant">
+                Fecha de caducidad
+              </p>
+              <p className="mt-1 text-sm font-bold text-on-surface">
+                {formatearFecha(carnet.fechaCaducidad)}
+              </p>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-primary/30 bg-primary-fixed p-5 text-on-primary-fixed">
-            <dl className="grid gap-4">
-              {datosAcceso.map(
-                (dato) => (
-                  <div
-                    key={
-                      dato.identificador
-                    }
-                  >
-                    {renderizarCredencial(
-                      dato,
-                    )}
-                  </div>
-                ),
-              )}
+            <dl className="divide-y divide-on-primary-fixed/20">
+              {datosAcceso.map((dato) => (
+                <div
+                  key={dato.identificador}
+                  className="py-4 first:pt-0 last:pb-0"
+                >
+                  <dt className="text-xs font-bold uppercase tracking-wide opacity-70">
+                    {dato.etiqueta}
+                  </dt>
+                  <dd className="mt-2 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <span className="break-all font-mono text-xl font-bold">
+                      {dato.valor}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copiarTexto(
+                          dato.valor,
+                          dato.identificador,
+                        )
+                      }
+                      aria-label={`Copiar ${dato.etiqueta.toLowerCase()}`}
+                      className="w-fit shrink-0 rounded-lg border border-on-primary-fixed/30 px-3 py-1.5 text-xs font-bold"
+                    >
+                      {copiado === dato.identificador
+                        ? "Copiado"
+                        : "Copiar"}
+                    </button>
+                  </dd>
+                </div>
+              ))}
             </dl>
           </div>
 
-          <div
+          <p
+            role="status"
             className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
               emailEnviado
                 ? "border-success/30 bg-success/10 text-success"
                 : "border-outline-variant bg-surface-container-low text-on-surface-variant"
             }`}
           >
-            {emailEnviado
-              ? "El correo con las nuevas credenciales se ha enviado correctamente."
-              : carnet.estado ===
-                    "activo"
-                ? "No se ha podido enviar el correo. Conserva estas credenciales para facilitárselas al socio."
-                : "El carnet está pendiente. El correo con sus credenciales se enviará cuando sea activado."}
-          </div>
+            {mensajeCorreo}
+          </p>
 
-          <div className="rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-sm leading-6 text-on-surface-variant">
-            <strong className="text-on-surface">
-              Estas credenciales solo
-              corresponden a este carnet.
-            </strong>{" "}
-            El carnet anterior permanece en
-            el historial, pero su contraseña
-            no permite acceder al carnet de
-            esta nueva temporada.
-          </div>
+          <p className="rounded-xl border border-outline-variant bg-surface-container-low px-4 py-3 text-sm leading-6 text-on-surface-variant">
+            Estas credenciales corresponden únicamente a este
+            carnet. Los carnets anteriores se conservan en el
+            historial.
+          </p>
 
           <div className="flex justify-end">
             <button
               type="button"
-              onClick={alCancelar}
+              onClick={cerrarResultado}
               className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim"
             >
-              Cerrar
+              Cerrar y actualizar ficha
             </button>
           </div>
         </div>
@@ -525,21 +539,16 @@ export default function FormularioNuevoCarnetSocio({
     );
   }
 
-  if (
-    temporadas.length === 0
-  ) {
+  if (temporadas.length === 0) {
     return (
       <section className="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm">
         <h3 className="font-bold text-on-surface">
           No hay temporadas disponibles
         </h3>
-
         <p className="mt-1 text-sm leading-6 text-on-surface-variant">
-          Este socio ya tiene un carnet
-          asociado a todas las temporadas
-          disponibles.
+          No hay ninguna temporada disponible en este formulario
+          para crear un carnet.
         </p>
-
         <button
           type="button"
           onClick={alCancelar}
@@ -554,191 +563,146 @@ export default function FormularioNuevoCarnetSocio({
   return (
     <form
       onSubmit={crearCarnet}
+      aria-busy={guardando}
       className="overflow-hidden rounded-2xl border border-primary/40 bg-surface-container-lowest shadow-sm"
     >
       <header className="border-b border-outline-variant/60 bg-primary-fixed px-5 py-5 text-on-primary-fixed">
         <h3 className="text-lg font-bold">
-          Crear carnet para otra
-          temporada
+          Crear carnet para otra temporada
         </h3>
-
         <p className="mt-1 text-sm leading-6">
-          El historial anterior se
-          conservará y se generarán un
-          número y una contraseña nuevos
-          para la temporada seleccionada.
+          Se conservará el historial y se generarán un número
+          y una contraseña para el nuevo carnet.
         </p>
       </header>
 
       <fieldset
         disabled={guardando}
-        className="grid gap-5 p-5 sm:grid-cols-2 disabled:opacity-75"
+        className="grid min-w-0 gap-5 p-5 sm:grid-cols-2 disabled:opacity-75"
       >
         <label className="grid gap-1.5 sm:col-span-2">
-          <span className="text-sm font-bold text-on-surface">
-            Temporada
-          </span>
-
+          <span className={claseEtiqueta}>Temporada</span>
           <select
             value={temporadaId}
             onChange={(evento) =>
-              cambiarTemporada(
-                evento.target.value,
-              )
+              cambiarTemporada(evento.target.value)
             }
             required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface outline-none focus:border-primary"
+            className={claseCampo}
           >
-            {temporadas.map(
-              (temporada) => (
-                <option
-                  key={
-                    temporada.id
-                  }
-                  value={
-                    temporada.id
-                  }
-                >
-                  {
-                    temporada.nombre
-                  }
-
-                  {temporada.activa
-                    ? " · Activa"
-                    : ""}
-                </option>
-              ),
-            )}
+            {temporadas.map((temporada) => (
+              <option
+                key={temporada.id}
+                value={temporada.id}
+              >
+                {temporada.nombre}
+                {temporada.activa ? " · Activa" : ""}
+              </option>
+            ))}
           </select>
+          {mostrarErrorCampo("temporadaId")}
 
-          {obtenerErrorCampo(
-            "temporadaId",
-          ) && (
-            <span className="text-xs text-error">
-              {obtenerErrorCampo(
-                "temporadaId",
+          {temporadaSeleccionada && (
+            <span className="text-xs text-on-surface-variant">
+              Del{" "}
+              {formatearFecha(
+                temporadaSeleccionada.fechaInicio,
+              )}{" "}
+              al{" "}
+              {formatearFecha(
+                temporadaSeleccionada.fechaFin,
               )}
+              .
             </span>
           )}
         </label>
 
         <label className="grid gap-1.5">
-          <span className="text-sm font-bold text-on-surface">
-            Tipo de socio
-          </span>
-
+          <span className={claseEtiqueta}>Tipo de socio</span>
           <select
             value={tipoSocio}
             onChange={(evento) =>
-              setTipoSocio(
-                evento.target.value,
-              )
+              setTipoSocio(evento.target.value)
             }
             required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface outline-none focus:border-primary"
+            className={claseCampo}
           >
-            {tiposSocio.map(
-              (tipo) => (
-                <option
-                  key={tipo}
-                  value={tipo}
-                >
-                  {tipo}
-                </option>
-              ),
-            )}
+            {opcionesTipoSocio.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {tipo}
+              </option>
+            ))}
           </select>
+          {mostrarErrorCampo("tipoSocio")}
         </label>
 
         <label className="grid gap-1.5">
-          <span className="text-sm font-bold text-on-surface">
-            Estado inicial
-          </span>
-
+          <span className={claseEtiqueta}>Estado inicial</span>
           <select
             value={estado}
-            onChange={(evento) =>
-              setEstado(
-                evento.target
-                  .value as
-                  | "pendiente"
-                  | "activo",
-              )
-            }
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface outline-none focus:border-primary"
-          >
-            <option value="activo">
-              Activo
-            </option>
+            onChange={(evento) => {
+              const nuevoEstado = evento.target.value;
 
-            <option value="pendiente">
-              Pendiente
-            </option>
+              if (
+                nuevoEstado === "activo" ||
+                nuevoEstado === "pendiente"
+              ) {
+                setEstado(nuevoEstado);
+              }
+            }}
+            className={claseCampo}
+          >
+            <option value="activo">Activo</option>
+            <option value="pendiente">Pendiente</option>
           </select>
+          {mostrarErrorCampo("estado")}
         </label>
 
-        <label className="grid gap-1.5">
-          <span className="text-sm font-bold text-on-surface">
+        <div className="grid content-start gap-1.5">
+          <span
+            id={idFechaAlta}
+            className={claseEtiqueta}
+          >
             Fecha de alta
           </span>
+          <output
+            aria-labelledby={idFechaAlta}
+            className="flex min-h-11 items-center rounded-xl border border-outline-variant bg-surface-container px-3 py-2 text-sm font-semibold text-on-surface"
+          >
+            {formatearFecha(fechaAlta)}
+          </output>
+          <p className="text-xs leading-5 text-on-surface-variant">
+            Se asignará automáticamente el día en que crees
+            el carnet.
+          </p>
+          {mostrarErrorCampo("fechaAlta")}
+        </div>
 
-          <input
-            type="date"
-            value={fechaAlta}
-            onChange={(evento) =>
-              setFechaAlta(
-                evento.target.value,
-              )
-            }
-            required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface outline-none focus:border-primary"
-          />
-
-          {obtenerErrorCampo(
-            "fechaAlta",
-          ) && (
-            <span className="text-xs text-error">
-              {obtenerErrorCampo(
-                "fechaAlta",
-              )}
-            </span>
-          )}
-        </label>
-
-        <label className="grid gap-1.5">
-          <span className="text-sm font-bold text-on-surface">
+        <label className="grid content-start gap-1.5">
+          <span className={claseEtiqueta}>
             Fecha de caducidad
           </span>
-
           <input
             type="date"
             value={fechaCaducidad}
             onChange={(evento) =>
-              setFechaCaducidad(
-                evento.target.value,
-              )
+              setFechaCaducidad(evento.target.value)
+            }
+            max={
+              temporadaSeleccionada?.fechaFin || undefined
             }
             required
-            className="h-11 rounded-xl border border-outline-variant bg-surface-container-low px-3 text-sm text-on-surface outline-none focus:border-primary"
+            className={claseCampo}
           />
-
-          {obtenerErrorCampo(
-            "fechaCaducidad",
-          ) && (
-            <span className="text-xs text-error">
-              {obtenerErrorCampo(
-                "fechaCaducidad",
-              )}
-            </span>
-          )}
+          {mostrarErrorCampo("fechaCaducidad")}
         </label>
       </fieldset>
 
       {error && (
         <div className="px-5 pb-5">
           <p
-            className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
             role="alert"
+            className="rounded-xl border border-error/30 bg-error-container px-4 py-3 text-sm font-semibold text-on-error-container"
           >
             {error}
           </p>
@@ -757,15 +721,10 @@ export default function FormularioNuevoCarnetSocio({
 
         <button
           type="submit"
-          disabled={
-            guardando ||
-            !temporadaId
-          }
+          disabled={guardando || !temporadaId}
           className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-primary-fixed-dim disabled:opacity-50"
         >
-          {guardando
-            ? "Creando carnet..."
-            : "Crear carnet"}
+          {guardando ? "Creando carnet..." : "Crear carnet"}
         </button>
       </footer>
     </form>
