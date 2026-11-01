@@ -1,0 +1,135 @@
+<div
+  id="loader"
+  role="status"
+  aria-live="polite"
+  aria-label="Cargando la web del C.B. Andratx"
+  class="fixed inset-0 z-[9999] isolate hidden flex-col items-center justify-center overflow-hidden bg-background px-6 text-on-background opacity-100 transition-opacity duration-300 ease-out motion-reduce:transition-none"
+>
+  <!-- Fondo -->
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute -left-40 -top-40 -z-10 size-[28rem] rounded-full bg-primary-container/25 blur-[100px]"
+  ></div>
+
+  <div
+    aria-hidden="true"
+    class="pointer-events-none absolute -bottom-48 -right-40 -z-10 size-[30rem] rounded-full bg-tertiary-container/15 blur-[100px]"
+  ></div>
+
+  <div class="flex w-full max-w-sm flex-col items-center text-center">
+    <!-- Escudo -->
+    <div class="relative mb-8 grid size-36 place-items-center sm:size-40">
+      <div
+        aria-hidden="true"
+        class="absolute inset-0 animate-spin rounded-full border-2 border-outline-variant/30 border-t-primary border-b-tertiary-container [animation-duration:3s] motion-reduce:animate-none"
+      ></div>
+
+      <div
+        aria-hidden="true"
+        class="absolute inset-3 rounded-full border border-outline-variant/20 bg-surface-container-lowest/70 shadow-xl shadow-primary/10"
+      ></div>
+
+      <img
+        src="/favicon.svg"
+        alt="Escudo del C.B. Andratx"
+        width="96"
+        height="96"
+        loading="eager"
+        fetchpriority="high"
+        class="relative size-24 object-contain"
+      />
+    </div>
+
+    <!-- Identidad -->
+    <span
+      class="text-4xl font-extrabold leading-tight tracking-tight text-on-primary-fixed sm:text-5xl"
+    >
+      C.B. Andratx
+    </span>
+
+    <p class="mt-3 text-sm text-on-surface-variant sm:text-base">
+      Tu club, siempre contigo
+    </p>
+
+    <div
+      class="mt-6 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-[11px] font-semibold sm:text-xs"
+    >
+      <span class="text-primary">#FentBasquetDesde1985</span>
+      <span class="text-primary">#SentimentBlauGroc</span>
+    </div>
+
+    <!-- Indicador de carga -->
+    <div class="mt-12 flex flex-col items-center gap-4">
+      <div aria-hidden="true" class="flex items-center gap-2">
+        <span
+          class="size-1.5 animate-pulse rounded-full bg-primary motion-reduce:animate-none"
+        ></span>
+
+        <span
+          class="size-1.5 animate-pulse rounded-full bg-primary-container [animation-delay:200ms] motion-reduce:animate-none"
+        ></span>
+
+        <span
+          class="size-1.5 animate-pulse rounded-full bg-tertiary-container [animation-delay:400ms] motion-reduce:animate-none"
+        ></span>
+      </div>
+
+      <p class="text-xs font-medium tracking-wide text-on-surface-variant">
+        Preparando la pista…
+      </p>
+    </div>
+  </div>
+</div>
+
+<script is:inline>
+  (() => {
+    const loader = document.getElementById("loader");
+    if (!loader) return;
+
+    // Evita mostrarlo si la página ya está cargada.
+    if (document.readyState === "complete") {
+      loader.remove();
+      return;
+    }
+
+    // Sin JavaScript, el loader permanece oculto.
+    loader.classList.replace("hidden", "flex");
+
+
+    let closed = false;
+    let fallback;
+
+    const hideLoader = () => {
+      if (closed) return;
+      closed = true;
+
+      window.clearTimeout(fallback);
+      window.removeEventListener("load", hideLoader);
+      window.removeEventListener("pageshow", hideLoader);
+      document.removeEventListener("astro:before-swap", hideLoader);
+
+      loader.setAttribute("aria-hidden", "true");
+      loader.classList.replace("opacity-100", "opacity-0");
+      loader.classList.add("pointer-events-none");
+
+      const reducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      window.setTimeout(
+        () => loader.remove(),
+        reducedMotion ? 0 : 350
+      );
+    };
+
+    window.addEventListener("load", hideLoader, { once: true });
+    window.addEventListener("pageshow", hideLoader, { once: true });
+
+    document.addEventListener("astro:before-swap", hideLoader, {
+      once: true,
+    });
+
+    // Evita bloquear la web por recursos externos lentos.
+    fallback = window.setTimeout(hideLoader, 5000);
+  })();
+</script>
