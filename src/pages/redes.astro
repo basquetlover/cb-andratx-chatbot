@@ -1,0 +1,68 @@
+---
+import Layout from "@layouts/Layout.astro";
+import Patrocinadores from "@sections/Patrocinadores.astro";
+import {
+  obtenerRedesSocialesClub,
+  type RedSocialClub,
+} from "@servicios/backend/club/obtenerRedesSocialesClub";
+
+let redes: RedSocialClub[] = [];
+
+try {
+  redes = await obtenerRedesSocialesClub();
+} catch (error) {
+  console.error(
+    "No se han podido cargar las redes sociales del footer:",
+    error,
+  );
+}
+---
+
+<Layout
+    title="Redes Sociales"
+>
+
+<div class="flex flex-col items-center justify-center mt-10 p-4">
+    <img src="/favicon.svg" alt="Logo del Club" class="w-20 h-20 mb-4" />
+    <h1 class="text-2xl font-bold flex flex-row items-center gap-2">
+        C.B. Andratx
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 fill-tertiary-container" viewBox="0 0 24 24">
+            <path d="m8.6 22.5-1.9-3.2-3.6-.8.35-3.7L1 12l2.45-2.8-.35-3.7 3.6-.8 1.9-3.2L12 2.95l3.4-1.45 1.9 3.2 3.6.8-.35 3.7L23 12l-2.45 2.8.35 3.7-3.6.8-1.9 3.2-3.4-1.45zm2.35-6.95L16.6 9.9l-1.4-1.45-4.25 4.25-2.15-2.1L7.4 12z"/>
+        </svg>
+    </h1>
+    <h2 class="text-lg mb-4 text-primary">Redes Sociales Oficiales</h2>
+
+    <div class="flex flex-wrap justify-center gap-4">
+        <p class="bg-primary-container/30 text-sm text-primary px-4 py-2 w-max h-max rounded-full">#FentBasquetDesDe1985</p>
+        <p class="bg-primary-container/30 text-sm text-primary px-4 py-2 w-max h-max rounded-full">#SentimentBlauGroc</p>
+    </div>
+</div>
+
+<div class="flex flex-col items-center justify-center mt-10 gap-4 max-w-lg mx-auto p-4">
+    {redes.map((red) => (
+        <a
+            href={red.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            class="flex items-center relative gap-2 bg-primary-container/30 text-sm text-primary px-4 py-3 w-full h-max rounded-lg hover:bg-primary-container/50 transition-colors"
+        >
+            <img src={`/iconos/redes/${red.icono}.svg`} alt={red.nombre} class="w-8 h-8" />
+            <p class="flex flex-col text-primary font-semibold">
+                {red.nombre}
+                <span class="text-xs text-primary/70 font-normal">
+                    {red.usuario}
+                </span>
+            </p>
+
+            <span class="absolute right-4 text-primary/70 text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="w-6 h-6 fill-current">
+                    <path d="M5,21q-0.83,0-1.41-0.59T3,19V5Q3,4.17 3.59,3.59T5,3h7V5H5V19H19V12h2v7q0,0.82-0.59,1.41T19,21H5Zm4.7-5.3L8.3,14.3L17.6,5H14V3h7v7H19V6.4L9.7,15.7Z"/>
+                </svg>
+            </span>
+        </a>
+    ))}
+
+</div>
+
+<Patrocinadores />
+</Layout>
