@@ -14,6 +14,8 @@ const DOMINIO_PRINCIPAL =
 
 const rutasPanelPublicas = [
   "/panel/iniciar-sesion",
+  "/panel/recuperar-password",
+  "/panel/restablecer-password",
   "/panel/acceso-denegado",
 ];
 

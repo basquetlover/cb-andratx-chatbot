@@ -1,7 +1,23 @@
 ---
 import Layout from "@layouts/Layout.astro";
 
+import { obtenerUsuarioSesion } from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+import { NOMBRE_COOKIE_SESION } from "@servicios/seguridad/cookieSesion";
+
 export const prerender = false;
+
+const tokenSesion = Astro.cookies.get(NOMBRE_COOKIE_SESION)?.value;
+
+let sesionPanelIniciada = false;
+
+if (tokenSesion) {
+  try {
+    const sesion = await obtenerUsuarioSesion(tokenSesion);
+    sesionPanelIniciada = sesion !== null;
+  } catch (error) {
+    console.error("Error comprobando la sesión en /acceso:", error);
+  }
+}
 ---
 
 <Layout
@@ -138,7 +154,7 @@ export const prerender = false;
           </div>
 
           <span class="relative mt-auto inline-flex items-center gap-2 pt-8 text-sm font-black text-secondary">
-            Iniciar sesión
+            {sesionPanelIniciada ? "Acceder al panel" : "Iniciar sesión"}
 
             <svg
               xmlns="http://www.w3.org/2000/svg"
