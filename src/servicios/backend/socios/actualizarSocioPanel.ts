@@ -1,9 +1,4 @@
 import {
-  enviarBienvenidaSocioSiCorresponde,
-  ErrorEnviarBienvenidaSocio,
-} from "./enviarBienvenidaSocioSiCorresponde";
-
-import {
   obtenerSocioPanel,
 } from "./obtenerSocioPanel";
 
@@ -24,8 +19,6 @@ interface FilaSocioActual {
   activo: boolean | null;
   observaciones: string | null;
 
-  email_bienvenida_enviado_at:
-    string | null;
 }
 
 interface FilaVersionCarnet {
@@ -281,6 +274,7 @@ function validarDatosSocio(
 async function incrementarVersionesCarnets(
   socioId: string,
   actualizadoPor: string | null,
+  reactivando: boolean,
 ): Promise<void> {
   const {
     data: carnetsEncontrados,
@@ -339,6 +333,13 @@ async function incrementarVersionesCarnets(
           if (actualizadoPor) {
             actualizacion.actualizado_por =
               actualizadoPor;
+          }
+
+          if (reactivando) {
+            actualizacion.intentos_fallidos =
+              0;
+            actualizacion.bloqueado_hasta =
+              null;
           }
 
           const {
@@ -400,8 +401,7 @@ export async function actualizarSocioPanel(
       email,
       telefono,
       activo,
-      observaciones,
-      email_bienvenida_enviado_at
+      observaciones
     `)
     .eq("id", idLimpio)
     .maybeSingle();
@@ -496,24 +496,6 @@ export async function actualizarSocioPanel(
       usuarioActualizador;
   }
 
-  /*
-   * Cuando se reactiva el socio se eliminan
-   * los bloqueos producidos por intentos
-   * fallidos de inicio de sesión.
-   *
-   * La contraseña no se modifica.
-   */
-  if (
-    datos.activo &&
-    !estadoAnterior
-  ) {
-    actualizacion.intentos_fallidos =
-      0;
-
-    actualizacion.bloqueado_hasta =
-      null;
-  }
-
   const {
     error: errorActualizar,
   } = await supabaseServidor
@@ -546,44 +528,8 @@ export async function actualizarSocioPanel(
     await incrementarVersionesCarnets(
       idLimpio,
       usuarioActualizador,
+      datos.activo,
     );
-  }
-
-  /*
-   * Se intenta enviar la bienvenida cuando
-   * el socio está activo y el envío todavía
-   * no está registrado.
-   *
-   * Esto permite reintentar el correo si
-   * Brevo falló durante una activación
-   * anterior.
-   */
-  if (datos.activo) {
-    try {
-      await enviarBienvenidaSocioSiCorresponde(
-        idLimpio,
-      );
-    } catch (error) {
-      if (
-        error instanceof
-        ErrorEnviarBienvenidaSocio
-      ) {
-        throw new ErrorActualizarSocioPanel(
-          error.message,
-          error.status,
-        );
-      }
-
-      console.error(
-        `Error enviando la bienvenida al socio ${idLimpio}:`,
-        error,
-      );
-
-      throw new ErrorActualizarSocioPanel(
-        "El socio se ha actualizado, pero no se ha podido enviar el correo de bienvenida.",
-        502,
-      );
-    }
   }
 
   const socioActualizado =
