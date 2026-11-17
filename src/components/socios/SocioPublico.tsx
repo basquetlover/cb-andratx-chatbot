@@ -196,84 +196,9 @@ export default function SocioPublico({
         className="relative mx-auto aspect-9/16 w-full max-w-107.5 overflow-hidden rounded-4xl border border-white/10 bg-[#032a55] text-white shadow-[0_24px_70px_rgba(0,36,80,0.35)]"
         aria-label={`Carnet de socio de ${datos.socio.nombreCompleto}`}
       >
-        <div
-          className="absolute inset-0"
-          style={{
-            backgroundImage: `
-              radial-gradient(circle at 50% 35%, rgba(0, 173, 239, 0.20), transparent 34%),
-              linear-gradient(145deg, #021d3c 0%, #032a55 48%, #001a38 100%)
-            `,
-          }}
-          aria-hidden="true"
-        />
+      
+      <img src="/img/fondo-socios.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
 
-        <div
-          className="absolute left-[-18%] top-[5%] h-[12%] w-[72%] rotate-[-48deg] bg-[#ffc801]"
-          style={{
-            clipPath:
-              "polygon(0 36%, 100% 0, 91% 27%, 100% 46%, 82% 54%, 94% 78%, 0 100%, 8% 68%)",
-          }}
-          aria-hidden="true"
-        />
-
-        <div
-          className="absolute right-[-18%] top-[20%] h-[17%] w-[105%] rotate-[-17deg] bg-[#00adef]"
-          style={{
-            clipPath:
-              "polygon(0 43%, 94% 0, 83% 20%, 100% 30%, 82% 44%, 96% 54%, 8% 100%, 18% 72%)",
-
-            opacity: 0.8,
-          }}
-          aria-hidden="true"
-        />
-
-        <div
-          className="absolute bottom-[-4%] right-[-30%] h-[17%] w-[90%] rotate-[-38deg] bg-[#00adef]"
-          style={{
-            clipPath:
-              "polygon(0 30%, 100% 0, 84% 28%, 100% 44%, 79% 55%, 92% 79%, 0 100%, 14% 65%)",
-
-            opacity: 0.85,
-          }}
-          aria-hidden="true"
-        />
-
-        <div
-          className="absolute bottom-[-2%] right-[-13%] h-[8%] w-[58%] rotate-[-42deg] bg-[#ffc801]"
-          style={{
-            clipPath:
-              "polygon(0 38%, 100% 0, 84% 34%, 100% 56%, 0 100%, 12% 67%)",
-          }}
-          aria-hidden="true"
-        />
-
-        <svg
-          viewBox="0 0 400 720"
-          className="absolute inset-0 h-full w-full opacity-[0.09]"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path
-            d="M260 0v720M260 190h140M260 530h140M260 270h140v180H260"
-            stroke="currentColor"
-            strokeWidth="3"
-          />
-
-          <circle
-            cx="400"
-            cy="360"
-            r="83"
-            stroke="currentColor"
-            strokeWidth="3"
-            strokeDasharray="11 8"
-          />
-
-          <path
-            d="M0 520h92v200M0 615h92M92 570a48 48 0 0 1 0 95"
-            stroke="currentColor"
-            strokeWidth="3"
-          />
-        </svg>
 
         <div className="relative z-10 flex h-full flex-col items-center px-[7%] pb-[4%] pt-[5%] text-center">
           <p className="text-[clamp(0.7rem,3vw,1rem)] font-black italic tracking-wide text-white">
@@ -286,7 +211,7 @@ export default function SocioPublico({
           </p>
 
           <div className="relative mt-[4%] flex h-[19%] w-[45%] items-center justify-center">
-            <div className="absolute inset-0 rounded-full bg-[#00adef]/20 blur-2xl" />
+            
 
             <img
               src="/favicon.svg"
