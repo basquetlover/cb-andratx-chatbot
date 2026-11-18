@@ -1,3 +1,4 @@
+
 ---
 import EquipoPublico from "@components/equipos/publico/EquipoPublico";
 import Layout from "@layouts/Layout.astro";
@@ -7,12 +8,55 @@ import {
   obtenerEquipoPublico,
 } from "@servicios/backend/equipos/obtenerEquipoPublico";
 
-import type { DatosEquipoPublico } from "@tipos/EquipoPublico";
+import {
+  comprobarAccesoSocio,
+} from "@servicios/backend/socios/comprobarAccesoSocio";
+
+import type {
+  DatosEquipoPublico,
+} from "@tipos/EquipoPublico";
 
 export const prerender = false;
 
+// ======================================================
+// CABECERAS DE SEGURIDAD
+// ======================================================
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "private, no-store, no-cache, must-revalidate, max-age=0",
+);
+
+Astro.response.headers.set(
+  "Pragma",
+  "no-cache",
+);
+
+Astro.response.headers.set(
+  "Expires",
+  "0",
+);
+
+Astro.response.headers.set(
+  "Vary",
+  "Cookie",
+);
+
+Astro.response.headers.set(
+  "X-Content-Type-Options",
+  "nosniff",
+);
+
+// ======================================================
+// IDENTIFICADOR DEL EQUIPO
+// ======================================================
+
 const equipoSlug =
   Astro.params.slug?.trim() ?? "";
+
+// ======================================================
+// ESTADO DE LA PÁGINA
+// ======================================================
 
 let equipo:
   DatosEquipoPublico | null = null;
@@ -25,10 +69,46 @@ let estado:
 let mensajeError: string | null =
   null;
 
+// ======================================================
+// COMPROBAR ACCESO DE SOCIO
+// ======================================================
+
+/*
+ * La comprobación se realiza en el servidor.
+ *
+ * No se confía en localStorage,
+ * parámetros de URL ni datos enviados
+ * por el navegador.
+ *
+ * Solo los socios con un carnet activo
+ * y una sesión válida pueden consultar
+ * los entrenamientos.
+ *
+ * Si falla la comprobación, se deniega
+ * el acceso a los datos privados, pero
+ * se mantiene disponible la ficha pública.
+ */
+
+const accesoSocio =
+  await comprobarAccesoSocio(
+    Astro.cookies,
+  );
+
+const puedeVerEntrenamientos =
+  accesoSocio.autorizado;
+
+// ======================================================
+// OBTENER DATOS DEL EQUIPO
+// ======================================================
+
 try {
   equipo =
     await obtenerEquipoPublico(
       equipoSlug,
+      {
+        incluirEntrenamientos:
+          puedeVerEntrenamientos,
+      },
     );
 } catch (error) {
   if (
@@ -37,6 +117,7 @@ try {
     error.status === 404
   ) {
     estado = "no-encontrado";
+
     Astro.response.status = 404;
   } else {
     console.error(
@@ -59,14 +140,24 @@ try {
   }
 }
 
+// ======================================================
+// PREPARAR DATOS PARA EL COMPONENTE
+// ======================================================
+
 /*
- * Esta propiedad mantiene la compatibilidad
- * temporal con EquipoPublico.tsx mientras
- * sustituimos sus bloques provisionales.
+ * Conservamos idEquipoFbib para mantener
+ * la compatibilidad con EquipoPublico.tsx.
  *
- * El objeto también conserva todos los datos
- * nuevos: fbib, entrenamientos y patrocinadores.
+ * Añadimos puedeVerEntrenamientos al objeto
+ * para que el componente pueda distinguir:
+ *
+ * - Visitante sin autorización.
+ * - Socio autorizado sin horarios publicados.
+ *
+ * Los datos privados no se incluyen cuando
+ * puedeVerEntrenamientos es false.
  */
+
 const equipoParaComponente =
   equipo
     ? {
@@ -75,12 +166,22 @@ const equipoParaComponente =
         idEquipoFbib:
           equipo.fbib?.idEquipoFbib ??
           null,
+
+        puedeVerEntrenamientos,
       }
     : null;
 ---
 
 <Layout
-  title={equipo?.nombreCorto?.trim() || equipo?.nombre || (estado === "error" ? "Error al cargar el equipo" : "Equipo no encontrado")}
+  title={
+    equipo?.nombreCorto?.trim() ||
+    equipo?.nombre ||
+    (
+      estado === "error"
+        ? "Error al cargar el equipo"
+        : "Equipo no encontrado"
+    )
+  }
   menu
   menuMobile
 >
@@ -156,7 +257,7 @@ const equipoParaComponente =
 
           <a
             href="/equipos"
-            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-colors hover:bg-on-primary-container"
+            class="mt-6 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-bold text-on-primary hover:bg-on-primary-container"
           >
             <span
               class="inline-block h-4 w-4 bg-current mask-center mask-contain mask-no-repeat"
@@ -172,7 +273,9 @@ const equipoParaComponente =
       <EquipoPublico
         client:load
         equipoInicial={equipoParaComponente}
-        patrocinadoresIniciales={equipoParaComponente.patrocinadores}
+        patrocinadoresIniciales={
+          equipoParaComponente.patrocinadores
+        }
       />
     )
   }

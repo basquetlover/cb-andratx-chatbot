@@ -41,6 +41,10 @@ const ZONA_HORARIA = "Europe/Madrid";
 
 const CANTIDAD_PROXIMOS_PARTIDOS = 4;
 
+export interface OpcionesObtenerEquipoPublico {
+  incluirEntrenamientos?: boolean;
+}
+
 // ======================================================
 // ERRORES
 // ======================================================
@@ -237,7 +241,7 @@ function obtenerFechaActualMadrid(): FechaActualMadrid {
 function obtenerRangoTemporadaPartidos(
   fechaActual: FechaActualMadrid,
 ): RangoTemporadaPartidos {
-  /**
+  /*
    * Se consulta desde el primer día
    * del mes actual hasta el final
    * de la temporada deportiva.
@@ -306,13 +310,6 @@ function esPartidoFuturo(
     return false;
   }
 
-  /**
-   * No se consideran próximos
-   * los partidos ya finalizados
-   * ni los aplazados sin una
-   * nueva fecha confirmada.
-   */
-
   if (
     partido.estadoPortada ===
       "finalizado" ||
@@ -336,7 +333,7 @@ function esPartidoFuturo(
     return false;
   }
 
-  /**
+  /*
    * Partido del día actual.
    *
    * Si no se conoce la hora,
@@ -500,7 +497,7 @@ async function obtenerPatrocinadoresEquipo(
       patrocinadoresGuardados,
     );
 
-  /**
+  /*
    * No llamar al servicio
    * con un array vacío:
    *
@@ -642,7 +639,7 @@ async function obtenerEntrenamientosHabituales(
         }),
       );
   } catch (error) {
-    /**
+    /*
      * Si fallan los entrenamientos,
      * el resto de la página continúa
      * funcionando.
@@ -672,7 +669,7 @@ async function obtenerDatosFbibEquipo(
       idEquipoFbib,
     );
 
-  /**
+  /*
    * Se mantiene el contrato existente.
    *
    * En equipos sin ID FBIB, fbib
@@ -698,7 +695,7 @@ async function obtenerDatosFbibEquipo(
   const enlaceFbib =
     `https://www.fbib.es/equipo/${encodeURIComponent(id)}`;
 
-  /**
+  /*
    * La ficha FBIB se obtiene por
    * separado de los partidos.
    *
@@ -842,6 +839,7 @@ async function obtenerDatosFbibEquipo(
 
 export async function obtenerEquipoPublico(
   equipoSlug: string,
+  opciones: OpcionesObtenerEquipoPublico = {},
 ): Promise<DatosEquipoPublico> {
   const slug = equipoSlug.trim();
 
@@ -857,7 +855,29 @@ export async function obtenerEquipoPublico(
   }
 
   // --------------------------------------------------
-  // 2. CONSULTAR EQUIPO
+  // 2. CONTROL DE ACCESO A ENTRENAMIENTOS
+  // --------------------------------------------------
+
+  /*
+   * Los horarios habituales son
+   * información exclusiva para socios.
+   *
+   * Por defecto, no se consultan.
+   *
+   * Solo una ruta del servidor que
+   * haya verificado la sesión de socio
+   * puede activar incluirEntrenamientos.
+   *
+   * Nunca aceptar este permiso
+   * directamente de parámetros
+   * públicos de la URL.
+   */
+
+  const incluirEntrenamientos =
+    opciones.incluirEntrenamientos === true;
+
+  // --------------------------------------------------
+  // 3. CONSULTAR EQUIPO
   // --------------------------------------------------
 
   const {
@@ -911,8 +931,28 @@ export async function obtenerEquipoPublico(
     equipo.mostrar_sponsor ?? true;
 
   // --------------------------------------------------
-  // 3. CARGAR DATOS INDEPENDIENTES
+  // 4. CARGAR DATOS INDEPENDIENTES
   // --------------------------------------------------
+
+  /*
+   * Mantenemos las consultas originales.
+   *
+   * La única diferencia es que los
+   * entrenamientos se consultan
+   * únicamente con autorización.
+   *
+   * Para visitantes devolvemos [],
+   * conservando el contrato existente
+   * de DatosEquipoPublico.
+   */
+
+  const consultaEntrenamientos:
+    Promise<EntrenamientoHabitualEquipoPublico[]> =
+      incluirEntrenamientos
+        ? obtenerEntrenamientosHabituales(
+            equipo.id,
+          )
+        : Promise.resolve([]);
 
   const [
     temporada,
@@ -929,9 +969,7 @@ export async function obtenerEquipoPublico(
       mostrarSponsor,
     ),
 
-    obtenerEntrenamientosHabituales(
-      equipo.id,
-    ),
+    consultaEntrenamientos,
 
     obtenerDatosFbibEquipo(
       equipo.id,
@@ -942,7 +980,7 @@ export async function obtenerEquipoPublico(
   ]);
 
   // --------------------------------------------------
-  // 4. RESPUESTA PÚBLICA
+  // 5. RESPUESTA DEL EQUIPO
   // --------------------------------------------------
 
   return {

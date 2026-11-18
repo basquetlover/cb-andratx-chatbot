@@ -1,5 +1,7 @@
 
-import { supabaseServidor } from "../../supabase/servidor";
+import {
+  supabaseServidor,
+} from "../../supabase/servidor";
 
 import {
   obtenerPartidosCombinados,
@@ -43,15 +45,11 @@ export interface ResultadoCalendarioEquipoPublico {
   anio: number;
   mes: number;
   eventos: EventoCalendarioEquipoPublico[];
-
-  /**
-   * Se conserva el tipo público existente
-   * para no modificar el frontend.
-   *
-   * PartidoCombinado es compatible
-   * con PartidoEquipoFbib.
-   */
   partidos: PartidoEquipoFbib[];
+}
+
+export interface OpcionesCalendarioEquipoPublico {
+  incluirEntrenamientos?: boolean;
 }
 
 // ======================================================
@@ -101,7 +99,6 @@ interface OcurrenciaEntrenamiento {
   horaFin: string | null;
   instalacionId: string | null;
   descripcion: string | null;
-
   estado:
     | "normal"
     | "modificado"
@@ -109,7 +106,7 @@ interface OcurrenciaEntrenamiento {
 }
 
 // ======================================================
-// VALIDACIÓN
+// VALIDACIONES
 // ======================================================
 
 function validarUuid(
@@ -127,7 +124,10 @@ function validarUuid(
 function rellenarNumero(
   numero: number,
 ): string {
-  return String(numero).padStart(2, "0");
+  return String(numero).padStart(
+    2,
+    "0",
+  );
 }
 
 function crearFecha(
@@ -145,8 +145,13 @@ function crearFecha(
 function convertirFecha(
   fecha: string,
 ): Date {
-  const [anio, mes, dia] =
-    fecha.split("-").map(Number);
+  const [
+    anio,
+    mes,
+    dia,
+  ] = fecha
+    .split("-")
+    .map(Number);
 
   return new Date(
     Date.UTC(
@@ -169,7 +174,8 @@ function sumarDias(
   fecha: Date,
   dias: number,
 ): Date {
-  const resultado = new Date(fecha);
+  const resultado =
+    new Date(fecha);
 
   resultado.setUTCDate(
     resultado.getUTCDate() + dias,
@@ -185,33 +191,43 @@ function obtenerRangoMes(
   inicio: string;
   fin: string;
 } {
-  const ultimoDia = new Date(
-    Date.UTC(anio, mes, 0),
-  ).getUTCDate();
+  const ultimoDia =
+    new Date(
+      Date.UTC(
+        anio,
+        mes,
+        0,
+      ),
+    ).getUTCDate();
 
   return {
-    inicio: crearFecha(
-      anio,
-      mes,
-      1,
-    ),
+    inicio:
+      crearFecha(
+        anio,
+        mes,
+        1,
+      ),
 
-    fin: crearFecha(
-      anio,
-      mes,
-      ultimoDia,
-    ),
+    fin:
+      crearFecha(
+        anio,
+        mes,
+        ultimoDia,
+      ),
   };
 }
 
 function obtenerDiaSemana(
   fecha: string,
 ): number {
-  const dia = convertirFecha(
-    fecha,
-  ).getUTCDay();
+  const dia =
+    convertirFecha(
+      fecha,
+    ).getUTCDay();
 
-  return dia === 0 ? 7 : dia;
+  return dia === 0
+    ? 7
+    : dia;
 }
 
 function pertenecePeriodo(
@@ -219,11 +235,17 @@ function pertenecePeriodo(
   inicio: string | null,
   fin: string | null,
 ): boolean {
-  if (inicio && fecha < inicio) {
+  if (
+    inicio &&
+    fecha < inicio
+  ) {
     return false;
   }
 
-  if (fin && fecha > fin) {
+  if (
+    fin &&
+    fecha > fin
+  ) {
     return false;
   }
 
@@ -272,19 +294,25 @@ function crearClaveEntrenamiento(
 }
 
 function generarEntrenamientosHabituales(
-  entrenamientos: FilaEntrenamiento[],
+  entrenamientos:
+    FilaEntrenamiento[],
+
   inicio: string,
   fin: string,
 ): OcurrenciaEntrenamiento[] {
   const ocurrencias:
-    OcurrenciaEntrenamiento[] = [];
+    OcurrenciaEntrenamiento[] =
+    [];
 
-  let fecha = convertirFecha(inicio);
+  let fecha =
+    convertirFecha(inicio);
 
   const fechaFinal =
     convertirFecha(fin);
 
-  while (fecha <= fechaFinal) {
+  while (
+    fecha <= fechaFinal
+  ) {
     const fechaIso =
       formatearFecha(fecha);
 
@@ -306,15 +334,17 @@ function generarEntrenamientosHabituales(
         }
 
         ocurrencias.push({
-          id: crearClaveEntrenamiento(
-            entrenamiento.id,
-            fechaIso,
-          ),
+          id:
+            crearClaveEntrenamiento(
+              entrenamiento.id,
+              fechaIso,
+            ),
 
           entrenamientoId:
             entrenamiento.id,
 
-          fecha: fechaIso,
+          fecha:
+            fechaIso,
 
           horaInicio:
             entrenamiento.hora_inicio,
@@ -328,7 +358,8 @@ function generarEntrenamientosHabituales(
           descripcion:
             entrenamiento.observaciones,
 
-          estado: "normal",
+          estado:
+            "normal",
         });
       },
     );
@@ -347,9 +378,14 @@ function generarEntrenamientosHabituales(
 // ======================================================
 
 function aplicarExcepciones(
-  ocurrencias: OcurrenciaEntrenamiento[],
-  entrenamientos: FilaEntrenamiento[],
-  excepciones: FilaExcepcion[],
+  ocurrencias:
+    OcurrenciaEntrenamiento[],
+
+  entrenamientos:
+    FilaEntrenamiento[],
+
+  excepciones:
+    FilaExcepcion[],
 ): OcurrenciaEntrenamiento[] {
   const entrenamientosPorId =
     new Map(
@@ -369,7 +405,9 @@ function aplicarExcepciones(
 
   ocurrencias.forEach(
     (ocurrencia) => {
-      if (!ocurrencia.entrenamientoId) {
+      if (
+        !ocurrencia.entrenamientoId
+      ) {
         return;
       }
 
@@ -385,7 +423,9 @@ function aplicarExcepciones(
 
   excepciones.forEach(
     (excepcion) => {
-      if (!excepcion.fecha) {
+      if (
+        !excepcion.fecha
+      ) {
         return;
       }
 
@@ -396,11 +436,11 @@ function aplicarExcepciones(
           ? "cancelado"
           : "modificado";
 
-      // ----------------------------------------------
-      // EXCEPCIÓN SOBRE UN ENTRENAMIENTO EXISTENTE
-      // ----------------------------------------------
+      // Excepción de entrenamiento existente.
 
-      if (excepcion.entrenamiento_id) {
+      if (
+        excepcion.entrenamiento_id
+      ) {
         const clave =
           crearClaveEntrenamiento(
             excepcion.entrenamiento_id,
@@ -427,7 +467,8 @@ function aplicarExcepciones(
         ocurrenciasPorClave.set(
           clave,
           {
-            id: clave,
+            id:
+              clave,
 
             entrenamientoId:
               excepcion.entrenamiento_id,
@@ -466,9 +507,7 @@ function aplicarExcepciones(
         return;
       }
 
-      // ----------------------------------------------
-      // EXCEPCIÓN / ENTRENAMIENTO ADICIONAL
-      // ----------------------------------------------
+      // Entrenamiento adicional.
 
       const clave =
         `excepcion:${excepcion.id}:${excepcion.fecha}`;
@@ -476,9 +515,11 @@ function aplicarExcepciones(
       ocurrenciasPorClave.set(
         clave,
         {
-          id: clave,
+          id:
+            clave,
 
-          entrenamientoId: null,
+          entrenamientoId:
+            null,
 
           fecha:
             excepcion.fecha,
@@ -510,7 +551,9 @@ function aplicarExcepciones(
           segundo.fecha,
         );
 
-      if (fecha !== 0) {
+      if (
+        fecha !== 0
+      ) {
         return fecha;
       }
 
@@ -524,11 +567,13 @@ function aplicarExcepciones(
 }
 
 // ======================================================
-// ENTRENAMIENTO -> EVENTO PÚBLICO
+// ENTRENAMIENTO -> EVENTO
 // ======================================================
 
 function convertirEntrenamientoEvento(
-  entrenamiento: OcurrenciaEntrenamiento,
+  entrenamiento:
+    OcurrenciaEntrenamiento,
+
   instalaciones: Map<
     string,
     FilaInstalacion
@@ -545,10 +590,6 @@ function convertirEntrenamientoEvento(
     instalacion?.nombre_corto?.trim() ||
     instalacion?.nombre?.trim() ||
     null;
-
-  // --------------------------------------------------
-  // CANCELADO
-  // --------------------------------------------------
 
   if (
     entrenamiento.estado ===
@@ -578,13 +619,10 @@ function convertirEntrenamientoEvento(
       descripcion:
         entrenamiento.descripcion,
 
-      url: null,
+      url:
+        null,
     };
   }
-
-  // --------------------------------------------------
-  // MODIFICADO / ADICIONAL
-  // --------------------------------------------------
 
   if (
     entrenamiento.estado ===
@@ -616,13 +654,10 @@ function convertirEntrenamientoEvento(
       descripcion:
         entrenamiento.descripcion,
 
-      url: null,
+      url:
+        null,
     };
   }
-
-  // --------------------------------------------------
-  // HABITUAL
-  // --------------------------------------------------
 
   return {
     id:
@@ -648,69 +683,51 @@ function convertirEntrenamientoEvento(
     descripcion:
       entrenamiento.descripcion,
 
-    url: null,
+    url:
+      null,
   };
 }
 
 // ======================================================
-// CASA / FUERA DE PARTIDOS
+// CASA / FUERA
 // ======================================================
 
 function obtenerTipoPartido(
   partido: PartidoCombinado,
 ): TipoEventoEquipoPublico {
-  /**
-   * La detección se realiza exclusivamente
-   * mediante el campo del servicio central.
-   *
-   * Este campo ya contempla:
-   *
-   * - Código postal FBIB 07150.
-   * - Instalación corregida en Supabase.
-   * - Instalación de partidos manuales.
-   *
-   * No se consulta posicionEquipo.
-   */
-
-  if (partido.esEnCasa === true) {
+  if (
+    partido.esEnCasa ===
+    true
+  ) {
     return "partido-casa";
   }
 
-  if (partido.esEnCasa === false) {
+  if (
+    partido.esEnCasa ===
+    false
+  ) {
     return "partido-fuera";
   }
 
-  /**
-   * No etiquetar un partido como CASA
-   * o FUERA si no hay información
-   * suficiente para determinarlo.
-   *
-   * El tipo "evento" ya existe en
-   * el contrato público del calendario.
-   */
   return "evento";
 }
 
 // ======================================================
-// PARTIDO COMBINADO -> EVENTO PÚBLICO
+// PARTIDO -> EVENTO
 // ======================================================
 
 function convertirPartidoEvento(
   partido: PartidoCombinado,
 ): EventoCalendarioEquipoPublico | null {
-  if (!partido.fecha) {
+  if (
+    !partido.fecha
+  ) {
     return null;
   }
 
   const descripcionResultado =
     partido.resultado
-      ? (
-          `Resultado: ${
-            partido.resultado.local
-          } - ${
-            partido.resultado.visitante
-          }`
-        )
+      ? `Resultado: ${partido.resultado.local} - ${partido.resultado.visitante}`
       : null;
 
   const descripcionCompeticion = [
@@ -773,87 +790,15 @@ function convertirPartidoEvento(
 }
 
 // ======================================================
-// OBTENER CALENDARIO PÚBLICO DEL EQUIPO
+// CONSULTAR ENTRENAMIENTOS AUTORIZADOS
 // ======================================================
 
-export async function obtenerCalendarioEquipoPublico(
+async function obtenerEventosEntrenamientos(
   equipoId: string,
-  anio: number,
-  mes: number,
-): Promise<ResultadoCalendarioEquipoPublico> {
-  const id = equipoId.trim();
-
-  // --------------------------------------------------
-  // 1. VALIDAR PARÁMETROS
-  // --------------------------------------------------
-
-  if (!validarUuid(id)) {
-    throw new Error(
-      "El identificador del equipo no es válido.",
-    );
-  }
-
-  if (
-    !Number.isInteger(anio) ||
-    anio < 2020 ||
-    anio > 2100
-  ) {
-    throw new Error(
-      "El año solicitado no es válido.",
-    );
-  }
-
-  if (
-    !Number.isInteger(mes) ||
-    mes < 1 ||
-    mes > 12
-  ) {
-    throw new Error(
-      "El mes solicitado no es válido.",
-    );
-  }
-
-  // --------------------------------------------------
-  // 2. OBTENER EQUIPO
-  // --------------------------------------------------
-
-  const {
-    data: equipoEncontrado,
-    error: errorEquipo,
-  } = await supabaseServidor
-    .from("equipos")
-    .select(
-      "id, temporada_id, id_equipo_fbib",
-    )
-    .eq("id", id)
-    .eq("activo", true)
-    .maybeSingle();
-
-  if (errorEquipo) {
-    throw new Error(
-      `No se ha podido obtener el equipo: ${errorEquipo.message}`,
-    );
-  }
-
-  if (!equipoEncontrado) {
-    throw new Error(
-      "El equipo no existe o no está disponible.",
-    );
-  }
-
-  const equipo =
-    equipoEncontrado as FilaEquipo;
-
-  const rango =
-    obtenerRangoMes(
-      anio,
-      mes,
-    );
-
-  // --------------------------------------------------
-  // 3. ENTRENAMIENTOS Y EXCEPCIONES
-  // --------------------------------------------------
-
+  temporadaId: string | null,
+  inicio: string,
+  fin: string,
+): Promise<EventoCalendarioEquipoPublico[]> {
   const [
     resultadoEntrenamientos,
     resultadoExcepciones,
@@ -873,11 +818,11 @@ export async function obtenerCalendarioEquipoPublico(
       `)
       .eq(
         "equipo_id",
-        id,
+        equipoId,
       )
       .eq(
         "temporada_id",
-        equipo.temporada_id,
+        temporadaId,
       )
       .eq(
         "activo",
@@ -900,15 +845,15 @@ export async function obtenerCalendarioEquipoPublico(
       `)
       .eq(
         "equipo_id",
-        id,
+        equipoId,
       )
       .gte(
         "fecha",
-        rango.inicio,
+        inicio,
       )
       .lte(
         "fecha",
-        rango.fin,
+        fin,
       )
       .order(
         "fecha",
@@ -918,13 +863,17 @@ export async function obtenerCalendarioEquipoPublico(
       ),
   ]);
 
-  if (resultadoEntrenamientos.error) {
+  if (
+    resultadoEntrenamientos.error
+  ) {
     throw new Error(
       `No se han podido obtener los entrenamientos: ${resultadoEntrenamientos.error.message}`,
     );
   }
 
-  if (resultadoExcepciones.error) {
+  if (
+    resultadoExcepciones.error
+  ) {
     throw new Error(
       `No se han podido obtener las excepciones: ${resultadoExcepciones.error.message}`,
     );
@@ -942,24 +891,22 @@ export async function obtenerCalendarioEquipoPublico(
       []
     ) as FilaExcepcion[];
 
-  // --------------------------------------------------
-  // 4. GENERAR OCURRENCIAS DE ENTRENAMIENTOS
-  // --------------------------------------------------
+  // Generar entrenamientos habituales
+  // y aplicar modificaciones.
 
   const ocurrencias =
     aplicarExcepciones(
       generarEntrenamientosHabituales(
         entrenamientos,
-        rango.inicio,
-        rango.fin,
+        inicio,
+        fin,
       ),
       entrenamientos,
       excepciones,
     );
 
-  // --------------------------------------------------
-  // 5. INSTALACIONES DE ENTRENAMIENTOS
-  // --------------------------------------------------
+  // Consultar únicamente instalaciones
+  // utilizadas por los entrenamientos.
 
   const idsInstalaciones =
     Array.from(
@@ -981,7 +928,8 @@ export async function obtenerCalendarioEquipoPublico(
     );
 
   let instalaciones:
-    FilaInstalacion[] = [];
+    FilaInstalacion[] =
+    [];
 
   if (
     idsInstalaciones.length > 0
@@ -1021,31 +969,149 @@ export async function obtenerCalendarioEquipoPublico(
       ),
     );
 
+  return ocurrencias.map(
+    (entrenamiento) =>
+      convertirEntrenamientoEvento(
+        entrenamiento,
+        instalacionesPorId,
+      ),
+  );
+}
+
+// ======================================================
+// CALENDARIO DEL EQUIPO
+// ======================================================
+
+export async function obtenerCalendarioEquipoPublico(
+  equipoId: string,
+  anio: number,
+  mes: number,
+  opciones: OpcionesCalendarioEquipoPublico = {},
+): Promise<ResultadoCalendarioEquipoPublico> {
+  const id =
+    equipoId.trim();
+
   // --------------------------------------------------
-  // 6. OBTENER PARTIDOS UNIFICADOS
+  // 1. VALIDAR PARÁMETROS
   // --------------------------------------------------
 
-  /**
-   * IMPORTANTE:
+  if (
+    !validarUuid(id)
+  ) {
+    throw new Error(
+      "El identificador del equipo no es válido.",
+    );
+  }
+
+  if (
+    !Number.isInteger(anio) ||
+    anio < 2020 ||
+    anio > 2100
+  ) {
+    throw new Error(
+      "El año solicitado no es válido.",
+    );
+  }
+
+  if (
+    !Number.isInteger(mes) ||
+    mes < 1 ||
+    mes > 12
+  ) {
+    throw new Error(
+      "El mes solicitado no es válido.",
+    );
+  }
+
+  // --------------------------------------------------
+  // 2. CONTROL DE ACCESO
+  // --------------------------------------------------
+
+  /*
+   * Por defecto, los entrenamientos
+   * están restringidos.
    *
-   * No se consulta la FBIB directamente.
+   * Solo una ruta que haya comprobado
+   * la sesión del socio debe pasar
+   * incluirEntrenamientos: true.
    *
-   * El servicio central devuelve:
-   * - Partidos originales FBIB.
-   * - Correcciones de Supabase.
-   * - Partidos CBA manuales.
+   * Nunca utilizar un parámetro
+   * de URL para activar esta opción.
+   */
+
+  const incluirEntrenamientos =
+    opciones.incluirEntrenamientos ===
+    true;
+
+  // --------------------------------------------------
+  // 3. OBTENER EQUIPO
+  // --------------------------------------------------
+
+  const {
+    data: equipoEncontrado,
+    error: errorEquipo,
+  } = await supabaseServidor
+    .from("equipos")
+    .select(
+      "id, temporada_id, id_equipo_fbib",
+    )
+    .eq(
+      "id",
+      id,
+    )
+    .eq(
+      "activo",
+      true,
+    )
+    .maybeSingle();
+
+  if (
+    errorEquipo
+  ) {
+    throw new Error(
+      `No se ha podido obtener el equipo: ${errorEquipo.message}`,
+    );
+  }
+
+  if (
+    !equipoEncontrado
+  ) {
+    throw new Error(
+      "El equipo no existe o no está disponible.",
+    );
+  }
+
+  const equipo =
+    equipoEncontrado as FilaEquipo;
+
+  const rango =
+    obtenerRangoMes(
+      anio,
+      mes,
+    );
+
+  // --------------------------------------------------
+  // 4. CONSULTAR PARTIDOS
+  // --------------------------------------------------
+
+  /*
+   * Los partidos son públicos.
    *
-   * Incluye equipos sin vinculación FBIB
-   * que tengan partidos manuales.
+   * Se utiliza el servicio central:
+   * - Partidos FBIB.
+   * - Correcciones en Supabase.
+   * - Partidos manuales CBA.
    */
 
   let partidos:
-    PartidoCombinado[] = [];
+    PartidoCombinado[] =
+    [];
 
   try {
     const resultadoPartidos =
       await obtenerPartidosCombinados({
-        equipoId: id,
+        equipoId:
+          id,
 
         inicio:
           rango.inicio,
@@ -1057,13 +1123,6 @@ export async function obtenerCalendarioEquipoPublico(
     partidos =
       resultadoPartidos.partidos;
   } catch (error) {
-    /**
-     * Se mantiene el criterio original:
-     * un error al cargar partidos no
-     * debe impedir que se muestren
-     * los entrenamientos del equipo.
-     */
-
     console.error(
       `[CALENDARIO EQUIPO] Error cargando partidos del equipo ${id}:`,
       error,
@@ -1071,20 +1130,27 @@ export async function obtenerCalendarioEquipoPublico(
   }
 
   // --------------------------------------------------
-  // 7. ENTRENAMIENTOS -> EVENTOS
+  // 5. CONSULTAR ENTRENAMIENTOS
   // --------------------------------------------------
 
-  const eventosEntrenamientos =
-    ocurrencias.map(
-      (entrenamiento) =>
-        convertirEntrenamientoEvento(
-          entrenamiento,
-          instalacionesPorId,
-        ),
-    );
+  let eventosEntrenamientos:
+    EventoCalendarioEquipoPublico[] =
+    [];
+
+  if (
+    incluirEntrenamientos
+  ) {
+    eventosEntrenamientos =
+      await obtenerEventosEntrenamientos(
+        id,
+        equipo.temporada_id,
+        rango.inicio,
+        rango.fin,
+      );
+  }
 
   // --------------------------------------------------
-  // 8. PARTIDOS -> EVENTOS
+  // 6. CONVERTIR PARTIDOS A EVENTOS
   // --------------------------------------------------
 
   const eventosPartidos =
@@ -1104,7 +1170,7 @@ export async function obtenerCalendarioEquipoPublico(
     );
 
   // --------------------------------------------------
-  // 9. UNIFICAR Y ORDENAR EVENTOS
+  // 7. UNIFICAR Y ORDENAR
   // --------------------------------------------------
 
   const eventos = [
@@ -1117,7 +1183,9 @@ export async function obtenerCalendarioEquipoPublico(
           segundo.fecha,
         );
 
-      if (fecha !== 0) {
+      if (
+        fecha !== 0
+      ) {
         return fecha;
       }
 
@@ -1130,7 +1198,7 @@ export async function obtenerCalendarioEquipoPublico(
   );
 
   // --------------------------------------------------
-  // 10. RESPUESTA PÚBLICA
+  // 8. DEVOLVER RESULTADO
   // --------------------------------------------------
 
   return {

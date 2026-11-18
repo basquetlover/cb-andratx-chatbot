@@ -13,11 +13,11 @@ import type {
   PartidoCombinado,
 } from "@servicios/backend/partidos/obtenerPartidosCombinados";
 
-export const prerender = false;
+import {
+  comprobarAccesoSocio,
+} from "@servicios/backend/socios/comprobarAccesoSocio";
 
-// ======================================================
-// TIPOS PÚBLICOS DEL CALENDARIO
-// ======================================================
+export const prerender = false;
 
 type TipoEventoCalendario =
   | "evento"
@@ -51,10 +51,6 @@ interface EventoCalendarioClub {
   alcance?: AlcanceEventoCalendario;
   equiposIds?: string[];
 }
-
-// ======================================================
-// TIPOS DE BASE DE DATOS
-// ======================================================
 
 interface FilaTemporada {
   id: string;
@@ -116,34 +112,24 @@ interface FilaEvento {
   descripcion_corta: string | null;
   descripcion: string | null;
   tipo: string | null;
-
-  alcance:
-    | "todo-club"
-    | "equipos"
-    | null;
-
+  alcance: "todo-club" | "equipos" | null;
   fecha_inicio: string | null;
   fecha_fin: string | null;
   hora_inicio: string | null;
   hora_fin: string | null;
   todo_el_dia: boolean | null;
-
   instalacion_id: string | null;
   ubicacion: string | null;
   direccion: string | null;
-
   imagen: string | null;
   banner_notificacion: string | null;
   url_informacion: string | null;
   url_inscripcion: string | null;
-
   requiere_inscripcion: boolean | null;
   destacado: boolean | null;
   mostrar_calendario: boolean | null;
   estado: string | null;
-
-  eventos_equipos:
-    FilaRelacionEventoEquipo[] | null;
+  eventos_equipos: FilaRelacionEventoEquipo[] | null;
 }
 
 interface OcurrenciaEntrenamiento {
@@ -156,31 +142,18 @@ interface OcurrenciaEntrenamiento {
   horaFin: string | null;
   observaciones: string | null;
   motivo: string | null;
-
-  estado:
-    | "normal"
-    | "modificado"
-    | "cancelado";
+  estado: "normal" | "modificado" | "cancelado";
 }
-
-// ======================================================
-// CONFIGURACIÓN
-// ======================================================
 
 const cabecerasJson = {
   "Cache-Control":
-    "public, max-age=60, s-maxage=300, stale-while-revalidate=300",
-
-  "Content-Type":
-    "application/json; charset=utf-8",
-
-  "X-Content-Type-Options":
-    "nosniff",
+    "private, no-store, no-cache, must-revalidate, max-age=0",
+  "Pragma": "no-cache",
+  "Expires": "0",
+  "Vary": "Cookie",
+  "Content-Type": "application/json; charset=utf-8",
+  "X-Content-Type-Options": "nosniff",
 };
-
-// ======================================================
-// RESPUESTAS DE ERROR
-// ======================================================
 
 function respuestaError(
   error: string,
@@ -199,17 +172,8 @@ function respuestaError(
   );
 }
 
-// ======================================================
-// UTILIDADES DE FECHAS
-// ======================================================
-
-function rellenarNumero(
-  numero: number,
-): string {
-  return String(numero).padStart(
-    2,
-    "0",
-  );
+function rellenarNumero(numero: number): string {
+  return String(numero).padStart(2, "0");
 }
 
 function crearFechaIso(
@@ -217,36 +181,15 @@ function crearFechaIso(
   mes: number,
   dia: number,
 ): string {
-  return (
-    `${anio}-` +
-    `${rellenarNumero(mes)}-` +
-    rellenarNumero(dia)
-  );
+  return `${anio}-${rellenarNumero(mes)}-${rellenarNumero(dia)}`;
 }
 
-function convertirFechaUtc(
-  fecha: string,
-): Date {
-  const [
-    anio,
-    mes,
-    dia,
-  ] = fecha
-    .split("-")
-    .map(Number);
-
-  return new Date(
-    Date.UTC(
-      anio,
-      mes - 1,
-      dia,
-    ),
-  );
+function convertirFechaUtc(fecha: string): Date {
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  return new Date(Date.UTC(anio, mes - 1, dia));
 }
 
-function convertirDateAFechaIso(
-  fecha: Date,
-): string {
+function convertirDateAFechaIso(fecha: Date): string {
   return crearFechaIso(
     fecha.getUTCFullYear(),
     fecha.getUTCMonth() + 1,
@@ -254,115 +197,64 @@ function convertirDateAFechaIso(
   );
 }
 
-function sumarDias(
-  fecha: Date,
-  dias: number,
-): Date {
-  const resultado =
-    new Date(fecha);
-
-  resultado.setUTCDate(
-    resultado.getUTCDate() + dias,
-  );
-
+function sumarDias(fecha: Date, dias: number): Date {
+  const resultado = new Date(fecha);
+  resultado.setUTCDate(resultado.getUTCDate() + dias);
   return resultado;
 }
 
 function obtenerRangoMes(
   anio: number,
   mes: number,
-): {
-  inicio: string;
-  fin: string;
-} {
-  const ultimoDia =
-    new Date(
-      Date.UTC(
-        anio,
-        mes,
-        0,
-      ),
-    ).getUTCDate();
+): { inicio: string; fin: string } {
+  const ultimoDia = new Date(
+    Date.UTC(anio, mes, 0),
+  ).getUTCDate();
 
   return {
-    inicio:
-      crearFechaIso(
-        anio,
-        mes,
-        1,
-      ),
-
-    fin:
-      crearFechaIso(
-        anio,
-        mes,
-        ultimoDia,
-      ),
+    inicio: crearFechaIso(anio, mes, 1),
+    fin: crearFechaIso(anio, mes, ultimoDia),
   };
 }
 
-function obtenerDiaSemanaIso(
-  fecha: string,
-): number {
-  const dia =
-    convertirFechaUtc(
-      fecha,
-    ).getUTCDay();
-
-  return dia === 0
-    ? 7
-    : dia;
+function obtenerDiaSemanaIso(fecha: string): number {
+  const dia = convertirFechaUtc(fecha).getUTCDay();
+  return dia === 0 ? 7 : dia;
 }
 
 function normalizarHora(
   hora: string | null | undefined,
 ): string | null {
-  if (
-    typeof hora !== "string"
-  ) {
+  if (typeof hora !== "string") {
     return null;
   }
 
-  const coincidencia =
-    hora
-      .trim()
-      .match(
-        /^(\d{1,2}):(\d{2})/,
-      );
+  const coincidencia = hora
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})/);
 
   if (!coincidencia) {
     return null;
   }
 
-  return (
-    `${rellenarNumero(
-      Number(coincidencia[1]),
-    )}:${coincidencia[2]}`
-  );
+  return `${rellenarNumero(
+    Number(coincidencia[1]),
+  )}:${coincidencia[2]}`;
 }
 
-function normalizarTexto(
-  valor: unknown,
-): string {
-  if (
-    typeof valor !== "string"
-  ) {
+function normalizarTexto(valor: unknown): string {
+  if (typeof valor !== "string") {
     return "";
   }
 
   return valor
     .normalize("NFD")
-    .replace(
-      /[\u0300-\u036f]/g,
-      "",
-    )
+    .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
 }
 
-function obtenerNombreEquipo(
-  equipo: FilaEquipo,
-): string {
+function obtenerNombreEquipo(equipo: FilaEquipo): string {
   return (
     equipo.nombre?.trim() ||
     equipo.nombre_corto?.trim() ||
@@ -370,37 +262,24 @@ function obtenerNombreEquipo(
   );
 }
 
-// ======================================================
-// ENTRENAMIENTOS: COMPROBACIONES
-// ======================================================
-
 function fechaPertenecePeriodo(
   fecha: string,
   fechaInicio: string | null,
   fechaFin: string | null,
 ): boolean {
-  if (
-    fechaInicio &&
-    fecha < fechaInicio
-  ) {
+  if (fechaInicio && fecha < fechaInicio) {
     return false;
   }
 
-  if (
-    fechaFin &&
-    fecha > fechaFin
-  ) {
+  if (fechaFin && fecha > fechaFin) {
     return false;
   }
 
   return true;
 }
 
-function esTipoCancelacion(
-  tipo: string | null,
-): boolean {
-  const valor =
-    normalizarTexto(tipo);
+function esTipoCancelacion(tipo: string | null): boolean {
+  const valor = normalizarTexto(tipo);
 
   return (
     valor.includes("cancel") ||
@@ -409,11 +288,8 @@ function esTipoCancelacion(
   );
 }
 
-function esTipoExtra(
-  tipo: string | null,
-): boolean {
-  const valor =
-    normalizarTexto(tipo);
+function esTipoExtra(tipo: string | null): boolean {
+  const valor = normalizarTexto(tipo);
 
   return (
     valor.includes("extra") ||
@@ -427,284 +303,144 @@ function crearClaveOcurrencia(
   entrenamientoId: string,
   fecha: string,
 ): string {
-  return [
-    equipoId,
-    entrenamientoId,
-    fecha,
-  ].join(":");
+  return [equipoId, entrenamientoId, fecha].join(":");
 }
 
-// ======================================================
-// GENERAR ENTRENAMIENTOS HABITUALES
-// ======================================================
-
 function generarOcurrenciasHabituales(
-  entrenamientos:
-    FilaEntrenamiento[],
-
+  entrenamientos: FilaEntrenamiento[],
   inicio: string,
   fin: string,
-): Map<
-  string,
-  OcurrenciaEntrenamiento
-> {
+): Map<string, OcurrenciaEntrenamiento> {
   const ocurrencias =
-    new Map<
-      string,
-      OcurrenciaEntrenamiento
-    >();
+    new Map<string, OcurrenciaEntrenamiento>();
 
-  entrenamientos.forEach(
-    (entrenamiento) => {
+  entrenamientos.forEach((entrenamiento) => {
+    if (
+      !entrenamiento.equipo_id ||
+      !entrenamiento.id ||
+      !entrenamiento.dia_semana
+    ) {
+      return;
+    }
+
+    let fechaActual = convertirFechaUtc(inicio);
+    const fechaFinal = convertirFechaUtc(fin);
+
+    while (fechaActual <= fechaFinal) {
+      const fecha = convertirDateAFechaIso(fechaActual);
+
       if (
-        !entrenamiento.equipo_id ||
-        !entrenamiento.id ||
-        !entrenamiento.dia_semana
+        obtenerDiaSemanaIso(fecha) ===
+          entrenamiento.dia_semana &&
+        fechaPertenecePeriodo(
+          fecha,
+          entrenamiento.fecha_inicio,
+          entrenamiento.fecha_fin,
+        )
       ) {
-        return;
+        const clave = crearClaveOcurrencia(
+          entrenamiento.equipo_id,
+          entrenamiento.id,
+          fecha,
+        );
+
+        ocurrencias.set(clave, {
+          id: `entrenamiento-${entrenamiento.id}-${fecha}`,
+          equipoId: entrenamiento.equipo_id,
+          entrenamientoId: entrenamiento.id,
+          instalacionId: entrenamiento.instalacion_id,
+          fecha,
+          horaInicio: normalizarHora(
+            entrenamiento.hora_inicio,
+          ),
+          horaFin: normalizarHora(
+            entrenamiento.hora_fin,
+          ),
+          observaciones: entrenamiento.observaciones,
+          motivo: null,
+          estado: "normal",
+        });
       }
 
-      let fechaActual =
-        convertirFechaUtc(
-          inicio,
-        );
-
-      const fechaFinal =
-        convertirFechaUtc(
-          fin,
-        );
-
-      while (
-        fechaActual <=
-        fechaFinal
-      ) {
-        const fecha =
-          convertirDateAFechaIso(
-            fechaActual,
-          );
-
-        if (
-          obtenerDiaSemanaIso(
-            fecha,
-          ) ===
-            entrenamiento.dia_semana &&
-          fechaPertenecePeriodo(
-            fecha,
-            entrenamiento.fecha_inicio,
-            entrenamiento.fecha_fin,
-          )
-        ) {
-          const clave =
-            crearClaveOcurrencia(
-              entrenamiento.equipo_id,
-              entrenamiento.id,
-              fecha,
-            );
-
-          ocurrencias.set(
-            clave,
-            {
-              id:
-                `entrenamiento-${entrenamiento.id}-${fecha}`,
-
-              equipoId:
-                entrenamiento.equipo_id,
-
-              entrenamientoId:
-                entrenamiento.id,
-
-              instalacionId:
-                entrenamiento.instalacion_id,
-
-              fecha,
-
-              horaInicio:
-                normalizarHora(
-                  entrenamiento.hora_inicio,
-                ),
-
-              horaFin:
-                normalizarHora(
-                  entrenamiento.hora_fin,
-                ),
-
-              observaciones:
-                entrenamiento.observaciones,
-
-              motivo: null,
-
-              estado: "normal",
-            },
-          );
-        }
-
-        fechaActual = sumarDias(
-          fechaActual,
-          1,
-        );
-      }
-    },
-  );
+      fechaActual = sumarDias(fechaActual, 1);
+    }
+  });
 
   return ocurrencias;
 }
 
-// ======================================================
-// APLICAR EXCEPCIONES DE ENTRENAMIENTOS
-// ======================================================
-
 function aplicarExcepciones(
-  ocurrencias: Map<
-    string,
-    OcurrenciaEntrenamiento
-  >,
-
-  entrenamientos:
-    FilaEntrenamiento[],
-
-  excepciones:
-    FilaExcepcion[],
+  ocurrencias: Map<string, OcurrenciaEntrenamiento>,
+  entrenamientos: FilaEntrenamiento[],
+  excepciones: FilaExcepcion[],
 ): OcurrenciaEntrenamiento[] {
-  const entrenamientosPorId =
-    new Map(
-      entrenamientos.map(
-        (entrenamiento) => [
-          entrenamiento.id,
-          entrenamiento,
-        ],
-      ),
-    );
-
-  const extras:
-    OcurrenciaEntrenamiento[] =
-    [];
-
-  excepciones.forEach(
-    (excepcion) => {
-      if (
-        !excepcion.id ||
-        !excepcion.equipo_id ||
-        !excepcion.fecha
-      ) {
-        return;
-      }
-
-      const entrenamientoBase =
-        excepcion.entrenamiento_id
-          ? entrenamientosPorId.get(
-              excepcion.entrenamiento_id,
-            )
-          : undefined;
-
-      const cancelada =
-        esTipoCancelacion(
-          excepcion.tipo,
-        );
-
-      const extra =
-        esTipoExtra(
-          excepcion.tipo,
-        );
-
-      const ocurrenciaExcepcion:
-        OcurrenciaEntrenamiento = {
-        id:
-          `excepcion-${excepcion.id}`,
-
-        equipoId:
-          excepcion.equipo_id,
-
-        entrenamientoId:
-          excepcion.entrenamiento_id,
-
-        instalacionId:
-          excepcion.instalacion_id ??
-          entrenamientoBase
-            ?.instalacion_id ??
-          null,
-
-        fecha:
-          excepcion.fecha,
-
-        horaInicio:
-          normalizarHora(
-            excepcion.hora_inicio,
-          ) ??
-          normalizarHora(
-            entrenamientoBase
-              ?.hora_inicio,
-          ),
-
-        horaFin:
-          normalizarHora(
-            excepcion.hora_fin,
-          ) ??
-          normalizarHora(
-            entrenamientoBase
-              ?.hora_fin,
-          ),
-
-        observaciones:
-          entrenamientoBase
-            ?.observaciones ??
-          null,
-
-        motivo:
-          excepcion.motivo,
-
-        estado:
-          cancelada
-            ? "cancelado"
-            : "modificado",
-      };
-
-      if (
-        extra ||
-        !excepcion.entrenamiento_id
-      ) {
-        extras.push(
-          ocurrenciaExcepcion,
-        );
-
-        return;
-      }
-
-      const clave =
-        crearClaveOcurrencia(
-          excepcion.equipo_id,
-          excepcion.entrenamiento_id,
-          excepcion.fecha,
-        );
-
-      /*
-       * La excepción sustituye
-       * al entrenamiento habitual.
-       *
-       * Los entrenamientos cancelados
-       * se mantienen visibles.
-       */
-
-      ocurrencias.set(
-        clave,
-        ocurrenciaExcepcion,
-      );
-    },
+  const entrenamientosPorId = new Map(
+    entrenamientos.map(
+      (entrenamiento) => [
+        entrenamiento.id,
+        entrenamiento,
+      ],
+    ),
   );
 
-  return [
-    ...ocurrencias.values(),
-    ...extras,
-  ];
+  const extras: OcurrenciaEntrenamiento[] = [];
+
+  excepciones.forEach((excepcion) => {
+    if (
+      !excepcion.id ||
+      !excepcion.equipo_id ||
+      !excepcion.fecha
+    ) {
+      return;
+    }
+
+    const entrenamientoBase = excepcion.entrenamiento_id
+      ? entrenamientosPorId.get(excepcion.entrenamiento_id)
+      : undefined;
+
+    const cancelada = esTipoCancelacion(excepcion.tipo);
+    const extra = esTipoExtra(excepcion.tipo);
+
+    const ocurrenciaExcepcion: OcurrenciaEntrenamiento = {
+      id: `excepcion-${excepcion.id}`,
+      equipoId: excepcion.equipo_id,
+      entrenamientoId: excepcion.entrenamiento_id,
+      instalacionId:
+        excepcion.instalacion_id ??
+        entrenamientoBase?.instalacion_id ??
+        null,
+      fecha: excepcion.fecha,
+      horaInicio:
+        normalizarHora(excepcion.hora_inicio) ??
+        normalizarHora(entrenamientoBase?.hora_inicio),
+      horaFin:
+        normalizarHora(excepcion.hora_fin) ??
+        normalizarHora(entrenamientoBase?.hora_fin),
+      observaciones:
+        entrenamientoBase?.observaciones ?? null,
+      motivo: excepcion.motivo,
+      estado: cancelada ? "cancelado" : "modificado",
+    };
+
+    if (extra || !excepcion.entrenamiento_id) {
+      extras.push(ocurrenciaExcepcion);
+      return;
+    }
+
+    const clave = crearClaveOcurrencia(
+      excepcion.equipo_id,
+      excepcion.entrenamiento_id,
+      excepcion.fecha,
+    );
+
+    ocurrencias.set(clave, ocurrenciaExcepcion);
+  });
+
+  return [...ocurrencias.values(), ...extras];
 }
 
-// ======================================================
-// UBICACIÓN DE ENTRENAMIENTOS
-// ======================================================
-
 function obtenerUbicacion(
-  instalacion:
-    | FilaInstalacion
-    | undefined,
+  instalacion: FilaInstalacion | undefined,
 ): string | null {
   if (!instalacion) {
     return null;
@@ -714,530 +450,275 @@ function obtenerUbicacion(
     instalacion.nombre?.trim() ||
     instalacion.nombre_corto?.trim();
 
-  const localidad =
-    instalacion.localidad?.trim();
+  const localidad = instalacion.localidad?.trim();
 
-  if (
-    nombre &&
-    localidad
-  ) {
+  if (nombre && localidad) {
     return `${nombre}, ${localidad}`;
   }
 
-  return (
-    nombre ??
-    localidad ??
-    null
-  );
+  return nombre ?? localidad ?? null;
 }
-
-// ======================================================
-// ENTRENAMIENTOS -> EVENTOS DEL CALENDARIO
-// ======================================================
 
 function convertirEntrenamientosAEventos(
-  ocurrencias:
-    OcurrenciaEntrenamiento[],
-
-  equiposPorId: Map<
-    string,
-    FilaEquipo
-  >,
-
-  instalacionesPorId: Map<
-    string,
-    FilaInstalacion
-  >,
+  ocurrencias: OcurrenciaEntrenamiento[],
+  equiposPorId: Map<string, FilaEquipo>,
+  instalacionesPorId: Map<string, FilaInstalacion>,
 ): EventoCalendarioClub[] {
-  return ocurrencias.flatMap(
-    (ocurrencia) => {
-      const equipo =
-        equiposPorId.get(
-          ocurrencia.equipoId,
-        );
+  return ocurrencias.flatMap((ocurrencia) => {
+    const equipo = equiposPorId.get(ocurrencia.equipoId);
 
-      if (!equipo) {
-        return [];
-      }
+    if (!equipo) {
+      return [];
+    }
 
-      const nombreEquipo =
-        obtenerNombreEquipo(
-          equipo,
-        );
+    const nombreEquipo = obtenerNombreEquipo(equipo);
 
-      const instalacion =
-        ocurrencia.instalacionId
-          ? instalacionesPorId.get(
-              ocurrencia.instalacionId,
-            )
-          : undefined;
+    const instalacion = ocurrencia.instalacionId
+      ? instalacionesPorId.get(ocurrencia.instalacionId)
+      : undefined;
 
-      let tipo:
-        TipoEventoCalendario =
-        "entreno";
+    let tipo: TipoEventoCalendario = "entreno";
+    let titulo = `Entrenamiento · ${nombreEquipo}`;
 
-      let titulo =
-        `Entrenamiento · ${nombreEquipo}`;
+    if (ocurrencia.estado === "modificado") {
+      tipo = "entreno-modificado";
+      titulo = `Entrenamiento modificado · ${nombreEquipo}`;
+    }
 
-      if (
-        ocurrencia.estado ===
-        "modificado"
-      ) {
-        tipo =
-          "entreno-modificado";
+    if (ocurrencia.estado === "cancelado") {
+      tipo = "entreno-cancelado";
+      titulo = `Entrenamiento cancelado · ${nombreEquipo}`;
+    }
 
-        titulo =
-          `Entrenamiento modificado · ${nombreEquipo}`;
-      }
+    const descripcion = [
+      ocurrencia.motivo,
+      ocurrencia.observaciones,
+    ]
+      .filter(
+        (valor): valor is string =>
+          typeof valor === "string" &&
+          valor.trim().length > 0,
+      )
+      .join(" · ");
 
-      if (
-        ocurrencia.estado ===
-        "cancelado"
-      ) {
-        tipo =
-          "entreno-cancelado";
-
-        titulo =
-          `Entrenamiento cancelado · ${nombreEquipo}`;
-      }
-
-      const descripcion = [
-        ocurrencia.motivo,
-        ocurrencia.observaciones,
-      ]
-        .filter(
-          (
-            valor,
-          ): valor is string =>
-            typeof valor ===
-              "string" &&
-            valor.trim().length >
-              0,
-        )
-        .join(" · ");
-
-      return [
-        {
-          id:
-            ocurrencia.id,
-
-          titulo,
-
-          fecha:
-            ocurrencia.fecha,
-
-          tipo,
-
-          horaInicio:
-            ocurrencia.horaInicio,
-
-          horaFin:
-            ocurrencia.horaFin,
-
-          ubicacion:
-            obtenerUbicacion(
-              instalacion,
-            ),
-
-          descripcion:
-            descripcion || null,
-
-          categoria:
-            equipo.categoria,
-
-          url:
-            equipo.slug?.trim()
-              ? `/equipos/${encodeURIComponent(
-                  equipo.slug.trim(),
-                )}`
-              : null,
-
-          equipoId:
-            equipo.id,
-
-          equipoNombre:
-            nombreEquipo,
-
-          alcance:
-            "equipo" as const,
-
-          equiposIds: [
-            equipo.id,
-          ],
-        },
-      ];
-    },
-  );
+    return [
+      {
+        id: ocurrencia.id,
+        titulo,
+        fecha: ocurrencia.fecha,
+        tipo,
+        horaInicio: ocurrencia.horaInicio,
+        horaFin: ocurrencia.horaFin,
+        ubicacion: obtenerUbicacion(instalacion),
+        descripcion: descripcion || null,
+        categoria: equipo.categoria,
+        url: equipo.slug?.trim()
+          ? `/equipos/${encodeURIComponent(
+              equipo.slug.trim(),
+            )}`
+          : null,
+        equipoId: equipo.id,
+        equipoNombre: nombreEquipo,
+        alcance: "equipo" as const,
+        equiposIds: [equipo.id],
+      },
+    ];
+  });
 }
-
-// ======================================================
-// PARTIDOS: FUENTE ÚNICA FBIB + CBA
-// ======================================================
 
 function convertirPartidosAEventos(
   partidos: PartidoCombinado[],
-
-  equiposPorId: Map<
-    string,
-    FilaEquipo
-  >,
+  equiposPorId: Map<string, FilaEquipo>,
 ): EventoCalendarioClub[] {
-  return partidos.flatMap(
-    (partido) => {
-      if (!partido.fecha) {
-        return [];
-      }
+  return partidos.flatMap((partido) => {
+    if (!partido.fecha) {
+      return [];
+    }
 
-      // ----------------------------------------------
-      // 1. EQUIPOS DEL CLUB PARTICIPANTES
-      // ----------------------------------------------
+    const equiposIds = Array.from(
+      new Set(
+        partido.equiposIdsClub.filter(
+          (id) => equiposPorId.has(id),
+        ),
+      ),
+    );
 
-      /*
-       * Se crea UN evento por partido.
-       *
-       * Si hay dos equipos del CBA
-       * en el mismo encuentro, se
-       * conservan ambos identificadores.
-       *
-       * No se generan dos eventos
-       * diferentes del mismo partido.
-       */
+    if (equiposIds.length === 0) {
+      return [];
+    }
 
-      const equiposIds =
-        Array.from(
-          new Set(
-            partido.equiposIdsClub.filter(
-              (id) =>
-                equiposPorId.has(
-                  id,
-                ),
-            ),
-          ),
-        );
+    const idEquipoPrincipal =
+      partido.equipoIdClub &&
+      equiposIds.includes(partido.equipoIdClub)
+        ? partido.equipoIdClub
+        : equiposIds[0];
 
-      if (
-        equiposIds.length === 0
-      ) {
-        return [];
-      }
+    const equipoPrincipal = equiposPorId.get(
+      idEquipoPrincipal,
+    );
 
-      const idEquipoPrincipal =
-        partido.equipoIdClub &&
-        equiposIds.includes(
-          partido.equipoIdClub,
-        )
-          ? partido.equipoIdClub
-          : equiposIds[0];
+    if (!equipoPrincipal) {
+      return [];
+    }
 
-      const equipoPrincipal =
-        equiposPorId.get(
-          idEquipoPrincipal,
-        );
+    const nombreEquipo = obtenerNombreEquipo(
+      equipoPrincipal,
+    );
 
-      if (!equipoPrincipal) {
-        return [];
-      }
+    const tipo: TipoEventoCalendario =
+      partido.esEnCasa === true
+        ? "partido-casa"
+        : partido.esEnCasa === false
+          ? "partido-fuera"
+          : "evento";
 
-      const nombreEquipo =
-        obtenerNombreEquipo(
-          equipoPrincipal,
-        );
+    const descripcionResultado = partido.resultado
+      ? `Resultado: ${partido.resultado.local} – ${partido.resultado.visitante}`
+      : null;
 
-      // ----------------------------------------------
-      // 2. CASA / FUERA
-      // ----------------------------------------------
+    let descripcionJornada: string | null = null;
 
-      /*
-       * Nunca se calcula CASA/FUERA
-       * a partir de la posición
-       * local/visitante.
-       *
-       * Lo calcula el servicio central
-       * según la instalación.
-       */
+    if (partido.jornadaTexto) {
+      const texto = partido.jornadaTexto.trim();
 
-      const tipo:
-        TipoEventoCalendario =
-        partido.esEnCasa === true
-          ? "partido-casa"
-          : partido.esEnCasa === false
-            ? "partido-fuera"
-            : "evento";
+      descripcionJornada = /^(jornada|j\.)\b/i.test(texto)
+        ? texto
+        : `Jornada ${texto}`;
+    } else if (partido.jornada !== null) {
+      descripcionJornada = `Jornada ${partido.jornada}`;
+    }
 
-      // ----------------------------------------------
-      // 3. RESULTADO
-      // ----------------------------------------------
+    const descripcion = [
+      descripcionResultado,
+      partido.competicion,
+      partido.grupo,
+      descripcionJornada,
+      partido.estadoPortada === "aplazado"
+        ? "Partido aplazado"
+        : null,
+      partido.esEnCasa === null
+        ? "Casa/fuera por confirmar"
+        : null,
+    ]
+      .filter(
+        (valor): valor is string =>
+          typeof valor === "string" &&
+          valor.trim().length > 0,
+      )
+      .join(" · ");
 
-      const descripcionResultado =
-        partido.resultado
-          ? (
-              `Resultado: ${
-                partido.resultado.local
-              } – ${
-                partido.resultado.visitante
-              }`
-            )
-          : null;
-
-      // ----------------------------------------------
-      // 4. JORNADA
-      // ----------------------------------------------
-
-      let descripcionJornada:
-        string | null = null;
-
-      if (
-        partido.jornadaTexto
-      ) {
-        const texto =
-          partido.jornadaTexto.trim();
-
-        descripcionJornada =
-          /^(jornada|j\.)\b/i.test(
-            texto,
-          )
-            ? texto
-            : `Jornada ${texto}`;
-      } else if (
-        partido.jornada !== null
-      ) {
-        descripcionJornada =
-          `Jornada ${partido.jornada}`;
-      }
-
-      // ----------------------------------------------
-      // 5. DESCRIPCIÓN
-      // ----------------------------------------------
-
-      const descripcion = [
-        descripcionResultado,
-
-        partido.competicion,
-
-        partido.grupo,
-
-        descripcionJornada,
-
-        partido.estadoPortada ===
-        "aplazado"
-          ? "Partido aplazado"
-          : null,
-
-        partido.esEnCasa === null
-          ? "Casa/fuera por confirmar"
-          : null,
-      ]
-        .filter(
-          (
-            valor,
-          ): valor is string =>
-            typeof valor ===
-              "string" &&
-            valor.trim().length >
-              0,
-        )
-        .join(" · ");
-
-      // ----------------------------------------------
-      // 6. EVENTO PÚBLICO
-      // ----------------------------------------------
-
-      return [
-        {
-          id:
-            partido.id,
-
-          titulo:
-            `${partido.local.nombre} – ${partido.visitante.nombre}`,
-
-          fecha:
-            partido.fecha,
-
-          tipo,
-
-          horaInicio:
-            partido.hora,
-
-          horaFin:
-            null,
-
-          ubicacion:
-            partido.ubicacion ??
-            partido.campo ??
-            partido.localidad,
-
-          descripcion:
-            descripcion || null,
-
-          categoria:
-            partido.categoria ??
-            equipoPrincipal.categoria,
-
-          url:
-            partido.enlaceFbib,
-
-          equipoId:
-            equipoPrincipal.id,
-
-          equipoNombre:
-            nombreEquipo,
-
-          alcance:
-            "equipo" as const,
-
-          equiposIds,
-        },
-      ];
-    },
-  );
+    return [
+      {
+        id: partido.id,
+        titulo:
+          `${partido.local.nombre} – ${partido.visitante.nombre}`,
+        fecha: partido.fecha,
+        tipo,
+        horaInicio: partido.hora,
+        horaFin: null,
+        ubicacion:
+          partido.ubicacion ??
+          partido.campo ??
+          partido.localidad,
+        descripcion: descripcion || null,
+        categoria:
+          partido.categoria ??
+          equipoPrincipal.categoria,
+        url: partido.enlaceFbib,
+        equipoId: equipoPrincipal.id,
+        equipoNombre: nombreEquipo,
+        alcance: "equipo" as const,
+        equiposIds,
+      },
+    ];
+  });
 }
-
-// ======================================================
-// EVENTOS GENERALES DEL CLUB
-// ======================================================
 
 function convertirEventosTabla(
   filas: FilaEvento[],
 ): EventoCalendarioClub[] {
-  return filas.flatMap(
-    (fila) => {
-      const titulo =
-        fila.titulo?.trim();
+  return filas.flatMap((fila) => {
+    const titulo = fila.titulo?.trim();
+    const fechaInicio = fila.fecha_inicio?.trim();
 
-      const fechaInicio =
-        fila.fecha_inicio?.trim();
+    if (!fila.id || !titulo || !fechaInicio) {
+      return [];
+    }
 
-      if (
-        !fila.id ||
-        !titulo ||
-        !fechaInicio
-      ) {
-        return [];
-      }
+    const fechaFin = fila.fecha_fin?.trim() || fechaInicio;
 
-      const fechaFin =
-        fila.fecha_fin?.trim() ||
-        fechaInicio;
+    const alcance =
+      fila.alcance === "equipos"
+        ? "equipos"
+        : "todo-club";
 
-      const alcance =
-        fila.alcance ===
-        "equipos"
-          ? "equipos"
-          : "todo-club";
-
-      const equiposIds =
-        alcance === "equipos"
-          ? Array.from(
-              new Set(
-                (
-                  fila.eventos_equipos ??
-                  []
-                ).flatMap(
-                  (relacion) =>
-                    relacion.equipo_id
-                      ? [
-                          relacion.equipo_id,
-                        ]
-                      : [],
-                ),
+    const equiposIds =
+      alcance === "equipos"
+        ? Array.from(
+            new Set(
+              (fila.eventos_equipos ?? []).flatMap(
+                (relacion) =>
+                  relacion.equipo_id
+                    ? [relacion.equipo_id]
+                    : [],
               ),
-            )
-          : [];
+            ),
+          )
+        : [];
 
-      const descripcion =
-        fila.descripcion_corta
-          ?.trim() ||
-        fila.descripcion?.trim() ||
-        null;
+    const descripcion =
+      fila.descripcion_corta?.trim() ||
+      fila.descripcion?.trim() ||
+      null;
 
-      const ubicacion =
-        fila.ubicacion?.trim() ||
-        fila.direccion?.trim() ||
-        null;
+    const ubicacion =
+      fila.ubicacion?.trim() ||
+      fila.direccion?.trim() ||
+      null;
 
-      return [
-        {
-          id:
-            `evento-${fila.id}`,
-
-          titulo,
-
-          fecha:
-            fechaInicio,
-
-          fechaFin,
-
-          tipo:
-            "evento" as const,
-
-          horaInicio:
-            fila.todo_el_dia
-              ? null
-              : normalizarHora(
-                  fila.hora_inicio,
-                ),
-
-          horaFin:
-            fila.todo_el_dia
-              ? null
-              : normalizarHora(
-                  fila.hora_fin,
-                ),
-
-          ubicacion,
-
-          descripcion,
-
-          categoria:
-            null,
-
-          url:
-            fila.url_informacion
-              ?.trim() ||
-            null,
-
-          equipoId:
-            null,
-
-          equipoNombre:
-            null,
-
-          alcance,
-
-          equiposIds,
-        },
-      ];
-    },
-  );
+    return [
+      {
+        id: `evento-${fila.id}`,
+        titulo,
+        fecha: fechaInicio,
+        fechaFin,
+        tipo: "evento" as const,
+        horaInicio: fila.todo_el_dia
+          ? null
+          : normalizarHora(fila.hora_inicio),
+        horaFin: fila.todo_el_dia
+          ? null
+          : normalizarHora(fila.hora_fin),
+        ubicacion,
+        descripcion,
+        categoria: null,
+        url: fila.url_informacion?.trim() || null,
+        equipoId: null,
+        equipoNombre: null,
+        alcance,
+        equiposIds,
+      },
+    ];
+  });
 }
-
-// ======================================================
-// PRIORIDAD VISUAL DE EVENTOS
-// ======================================================
 
 function obtenerPrioridadTipo(
   tipo: TipoEventoCalendario,
 ): number {
-  if (
-    tipo === "evento"
-  ) {
+  if (tipo === "evento") {
     return 0;
   }
 
   if (
-    tipo ===
-      "partido-casa" ||
-    tipo ===
-      "partido-fuera"
+    tipo === "partido-casa" ||
+    tipo === "partido-fuera"
   ) {
     return 1;
   }
 
   if (
-    tipo ===
-      "entreno-modificado" ||
-    tipo ===
-      "entreno-cancelado"
+    tipo === "entreno-modificado" ||
+    tipo === "entreno-cancelado"
   ) {
     return 2;
   }
@@ -1245,83 +726,49 @@ function obtenerPrioridadTipo(
   return 3;
 }
 
-// ======================================================
-// ELIMINAR EVENTOS DUPLICADOS Y ORDENAR
-// ======================================================
-
 function eliminarEventosDuplicados(
-  eventos:
-    EventoCalendarioClub[],
+  eventos: EventoCalendarioClub[],
 ): EventoCalendarioClub[] {
   const eventosPorClave =
-    new Map<
-      string,
-      EventoCalendarioClub
-    >();
+    new Map<string, EventoCalendarioClub>();
 
-  eventos.forEach(
-    (evento) => {
-      const clave = [
-        evento.id,
-        evento.fecha,
-        evento.fechaFin ?? "",
-        evento.tipo,
-      ].join(":");
+  eventos.forEach((evento) => {
+    const clave = [
+      evento.id,
+      evento.fecha,
+      evento.fechaFin ?? "",
+      evento.tipo,
+    ].join(":");
 
-      if (
-        !eventosPorClave.has(
-          clave,
-        )
-      ) {
-        eventosPorClave.set(
-          clave,
-          evento,
-        );
-      }
-    },
-  );
+    if (!eventosPorClave.has(clave)) {
+      eventosPorClave.set(clave, evento);
+    }
+  });
 
-  return Array.from(
-    eventosPorClave.values(),
-  ).sort(
+  return Array.from(eventosPorClave.values()).sort(
     (primero, segundo) => {
       const comparacionFecha =
-        primero.fecha.localeCompare(
-          segundo.fecha,
-        );
+        primero.fecha.localeCompare(segundo.fecha);
 
-      if (
-        comparacionFecha !== 0
-      ) {
+      if (comparacionFecha !== 0) {
         return comparacionFecha;
       }
 
       const comparacionTipo =
-        obtenerPrioridadTipo(
-          primero.tipo,
-        ) -
-        obtenerPrioridadTipo(
-          segundo.tipo,
-        );
+        obtenerPrioridadTipo(primero.tipo) -
+        obtenerPrioridadTipo(segundo.tipo);
 
-      if (
-        comparacionTipo !== 0
-      ) {
+      if (comparacionTipo !== 0) {
         return comparacionTipo;
       }
 
-      const comparacionHora =
-        (
-          primero.horaInicio ??
-          "99:99"
-        ).localeCompare(
-          segundo.horaInicio ??
-            "99:99",
-        );
+      const comparacionHora = (
+        primero.horaInicio ?? "99:99"
+      ).localeCompare(
+        segundo.horaInicio ?? "99:99",
+      );
 
-      if (
-        comparacionHora !== 0
-      ) {
+      if (comparacionHora !== 0) {
         return comparacionHora;
       }
 
@@ -1333,429 +780,343 @@ function eliminarEventosDuplicados(
   );
 }
 
-// ======================================================
-// GET /api/calendario?anio=AAAA&mes=MM
-// ======================================================
+export const GET: APIRoute = async ({
+  url,
+  cookies,
+}) => {
+  const anio = Number(
+    url.searchParams.get("anio"),
+  );
 
-export const GET: APIRoute =
-  async ({ url }) => {
-    const anio =
-      Number(
-        url.searchParams.get(
-          "anio",
-        ),
-      );
+  const mes = Number(
+    url.searchParams.get("mes"),
+  );
 
-    const mes =
-      Number(
-        url.searchParams.get(
-          "mes",
-        ),
-      );
+  if (
+    !Number.isInteger(anio) ||
+    anio < 2020 ||
+    anio > 2100
+  ) {
+    return respuestaError(
+      "El año solicitado no es válido.",
+      400,
+    );
+  }
 
-    // --------------------------------------------------
-    // 1. VALIDAR PARÁMETROS
-    // --------------------------------------------------
+  if (
+    !Number.isInteger(mes) ||
+    mes < 1 ||
+    mes > 12
+  ) {
+    return respuestaError(
+      "El mes solicitado no es válido.",
+      400,
+    );
+  }
 
-    if (
-      !Number.isInteger(anio) ||
-      anio < 2020 ||
-      anio > 2100
-    ) {
-      return respuestaError(
-        "El año solicitado no es válido.",
-        400,
+  try {
+    // ================================================
+    // COMPROBACIÓN DEL ACCESO DE SOCIOS
+    // ================================================
+
+    const accesoSocio = await comprobarAccesoSocio(
+      cookies,
+    );
+
+    const puedeVerEntrenamientos =
+      accesoSocio.autorizado;
+
+    // Si no es socio, seguimos cargando los
+    // partidos y eventos públicos, pero no
+    // consultamos los entrenamientos.
+
+    // ================================================
+    // TEMPORADA ACTIVA
+    // ================================================
+
+    const rangoMes = obtenerRangoMes(
+      anio,
+      mes,
+    );
+
+    const {
+      data: temporadaEncontrada,
+      error: errorTemporada,
+    } = await supabaseServidor
+      .from("temporadas")
+      .select("id, nombre")
+      .eq("activa", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (errorTemporada) {
+      throw new Error(
+        `No se ha podido obtener la temporada activa: ${errorTemporada.message}`,
       );
     }
 
-    if (
-      !Number.isInteger(mes) ||
-      mes < 1 ||
-      mes > 12
-    ) {
-      return respuestaError(
-        "El mes solicitado no es válido.",
-        400,
+    if (!temporadaEncontrada?.id) {
+      return Response.json(
+        {
+          ok: true,
+          data: {
+            temporadaId: null,
+            temporadaNombre: null,
+            puedeVerEntrenamientos,
+            eventos: [],
+          },
+          error: null,
+        },
+        {
+          status: 200,
+          headers: cabecerasJson,
+        },
       );
     }
 
-    try {
-      const rangoMes =
-        obtenerRangoMes(
-          anio,
-          mes,
-        );
+    const temporada =
+      temporadaEncontrada as FilaTemporada;
 
-      // ------------------------------------------------
-      // 2. TEMPORADA ACTIVA
-      // ------------------------------------------------
+    // ================================================
+    // EQUIPOS Y EVENTOS
+    // ================================================
 
-      const {
-        data: temporadaEncontrada,
-        error: errorTemporada,
-      } = await supabaseServidor
-        .from("temporadas")
-        .select("id, nombre")
-        .eq(
-          "activa",
-          true,
-        )
-        .limit(1)
-        .maybeSingle();
+    const [
+      resultadoEquipos,
+      resultadoEventos,
+    ] = await Promise.all([
+      supabaseServidor
+        .from("equipos")
+        .select(`
+          id,
+          nombre,
+          nombre_corto,
+          slug,
+          temporada_id,
+          id_equipo_fbib,
+          categoria
+        `)
+        .eq("temporada_id", temporada.id)
+        .eq("activo", true)
+        .order("nombre", {
+          ascending: true,
+        }),
 
-      if (errorTemporada) {
-        throw new Error(
-          `No se ha podido obtener la temporada activa: ${errorTemporada.message}`,
-        );
-      }
+      supabaseServidor
+        .from("eventos")
+        .select(`
+          id,
+          temporada_id,
+          titulo,
+          descripcion_corta,
+          descripcion,
+          tipo,
+          alcance,
+          fecha_inicio,
+          fecha_fin,
+          hora_inicio,
+          hora_fin,
+          todo_el_dia,
+          instalacion_id,
+          ubicacion,
+          direccion,
+          imagen,
+          banner_notificacion,
+          url_informacion,
+          url_inscripcion,
+          requiere_inscripcion,
+          destacado,
+          mostrar_calendario,
+          estado,
+          eventos_equipos (
+            equipo_id
+          )
+        `)
+        .eq("estado", "publicado")
+        .eq("mostrar_calendario", true)
+        .lte("fecha_inicio", rangoMes.fin)
+        .gte("fecha_fin", rangoMes.inicio)
+        .or(
+          `temporada_id.eq.${temporada.id},temporada_id.is.null`,
+        ),
+    ]);
 
-      if (
-        !temporadaEncontrada?.id
-      ) {
-        return Response.json(
-          {
-            ok: true,
+    if (resultadoEquipos.error) {
+      throw new Error(
+        `No se han podido obtener los equipos: ${resultadoEquipos.error.message}`,
+      );
+    }
 
-            data: {
-              temporadaId: null,
-              temporadaNombre: null,
-              eventos: [],
-            },
+    if (resultadoEventos.error) {
+      throw new Error(
+        `No se han podido obtener los eventos: ${resultadoEventos.error.message}`,
+      );
+    }
 
-            error: null,
-          },
-          {
-            status: 200,
-            headers: cabecerasJson,
-          },
-        );
-      }
+    const equipos = (
+      resultadoEquipos.data ?? []
+    ) as FilaEquipo[];
 
-      const temporada =
-        temporadaEncontrada as FilaTemporada;
+    const eventosTabla =
+      convertirEventosTabla(
+        (resultadoEventos.data ?? []) as FilaEvento[],
+      );
 
-      // ------------------------------------------------
-      // 3. EQUIPOS Y EVENTOS
-      // ------------------------------------------------
+    const idsEquipos = equipos.map(
+      (equipo) => equipo.id,
+    );
 
+    // ================================================
+    // ENTRENAMIENTOS Y EXCEPCIONES
+    // SOLO SOCIOS AUTORIZADOS
+    // ================================================
+
+    let entrenamientos: FilaEntrenamiento[] = [];
+    let excepciones: FilaExcepcion[] = [];
+
+    if (
+      puedeVerEntrenamientos &&
+      idsEquipos.length > 0
+    ) {
       const [
-        resultadoEquipos,
-        resultadoEventos,
+        resultadoEntrenamientos,
+        resultadoExcepciones,
       ] = await Promise.all([
         supabaseServidor
-          .from("equipos")
+          .from("entrenamientos")
           .select(`
             id,
-            nombre,
-            nombre_corto,
-            slug,
+            equipo_id,
             temporada_id,
-            id_equipo_fbib,
-            categoria
-          `)
-          .eq(
-            "temporada_id",
-            temporada.id,
-          )
-          .eq(
-            "activo",
-            true,
-          )
-          .order(
-            "nombre",
-            {
-              ascending: true,
-            },
-          ),
-
-        supabaseServidor
-          .from("eventos")
-          .select(`
-            id,
-            temporada_id,
-            titulo,
-            descripcion_corta,
-            descripcion,
-            tipo,
-            alcance,
-            fecha_inicio,
-            fecha_fin,
+            instalacion_id,
+            dia_semana,
             hora_inicio,
             hora_fin,
-            todo_el_dia,
-            instalacion_id,
-            ubicacion,
-            direccion,
-            imagen,
-            banner_notificacion,
-            url_informacion,
-            url_inscripcion,
-            requiere_inscripcion,
-            destacado,
-            mostrar_calendario,
-            estado,
-            eventos_equipos (
-              equipo_id
-            )
+            fecha_inicio,
+            fecha_fin,
+            observaciones,
+            activo
           `)
-          .eq(
-            "estado",
-            "publicado",
-          )
-          .eq(
-            "mostrar_calendario",
-            true,
-          )
-          .lte(
-            "fecha_inicio",
-            rangoMes.fin,
-          )
-          .gte(
-            "fecha_fin",
-            rangoMes.inicio,
-          )
-          .or(
-            `temporada_id.eq.${temporada.id},temporada_id.is.null`,
-          ),
-      ]);
+          .eq("temporada_id", temporada.id)
+          .eq("activo", true)
+          .in("equipo_id", idsEquipos),
 
-      if (
-        resultadoEquipos.error
-      ) {
-        throw new Error(
-          `No se han podido obtener los equipos: ${resultadoEquipos.error.message}`,
-        );
-      }
-
-      if (
-        resultadoEventos.error
-      ) {
-        throw new Error(
-          `No se han podido obtener los eventos: ${resultadoEventos.error.message}`,
-        );
-      }
-
-      const equipos =
-        (
-          resultadoEquipos.data ??
-          []
-        ) as FilaEquipo[];
-
-      const eventosTabla =
-        convertirEventosTabla(
-          (
-            resultadoEventos.data ??
-            []
-          ) as FilaEvento[],
-        );
-
-      const idsEquipos =
-        equipos.map(
-          (equipo) =>
-            equipo.id,
-        );
-
-      // ------------------------------------------------
-      // 4. ENTRENAMIENTOS Y EXCEPCIONES
-      // ------------------------------------------------
-
-      let entrenamientos:
-        FilaEntrenamiento[] =
-        [];
-
-      let excepciones:
-        FilaExcepcion[] =
-        [];
-
-      if (
-        idsEquipos.length > 0
-      ) {
-        const [
-          resultadoEntrenamientos,
-          resultadoExcepciones,
-        ] = await Promise.all([
-          supabaseServidor
-            .from(
-              "entrenamientos",
-            )
-            .select(`
-              id,
-              equipo_id,
-              temporada_id,
-              instalacion_id,
-              dia_semana,
-              hora_inicio,
-              hora_fin,
-              fecha_inicio,
-              fecha_fin,
-              observaciones,
-              activo
-            `)
-            .eq(
-              "temporada_id",
-              temporada.id,
-            )
-            .eq(
-              "activo",
-              true,
-            )
-            .in(
-              "equipo_id",
-              idsEquipos,
-            ),
-
-          supabaseServidor
-            .from(
-              "excepciones_entrenamientos",
-            )
-            .select(`
-              id,
-              equipo_id,
-              entrenamiento_id,
-              instalacion_id,
-              tipo,
-              fecha,
-              hora_inicio,
-              hora_fin,
-              motivo
-            `)
-            .in(
-              "equipo_id",
-              idsEquipos,
-            )
-            .gte(
-              "fecha",
-              rangoMes.inicio,
-            )
-            .lte(
-              "fecha",
-              rangoMes.fin,
-            ),
-        ]);
-
-        if (
-          resultadoEntrenamientos.error
-        ) {
-          throw new Error(
-            `No se han podido obtener los entrenamientos: ${resultadoEntrenamientos.error.message}`,
-          );
-        }
-
-        if (
-          resultadoExcepciones.error
-        ) {
-          throw new Error(
-            `No se han podido obtener las excepciones: ${resultadoExcepciones.error.message}`,
-          );
-        }
-
-        entrenamientos =
-          (
-            resultadoEntrenamientos.data ??
-            []
-          ) as FilaEntrenamiento[];
-
-        excepciones =
-          (
-            resultadoExcepciones.data ??
-            []
-          ) as FilaExcepcion[];
-      }
-
-      // ------------------------------------------------
-      // 5. INSTALACIONES DE ENTRENAMIENTOS
-      // ------------------------------------------------
-
-      const idsInstalaciones =
-        Array.from(
-          new Set(
-            [
-              ...entrenamientos.map(
-                (entrenamiento) =>
-                  entrenamiento.instalacion_id,
-              ),
-
-              ...excepciones.map(
-                (excepcion) =>
-                  excepcion.instalacion_id,
-              ),
-            ].filter(
-              (
-                id,
-              ): id is string =>
-                typeof id ===
-                  "string" &&
-                id.length > 0,
-            ),
-          ),
-        );
-
-      let instalaciones:
-        FilaInstalacion[] =
-        [];
-
-      if (
-        idsInstalaciones.length > 0
-      ) {
-        const {
-          data,
-          error,
-        } = await supabaseServidor
-          .from(
-            "instalaciones",
-          )
+        supabaseServidor
+          .from("excepciones_entrenamientos")
           .select(`
             id,
-            nombre,
-            nombre_corto,
-            direccion,
-            localidad
+            equipo_id,
+            entrenamiento_id,
+            instalacion_id,
+            tipo,
+            fecha,
+            hora_inicio,
+            hora_fin,
+            motivo
           `)
-          .in(
-            "id",
-            idsInstalaciones,
-          );
+          .in("equipo_id", idsEquipos)
+          .gte("fecha", rangoMes.inicio)
+          .lte("fecha", rangoMes.fin),
+      ]);
 
-        if (error) {
-          throw new Error(
-            `No se han podido obtener las instalaciones: ${error.message}`,
-          );
-        }
-
-        instalaciones =
-          (
-            data ?? []
-          ) as FilaInstalacion[];
+      if (resultadoEntrenamientos.error) {
+        throw new Error(
+          `No se han podido obtener los entrenamientos: ${resultadoEntrenamientos.error.message}`,
+        );
       }
 
-      // ------------------------------------------------
-      // 6. MAPAS DE REFERENCIA
-      // ------------------------------------------------
-
-      const equiposPorId =
-        new Map(
-          equipos.map(
-            (equipo) => [
-              equipo.id,
-              equipo,
-            ],
-          ),
+      if (resultadoExcepciones.error) {
+        throw new Error(
+          `No se han podido obtener las excepciones: ${resultadoExcepciones.error.message}`,
         );
+      }
 
-      const instalacionesPorId =
-        new Map(
-          instalaciones.map(
-            (instalacion) => [
-              instalacion.id,
-              instalacion,
-            ],
+      entrenamientos = (
+        resultadoEntrenamientos.data ?? []
+      ) as FilaEntrenamiento[];
+
+      excepciones = (
+        resultadoExcepciones.data ?? []
+      ) as FilaExcepcion[];
+    }
+
+    // ================================================
+    // INSTALACIONES DE ENTRENAMIENTOS
+    // ================================================
+
+    const idsInstalaciones = Array.from(
+      new Set(
+        [
+          ...entrenamientos.map(
+            (entrenamiento) =>
+              entrenamiento.instalacion_id,
           ),
+          ...excepciones.map(
+            (excepcion) =>
+              excepcion.instalacion_id,
+          ),
+        ].filter(
+          (id): id is string =>
+            typeof id === "string" &&
+            id.length > 0,
+        ),
+      ),
+    );
+
+    let instalaciones: FilaInstalacion[] = [];
+
+    if (idsInstalaciones.length > 0) {
+      const {
+        data,
+        error,
+      } = await supabaseServidor
+        .from("instalaciones")
+        .select(`
+          id,
+          nombre,
+          nombre_corto,
+          direccion,
+          localidad
+        `)
+        .in("id", idsInstalaciones);
+
+      if (error) {
+        throw new Error(
+          `No se han podido obtener las instalaciones: ${error.message}`,
         );
+      }
 
-      // ------------------------------------------------
-      // 7. GENERAR ENTRENAMIENTOS
-      // ------------------------------------------------
+      instalaciones = (
+        data ?? []
+      ) as FilaInstalacion[];
+    }
 
+    const equiposPorId = new Map(
+      equipos.map(
+        (equipo) => [
+          equipo.id,
+          equipo,
+        ],
+      ),
+    );
+
+    const instalacionesPorId = new Map(
+      instalaciones.map(
+        (instalacion) => [
+          instalacion.id,
+          instalacion,
+        ],
+      ),
+    );
+
+    // ================================================
+    // GENERAR EVENTOS DE ENTRENAMIENTO
+    // ================================================
+
+    let eventosEntrenamientos:
+      EventoCalendarioClub[] = [];
+
+    if (puedeVerEntrenamientos) {
       const ocurrencias =
         generarOcurrenciasHabituales(
           entrenamientos,
@@ -1770,137 +1131,115 @@ export const GET: APIRoute =
           excepciones,
         );
 
-      const eventosEntrenamientos =
+      eventosEntrenamientos =
         convertirEntrenamientosAEventos(
           ocurrenciasFinales,
           equiposPorId,
           instalacionesPorId,
         );
+    }
 
-      // ------------------------------------------------
-      // 8. OBTENER PARTIDOS COMBINADOS
-      // ------------------------------------------------
+    // ================================================
+    // PARTIDOS FBIB + CBA
+    // SIEMPRE PÚBLICOS
+    // ================================================
 
-      /*
-       * ÚNICA CONSULTA GLOBAL.
-       *
-       * No se ejecuta una consulta
-       * individual por cada equipo.
-       *
-       * El servicio central combina
-       * partidos FBIB y partidos CBA.
-       *
-       * Si falla la consulta de
-       * partidos, el calendario
-       * conserva los demás eventos.
-       */
+    let eventosPartidos:
+      EventoCalendarioClub[] = [];
 
-      let eventosPartidos:
-        EventoCalendarioClub[] =
-        [];
+    try {
+      const resultadoPartidos =
+        await obtenerPartidosCombinados({
+          inicio: rangoMes.inicio,
+          fin: rangoMes.fin,
+        });
 
-      try {
-        const resultadoPartidos =
-          await obtenerPartidosCombinados({
-            inicio:
-              rangoMes.inicio,
-
-            fin:
-              rangoMes.fin,
-          });
-
-        if (
-          resultadoPartidos.temporadaId !==
-          temporada.id
-        ) {
-          throw new Error(
-            "La temporada de los partidos no coincide con la del calendario.",
-          );
-        }
-
-        eventosPartidos =
-          convertirPartidosAEventos(
-            resultadoPartidos.partidos,
-            equiposPorId,
-          );
-      } catch (error) {
-        console.error(
-          "Error cargando los partidos combinados del calendario:",
-          error,
+      if (
+        resultadoPartidos.temporadaId !==
+        temporada.id
+      ) {
+        throw new Error(
+          "La temporada de los partidos no coincide con la del calendario.",
         );
       }
 
-      // ------------------------------------------------
-      // 9. UNIFICAR TODOS LOS EVENTOS
-      // ------------------------------------------------
-
-      const eventos =
-        eliminarEventosDuplicados(
-          [
-            ...eventosTabla,
-            ...eventosPartidos,
-            ...eventosEntrenamientos,
-          ],
+      eventosPartidos =
+        convertirPartidosAEventos(
+          resultadoPartidos.partidos,
+          equiposPorId,
         );
-
-      // ------------------------------------------------
-      // 10. DEVOLVER RESPUESTA
-      // ------------------------------------------------
-
-      return Response.json(
-        {
-          ok: true,
-
-          data: {
-            temporadaId:
-              temporada.id,
-
-            temporadaNombre:
-              temporada.nombre,
-
-            eventos,
-          },
-
-          error: null,
-        },
-        {
-          status: 200,
-          headers: cabecerasJson,
-        },
-      );
     } catch (error) {
       console.error(
-        "Error en GET /api/calendario:",
+        "Error cargando los partidos combinados del calendario:",
         error,
       );
-
-      return respuestaError(
-        "No se ha podido obtener el calendario del club.",
-        500,
-      );
     }
-  };
 
-// ======================================================
-// MÉTODOS NO PERMITIDOS
-// ======================================================
+    // ================================================
+    // UNIFICAR Y ORDENAR EVENTOS
+    // ================================================
 
-export const ALL: APIRoute =
-  async () => {
+    const eventos =
+      eliminarEventosDuplicados([
+        ...eventosTabla,
+        ...eventosPartidos,
+        ...eventosEntrenamientos,
+      ]);
+
+    // ================================================
+    // RESPUESTA
+    // ================================================
+
     return Response.json(
       {
-        ok: false,
-        data: null,
-        error:
-          "Método no permitido.",
+        ok: true,
+
+        data: {
+          temporadaId: temporada.id,
+          temporadaNombre: temporada.nombre,
+
+          // La interfaz utilizará este dato
+          // para informar de que los entrenos
+          // son exclusivos para socios.
+
+          puedeVerEntrenamientos,
+
+          eventos,
+        },
+
+        error: null,
       },
       {
-        status: 405,
-
-        headers: {
-          ...cabecerasJson,
-          Allow: "GET",
-        },
+        status: 200,
+        headers: cabecerasJson,
       },
     );
-  };
+  } catch (error) {
+    console.error(
+      "Error en GET /api/calendario:",
+      error,
+    );
+
+    return respuestaError(
+      "No se ha podido obtener el calendario del club.",
+      500,
+    );
+  }
+};
+
+export const ALL: APIRoute = async () => {
+  return Response.json(
+    {
+      ok: false,
+      data: null,
+      error: "Método no permitido.",
+    },
+    {
+      status: 405,
+      headers: {
+        ...cabecerasJson,
+        Allow: "GET",
+      },
+    },
+  );
+};
