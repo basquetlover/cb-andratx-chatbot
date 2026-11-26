@@ -1,0 +1,587 @@
+
+---
+import LayoutPanel from "@layouts/LayoutPanel.astro";
+
+import LiquidacionesDesignacionesPanel from "@components/panel/designaciones/liquidaciones/LiquidacionesDesignacionesPanel";
+
+import {
+  obtenerLiquidacionesDesignaciones,
+  obtenerPeriodoLiquidacionActual,
+  validarPeriodoLiquidacion,
+  ErrorLiquidacionesDesignaciones,
+} from "@servicios/backend/designaciones/obtenerLiquidacionesDesignaciones";
+
+import type {
+  PeriodoLiquidacion,
+  ResultadoDatosLiquidaciones,
+} from "@servicios/backend/designaciones/obtenerLiquidacionesDesignaciones";
+
+import {
+  obtenerUsuarioSesion,
+} from "@servicios/backend/sesiones/obtenerUsuarioSesion";
+
+import {
+  comprobarPermisoUsuario,
+} from "@servicios/seguridad/comprobarPermisoUsuario";
+
+import {
+  NOMBRE_COOKIE_SESION,
+} from "@servicios/seguridad/cookieSesion";
+
+// ======================================================
+// CONFIGURACIÓN
+// ======================================================
+
+export const prerender = false;
+
+const RUTA_BASE =
+  "/panel/designaciones";
+
+const RUTA_ACTUAL =
+  `${RUTA_BASE}/liquidaciones`;
+
+const rutaRedireccion =
+  RUTA_ACTUAL + Astro.url.search;
+
+// ======================================================
+// CABECERAS DE SEGURIDAD
+// ======================================================
+
+// Los datos económicos no deben almacenarse
+// en la caché del navegador ni en una CDN.
+
+Astro.response.headers.set(
+  "Cache-Control",
+  "private, no-store, max-age=0",
+);
+
+Astro.response.headers.set(
+  "X-Robots-Tag",
+  "noindex, nofollow, noarchive",
+);
+
+// ======================================================
+// VALIDACIÓN DE SESIÓN
+// ======================================================
+
+const tokenSesion =
+  Astro.cookies.get(
+    NOMBRE_COOKIE_SESION,
+  )?.value;
+
+if (!tokenSesion) {
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaRedireccion,
+    )}`,
+  );
+}
+
+let sesion: Awaited<
+  ReturnType<typeof obtenerUsuarioSesion>
+>;
+
+try {
+  sesion =
+    await obtenerUsuarioSesion(
+      tokenSesion,
+    );
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES LIQUIDACIONES] Error comprobando la sesión:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=sesion",
+  );
+}
+
+if (!sesion) {
+  Astro.cookies.delete(
+    NOMBRE_COOKIE_SESION,
+    {
+      path: "/",
+    },
+  );
+
+  return Astro.redirect(
+    `/iniciar-sesion?redirect=${encodeURIComponent(
+      rutaRedireccion,
+    )}`,
+  );
+}
+
+// ======================================================
+// COMPROBACIÓN DE PERMISOS
+// ======================================================
+
+let puedeVer = false;
+
+try {
+  puedeVer =
+    await comprobarPermisoUsuario(
+      sesion.acceso,
+      "designaciones.ver",
+    );
+} catch (error) {
+  console.error(
+    "[DESIGNACIONES LIQUIDACIONES] Error comprobando permisos:",
+    error,
+  );
+
+  return Astro.redirect(
+    "/panel/acceso-denegado?motivo=permisos",
+  );
+}
+
+if (!puedeVer) {
+  return Astro.redirect(
+    "/panel/acceso-denegado",
+  );
+}
+
+// ======================================================
+// PARÁMETROS DEL PERIODO
+// ======================================================
+
+// Ejemplo:
+//
+// /panel/designaciones/liquidaciones
+// ?desde=2026-11-01&hasta=2026-11-30
+
+const fechaDesde =
+  Astro.url.searchParams.get(
+    "desde",
+  );
+
+const fechaHasta =
+  Astro.url.searchParams.get(
+    "hasta",
+  );
+
+// Si no se han indicado fechas,
+// utilizar el mes actual hasta hoy.
+
+const periodoPredeterminado =
+  obtenerPeriodoLiquidacionActual();
+
+let periodoSolicitado:
+  PeriodoLiquidacion = {
+    ...periodoPredeterminado,
+  };
+
+let errorCarga: string | null = null;
+
+let estadoError = 200;
+
+// ======================================================
+// VALIDAR PERIODO SOLICITADO
+// ======================================================
+
+const tieneFechaDesde =
+  fechaDesde !== null;
+
+const tieneFechaHasta =
+  fechaHasta !== null;
+
+if (
+  tieneFechaDesde ||
+  tieneFechaHasta
+) {
+  if (
+    !tieneFechaDesde ||
+    !tieneFechaHasta ||
+    !fechaDesde?.trim() ||
+    !fechaHasta?.trim()
+  ) {
+    errorCarga =
+      "Debes indicar una fecha inicial y una fecha final.";
+
+    estadoError = 400;
+  } else {
+    try {
+      periodoSolicitado =
+        validarPeriodoLiquidacion({
+          fechaInicio:
+            fechaDesde.trim(),
+
+          fechaFin:
+            fechaHasta.trim(),
+        });
+    } catch (error) {
+      errorCarga =
+        error instanceof
+        ErrorLiquidacionesDesignaciones
+
+          ? error.message
+
+          : "El periodo seleccionado no es válido.";
+
+      estadoError = 400;
+    }
+  }
+}
+
+// ======================================================
+// OBTENER DATOS DE LIQUIDACIONES
+// ======================================================
+
+let resultadoInicial:
+  ResultadoDatosLiquidaciones | null = null;
+
+if (!errorCarga) {
+  try {
+    resultadoInicial =
+      await obtenerLiquidacionesDesignaciones(
+        periodoSolicitado,
+      );
+  } catch (error) {
+    console.error(
+      "[DESIGNACIONES LIQUIDACIONES] Error obteniendo los datos:",
+      {
+        periodo:
+          periodoSolicitado,
+
+        error,
+      },
+    );
+
+    if (
+      error instanceof
+      ErrorLiquidacionesDesignaciones
+    ) {
+      estadoError =
+        error.status;
+
+      errorCarga =
+        error.status >= 500
+
+          ? "No se han podido consultar las actuaciones del periodo."
+
+          : error.message;
+    } else {
+      estadoError = 500;
+
+      errorCarga =
+        "Ha ocurrido un error al cargar los datos de las liquidaciones.";
+    }
+  }
+}
+
+// ======================================================
+// RESPUESTA HTTP
+// ======================================================
+
+if (errorCarga) {
+  Astro.response.status =
+    estadoError;
+}
+
+// ======================================================
+// NAVEGACIÓN
+// ======================================================
+
+const navegacion = [
+  {
+    titulo: "Partidos",
+
+    href: RUTA_BASE,
+
+    activa: false,
+  },
+
+  {
+    titulo: "Personal",
+
+    href: `${RUTA_BASE}/personal`,
+
+    activa: false,
+  },
+
+  {
+    titulo: "Estadísticas",
+
+    href: `${RUTA_BASE}/estadisticas`,
+
+    activa: false,
+  },
+
+  {
+    titulo: "Liquidaciones",
+
+    href: RUTA_ACTUAL,
+
+    activa: true,
+  },
+];
+
+// ======================================================
+// DATOS DE LA PÁGINA
+// ======================================================
+
+const tituloPagina =
+  "Liquidaciones de arbitraje";
+
+const descripcionPagina =
+  "Consulta y genera las liquidaciones de árbitros y oficiales de mesa del C.B. Andratx.";
+---
+
+<LayoutPanel
+  title={tituloPagina}
+  description={descripcionPagina}
+  volverA={RUTA_BASE}
+  textoVolver="Volver a designaciones"
+  anchoCompleto
+>
+  {
+    resultadoInicial && !errorCarga ? (
+      <LiquidacionesDesignacionesPanel
+        client:load
+        resultadoInicial={resultadoInicial}
+      />
+    ) : (
+      <div class="space-y-6">
+
+        <!-- ENCABEZADO -->
+
+        <section class="rounded-2xl border border-outline-variant/60 bg-surface-container-lowest p-5 shadow-sm sm:p-6">
+
+          <div class="flex min-w-0 items-start gap-3">
+
+            <span class="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-primary-fixed text-on-primary-fixed">
+
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
+
+                <path d="M14 2v6h6" />
+
+                <path d="M15 12a3 3 0 0 0-5 2v2a3 3 0 0 0 5 2M8 14h5M8 16h5" />
+              </svg>
+
+            </span>
+
+            <div class="min-w-0">
+
+              <h2 class="text-xl font-extrabold text-on-surface sm:text-2xl">
+                Liquidaciones de arbitraje
+              </h2>
+
+              <p class="mt-1 text-sm leading-relaxed text-on-surface-variant">
+                Gestión económica de árbitros y
+                oficiales de mesa del C.B. Andratx.
+              </p>
+
+            </div>
+
+          </div>
+
+          <!-- NAVEGACIÓN -->
+
+          <nav
+            aria-label="Apartados de designaciones"
+            class="mt-6 flex flex-wrap gap-2 border-t border-outline-variant/60 pt-4"
+          >
+            {
+              navegacion.map(
+                (opcion) => (
+                  <a
+                    href={opcion.href}
+                    aria-current={
+                      opcion.activa
+
+                        ? "page"
+
+                        : undefined
+                    }
+                    class:list={[
+                      "inline-flex min-h-10 items-center justify-center rounded-xl px-4 py-2 text-sm font-bold transition-colors",
+
+                      opcion.activa
+
+                        ? "bg-primary text-on-primary"
+
+                        : "bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-primary",
+                    ]}
+                  >
+                    {opcion.titulo}
+                  </a>
+                ),
+              )
+            }
+          </nav>
+
+        </section>
+
+        <!-- ESTADO DE ERROR -->
+
+        <section class="mx-auto flex min-h-[calc(100dvh-25rem)] max-w-2xl items-center justify-center py-8">
+
+          <div
+            role="alert"
+            class="w-full rounded-2xl border border-error/40 bg-error-container p-6 text-center text-on-error-container shadow-sm sm:p-8"
+          >
+
+            <!-- ICONO DE ERROR -->
+
+            <span class="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-error/10">
+
+              <svg
+                width="34"
+                height="34"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle
+                  cx="12"
+                  cy="12"
+                  r="9"
+                />
+
+                <path d="M12 8v5M12 16h.01" />
+              </svg>
+
+            </span>
+
+            <!-- MENSAJE -->
+
+            <p class="mt-4 text-xs font-bold uppercase tracking-widest">
+              Error {estadoError}
+            </p>
+
+            <h2 class="mt-2 text-xl font-extrabold">
+              {
+                estadoError === 400
+
+                  ? "El periodo seleccionado no es válido"
+
+                  : "No se han podido cargar las liquidaciones"
+              }
+            </h2>
+
+            <p class="mt-3 text-sm leading-relaxed">
+              {
+                errorCarga ??
+                "Ha ocurrido un error al consultar las actuaciones."
+              }
+            </p>
+
+            <!-- RECUPERAR PERIODO -->
+
+            {
+              estadoError === 400 && (
+                <form
+                  method="get"
+                  action={RUTA_ACTUAL}
+                  class="mt-6 space-y-4 rounded-xl border border-error/20 bg-surface-container-lowest p-4 text-left text-on-surface"
+                >
+
+                  <p class="text-sm font-bold">
+                    Seleccionar otro periodo
+                  </p>
+
+                  <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                    <label class="block min-w-0">
+
+                      <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+                        Fecha inicial
+                      </span>
+
+                      <input
+                        type="date"
+                        name="desde"
+                        required
+                        value={
+                          periodoPredeterminado.fechaInicio
+                        }
+                        class="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-semibold text-on-surface outline-none focus:border-primary"
+                      />
+
+                    </label>
+
+                    <label class="block min-w-0">
+
+                      <span class="mb-2 block text-xs font-bold uppercase tracking-wide text-on-surface-variant">
+                        Fecha final
+                      </span>
+
+                      <input
+                        type="date"
+                        name="hasta"
+                        required
+                        value={
+                          periodoPredeterminado.fechaFin
+                        }
+                        class="min-h-11 w-full rounded-xl border border-outline-variant bg-surface-container-lowest px-3 py-2 text-sm font-semibold text-on-surface outline-none focus:border-primary"
+                      />
+
+                    </label>
+
+                  </div>
+
+                  <button
+                    type="submit"
+                    class="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-on-primary transition-opacity hover:opacity-90"
+                  >
+                    Consultar periodo
+                  </button>
+
+                </form>
+              )
+            }
+
+            <!-- ACCIONES -->
+
+            <div class="mt-6 flex flex-wrap items-center justify-center gap-3">
+
+              {
+                estadoError !== 400 && (
+                  <a
+                    href={rutaRedireccion}
+                    class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+                  >
+                    Volver a intentarlo
+                  </a>
+                )
+              }
+
+              <a
+                href={RUTA_ACTUAL}
+                class="inline-flex min-h-11 items-center justify-center rounded-xl border border-error px-5 py-2 text-sm font-bold transition-colors hover:bg-error hover:text-on-error"
+              >
+                Consultar mes actual
+              </a>
+
+              <a
+                href={RUTA_BASE}
+                class="inline-flex min-h-11 items-center justify-center rounded-xl bg-error px-5 py-2 text-sm font-bold text-on-error transition-opacity hover:opacity-90"
+              >
+                Volver a designaciones
+              </a>
+
+            </div>
+
+          </div>
+
+        </section>
+
+      </div>
+    )
+  }
+</LayoutPanel>

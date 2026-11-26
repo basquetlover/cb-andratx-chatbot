@@ -829,6 +829,11 @@ export default function ListadoDesignaciones({
       href: `${RUTA_BASE}/estadisticas`,
       activa: false,
     },
+    {
+      titulo: "Liquidaciones",
+      href: `${RUTA_BASE}/liquidaciones`,
+      activa: false,
+    },
   ];
 
   // ====================================================
